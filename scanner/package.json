@@ -1,0 +1,16 @@
+{
+  "name": "speedpilot-scanner",
+  "version": "1.0.0",
+  "description": "Playwright + Lighthouse scanning microservice for SpeedPilot",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "playwright": "^1.47.0",
+    "lighthouse": "^12.2.1"
+  }
+}

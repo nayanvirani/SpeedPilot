@@ -1,0 +1,22 @@
+{{ 'rum.js' | asset_url | script_tag }}
+<script>
+  window.SpeedPilotConfig = {
+    shopDomain: {{ shop.permanent_domain | json }},
+    backendUrl: {{ block.settings.backend_url | json }}
+  };
+</script>
+
+{% schema %}
+{
+  "name": "SpeedPilot RUM",
+  "target": "body",
+  "settings": [
+    {
+      "type": "text",
+      "id": "backend_url",
+      "label": "SpeedPilot backend URL",
+      "default": "http://127.0.0.1:8000"
+    }
+  ]
+}
+{% endschema %}

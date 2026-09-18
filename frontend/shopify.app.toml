@@ -1,0 +1,40 @@
+# Shopify app configuration. client_id is filled in once Partner credentials
+# are supplied; application_url/redirect_urls point at the Laravel backend,
+# which owns OAuth (see backend/app/Http/Controllers/ShopifyOAuthController.php),
+# not this Remix app.
+name = "SpeedPilot"
+client_id = ""
+application_url = "http://127.0.0.1:8000"
+embedded = true
+
+[access_scopes]
+scopes = "read_themes,write_themes,read_products,read_script_tags,write_script_tags"
+
+[auth]
+redirect_urls = ["http://127.0.0.1:8000/auth/callback"]
+
+[webhooks]
+api_version = "2025-01"
+
+  [[webhooks.subscriptions]]
+  topics = ["app/uninstalled"]
+  uri = "/webhooks/app/uninstalled"
+
+  [[webhooks.subscriptions]]
+  topics = ["themes/publish"]
+  uri = "/webhooks/themes/publish"
+
+  [[webhooks.subscriptions]]
+  compliance_topics = ["customers/data_request"]
+  uri = "/webhooks/customers/data_request"
+
+  [[webhooks.subscriptions]]
+  compliance_topics = ["customers/redact"]
+  uri = "/webhooks/customers/redact"
+
+  [[webhooks.subscriptions]]
+  compliance_topics = ["shop/redact"]
+  uri = "/webhooks/shop/redact"
+
+[build]
+automatically_update_urls_on_dev = true

@@ -1,0 +1,10 @@
+# Theme App Extension - required instead of Script Tags for anything
+# touching the storefront theme, per App Store review rules. This is a
+# single "app embed" block the merchant toggles on in Theme Editor > App
+# embeds; it renders the web-vitals snippet from assets/rum.js on every
+# storefront page. Exact schema keys should be re-checked against Shopify's
+# current theme-extension docs before first `shopify app deploy` - this
+# file was hand-written (no CLI available in this environment) rather than
+# CLI-generated.
+name = "SpeedPilot RUM"
+type = "theme"
