@@ -102,6 +102,9 @@
                             @else
                                 <li class="flex gap-2"><span class="text-emerald-600">&check;</span> Speed audit &amp; app impact report</li>
                             @endif
+                            @if ($plan->script_rule_limit !== 0)
+                                <li class="flex gap-2"><span class="text-emerald-600">&check;</span> {{ $plan->script_rule_limit ? "Up to {$plan->script_rule_limit} script rules" : 'Unlimited script rules' }}</li>
+                            @endif
                             @if ($plan->medium_risk_fixes)
                                 <li class="flex gap-2"><span class="text-emerald-600">&check;</span> Medium-risk fixes via preview theme</li>
                             @endif
