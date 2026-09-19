@@ -6,14 +6,13 @@ use App\Http\Controllers\Admin\PlanController as AdminPlanController;
 use App\Http\Controllers\Admin\ProfileController as AdminProfileController;
 use App\Http\Controllers\Admin\SettingsController as AdminSettingsController;
 use App\Http\Controllers\Admin\StoreController as AdminStoreController;
+use App\Http\Controllers\EmbeddedAppController;
 use App\Http\Controllers\ShopifyOAuthController;
 use App\Http\Controllers\Webhooks\AppSubscriptionsUpdateController;
 use App\Http\Controllers\Webhooks\AppUninstalledController;
 use App\Http\Controllers\Webhooks\GdprController;
 use App\Http\Controllers\Webhooks\ThemesPublishController;
 use Illuminate\Support\Facades\Route;
-
-Route::view('/', 'welcome');
 
 // OAuth install/callback - no session token yet, this *establishes* it.
 Route::get('/auth/install', [ShopifyOAuthController::class, 'install']);
@@ -51,3 +50,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/profile/password', [AdminProfileController::class, 'updatePassword'])->name('profile.password');
     });
 });
+
+// Embedded Shopify Admin app shell (or the public landing page when visited
+// directly - see EmbeddedAppController). Anything not matched above renders
+// this, so the client-side router can take over on a hard refresh. Must stay
+// last - a catch-all route would otherwise shadow everything above it.
+Route::get('/{any?}', EmbeddedAppController::class)
+    ->where('any', '^(?!api|auth|admin|webhooks).*$')
+    ->name('embedded.app');

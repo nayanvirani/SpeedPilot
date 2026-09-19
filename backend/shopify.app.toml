@@ -2,7 +2,7 @@
 
 client_id = "18daa143e8994476086f856dd653dd3f"
 name = "SpeedPilot"
-application_url = "https://speedpilotfrontend-production.up.railway.app"
+application_url = "https://speedpilot-production.up.railway.app"
 embedded = true
 
 [build]
@@ -11,9 +11,6 @@ automatically_update_urls_on_dev = true
 [webhooks]
 api_version = "2026-07"
 
-  # Absolute URLs, not relative paths - these handlers live on the Laravel
-  # backend (see backend/routes/web.php), not on application_url (the
-  # frontend), which is what a relative uri would resolve against.
   [[webhooks.subscriptions]]
   uri = "https://speedpilot-production.up.railway.app/webhooks/customers/data_request"
   compliance_topics = [ "customers/data_request" ]
