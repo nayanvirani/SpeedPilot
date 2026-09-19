@@ -81,10 +81,9 @@ class BillingService
      */
     private function applyPlan(ShopInstallation $shop, string $chargeId, string $planName, string $status): void
     {
-        $isActive = $status === 'active';
         $plan = $planName ? Plan::findByShopifyName($planName) : null;
 
-        DB::transaction(function () use ($shop, $chargeId, $planName, $status, $plan) {
+        $current = DB::transaction(function () use ($shop, $chargeId, $planName, $status, $plan) {
             Subscription::updateOrCreate(
                 ['shop_installation_id' => $shop->id, 'shopify_charge_id' => $chargeId],
                 [
@@ -105,11 +104,24 @@ class BillingService
                     ->where('status', 'active')
                     ->update(['status' => 'cancelled']);
             }
+
+            // A plan switch sends two events close together - a "cancelled"
+            // for the old charge and an "active" for the new one - and they
+            // can be delivered or processed in either order. Deriving
+            // shop.plan from THIS event's own status alone would let
+            // whichever one lands last win, even when it's the stale
+            // cancellation. Re-querying for whatever is active *right now*
+            // after writing this event is order-independent - it reflects
+            // reality regardless of which of the two events this call is.
+            return Subscription::where('shop_installation_id', $shop->id)
+                ->where('status', 'active')
+                ->latest()
+                ->first();
         });
 
         $shop->update([
-            'plan' => $isActive ? $plan?->key : null,
-            'shopify_subscription_id' => $isActive ? $chargeId : null,
+            'plan' => $current?->plan?->key,
+            'shopify_subscription_id' => $current?->shopify_charge_id,
         ]);
     }
 }
