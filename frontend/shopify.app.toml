@@ -1,10 +1,11 @@
-# Shopify app configuration. client_id is filled in once Partner credentials
-# are supplied; application_url/redirect_urls point at the Laravel backend,
-# which owns OAuth (see backend/app/Http/Controllers/ShopifyOAuthController.php),
-# not this Remix app.
+# Shopify app configuration. application_url is what Shopify actually loads
+# as the embedded admin iframe src - that's this Remix frontend, NOT the
+# Laravel backend (which only owns OAuth/webhooks/API, see
+# backend/app/Http/Controllers/ShopifyOAuthController.php). redirect_urls
+# stays pointed at the backend since that's where /auth/callback lives.
 name = "SpeedPilot"
 client_id = "18daa143e8994476086f856dd653dd3f"
-application_url = "https://speedpilot-production.up.railway.app"
+application_url = "https://speedpilotfrontend-production.up.railway.app"
 embedded = true
 
 [access_scopes]
