@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\ProfileController as AdminProfileController;
 use App\Http\Controllers\Admin\SettingsController as AdminSettingsController;
 use App\Http\Controllers\Admin\StoreController as AdminStoreController;
 use App\Http\Controllers\ShopifyOAuthController;
+use App\Http\Controllers\Webhooks\AppSubscriptionsUpdateController;
 use App\Http\Controllers\Webhooks\AppUninstalledController;
 use App\Http\Controllers\Webhooks\GdprController;
 use App\Http\Controllers\Webhooks\ThemesPublishController;
@@ -21,6 +22,7 @@ Route::get('/auth/callback', [ShopifyOAuthController::class, 'callback']);
 // Webhooks - HMAC-verified against the raw body inside each controller,
 // never App-Bridge session tokens.
 Route::post('/webhooks/app/uninstalled', AppUninstalledController::class);
+Route::post('/webhooks/app_subscriptions/update', AppSubscriptionsUpdateController::class);
 Route::post('/webhooks/themes/publish', ThemesPublishController::class);
 Route::post('/webhooks/customers/data_request', [GdprController::class, 'customersDataRequest']);
 Route::post('/webhooks/customers/redact', [GdprController::class, 'customersRedact']);

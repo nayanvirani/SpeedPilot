@@ -29,5 +29,5 @@ Route::middleware('shopify.session')->group(function () {
     Route::get('/monitoring/trend', [MonitoringController::class, 'trend']);
 
     Route::get('/billing/plans', [BillingController::class, 'plans']);
-    Route::post('/billing/subscribe', [BillingController::class, 'subscribe']);
+    Route::get('/billing/current', [BillingController::class, 'current']);
 });

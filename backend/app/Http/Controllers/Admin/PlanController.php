@@ -7,10 +7,10 @@ use App\Models\Plan;
 use Illuminate\Http\Request;
 
 /**
- * Lets the admin edit pricing/limits/features without a redeploy. Plan::price
- * is what BillingService actually charges via Shopify Billing on the next
- * subscription created - this is the real source of truth, not a display
- * copy of something configured elsewhere.
+ * Lets the admin edit feature gating (auto-fixes, limits, monitoring) without
+ * a redeploy. Billing is Shopify Managed Pricing - shopify_plan_name is what
+ * maps a row here to the matching plan Shopify's Partner Dashboard reports
+ * as active; price is display-only, not what's actually charged.
  */
 class PlanController extends Controller
 {
@@ -30,6 +30,7 @@ class PlanController extends Controller
     {
         $data = $request->validate([
             'name' => 'required|string|max:255',
+            'shopify_plan_name' => 'nullable|string|max:255',
             'price' => 'required|numeric|min:0',
             'trial_days' => 'required|integer|min:0',
             'script_rule_limit' => 'nullable|integer|min:0',

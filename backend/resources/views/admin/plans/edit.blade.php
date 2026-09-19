@@ -26,9 +26,17 @@
                    class="mt-1 w-full rounded-md border-slate-300 shadow-sm text-sm">
         </div>
 
+        <div>
+            <label class="block text-sm font-medium text-slate-700">
+                Shopify plan name <span class="text-slate-400 font-normal">(must exactly match the plan name in Shopify's Managed Pricing config)</span>
+            </label>
+            <input type="text" name="shopify_plan_name" value="{{ old('shopify_plan_name', $plan->shopify_plan_name) }}"
+                   class="mt-1 w-full rounded-md border-slate-300 shadow-sm text-sm font-mono">
+        </div>
+
         <div class="grid grid-cols-2 gap-4">
             <div>
-                <label class="block text-sm font-medium text-slate-700">Price (USD/mo)</label>
+                <label class="block text-sm font-medium text-slate-700">Price (display only - USD/mo)</label>
                 <input type="number" step="0.01" min="0" name="price" value="{{ old('price', $plan->price) }}" required
                        class="mt-1 w-full rounded-md border-slate-300 shadow-sm text-sm">
             </div>

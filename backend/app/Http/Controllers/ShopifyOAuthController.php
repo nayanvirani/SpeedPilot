@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\ShopInstallation;
+use App\Services\Shopify\BillingService;
+use App\Services\Shopify\ShopifyGraphQLClient;
 use App\Services\Shopify\ShopifyOAuthService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -37,7 +39,7 @@ class ShopifyOAuthController extends Controller
 
         $tokenData = $oauth->exchangeCodeForToken($shop, $request->query('code'));
 
-        ShopInstallation::updateOrCreate(
+        $shopInstallation = ShopInstallation::updateOrCreate(
             ['shop_domain' => $shop],
             [
                 'access_token' => $tokenData['access_token'],
@@ -46,6 +48,13 @@ class ShopifyOAuthController extends Controller
                 'uninstalled_at' => null,
             ],
         );
+
+        // With Shopify Managed Pricing, the merchant already picked a plan
+        // as part of Shopify's own install flow, before this callback ever
+        // ran - read it back now so the app isn't stuck on "no plan" until
+        // the next webhook.
+        (new BillingService(new ShopifyGraphQLClient($shop, $tokenData['access_token'])))
+            ->syncActivePlan($shopInstallation);
 
         return redirect(rtrim(config('shopify.frontend_url'), '/')."?shop={$shop}");
     }

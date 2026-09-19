@@ -5,8 +5,13 @@
 @section('content')
     <h1 class="text-2xl font-semibold mb-2">Plans</h1>
     <p class="text-sm text-slate-500 mb-6">
-        Editing a plan here changes what it actually costs and unlocks the next time a
-        merchant subscribes via Shopify Billing - it's live, not a draft.
+        Billing itself is Shopify Managed Pricing now - merchants pick a plan and pay through
+        Shopify's own screen, configured in the
+        <a href="https://partners.shopify.com" target="_blank" rel="noopener" class="underline">Partner Dashboard</a>'s
+        Pricing page, not here. What you edit on this page controls <em>feature gating only</em>
+        (auto-fixes, script rule limits, monitoring, etc.) - <code class="bg-slate-100 px-1 rounded">shopify_plan_name</code>
+        below is what maps a plan here to the matching plan name in Shopify's pricing config, and
+        <code class="bg-slate-100 px-1 rounded">price</code> is display-only (shown in-app, not charged).
     </p>
 
     <div class="bg-white rounded-lg shadow overflow-hidden">
@@ -15,6 +20,7 @@
                 <tr>
                     <th class="px-4 py-2">Key</th>
                     <th class="px-4 py-2">Name</th>
+                    <th class="px-4 py-2">Shopify plan name</th>
                     <th class="px-4 py-2">Price</th>
                     <th class="px-4 py-2">Auto-fixes</th>
                     <th class="px-4 py-2">Status</th>
@@ -26,6 +32,7 @@
                     <tr class="border-t">
                         <td class="px-4 py-2 font-mono text-xs text-slate-500">{{ $plan->key }}</td>
                         <td class="px-4 py-2 font-medium">{{ $plan->name }}</td>
+                        <td class="px-4 py-2 font-mono text-xs">{{ $plan->shopify_plan_name ?? '—' }}</td>
                         <td class="px-4 py-2">${{ number_format($plan->price, 2) }}/mo</td>
                         <td class="px-4 py-2">{{ $plan->auto_fixes ? 'Yes' : 'No' }}</td>
                         <td class="px-4 py-2">

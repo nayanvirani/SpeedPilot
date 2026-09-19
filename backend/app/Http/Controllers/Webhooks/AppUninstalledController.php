@@ -4,8 +4,6 @@ namespace App\Http\Controllers\Webhooks;
 
 use App\Http\Controllers\Controller;
 use App\Models\ShopInstallation;
-use App\Services\Shopify\BillingService;
-use App\Services\Shopify\ShopifyGraphQLClient;
 use App\Services\Shopify\WebhookVerifier;
 use Illuminate\Http\Request;
 
@@ -24,13 +22,12 @@ class AppUninstalledController extends Controller
             return response('', 200);
         }
 
-        if ($shop->shopify_subscription_id) {
-            (new BillingService(new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token)))
-                ->cancelSubscription($shop);
-        }
-
+        // Shopify Managed Pricing cancels the subscription itself on
+        // uninstall - nothing for us to call, just clear our local state.
         $shop->update([
             'access_token' => null,
+            'plan' => null,
+            'shopify_subscription_id' => null,
             'uninstalled_at' => now(),
         ]);
 

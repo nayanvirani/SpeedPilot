@@ -4,12 +4,14 @@ namespace App\Services\Shopify;
 
 use App\Models\Plan;
 use App\Models\ShopInstallation;
-use RuntimeException;
 
 /**
- * Wraps Shopify's RecurringApplicationCharge GraphQL mutations. Billed entirely
- * through Shopify Billing - no Stripe, no custom payment system - since each
- * install is exactly one store with no seat/multi-store logic.
+ * Billing is Shopify Managed Pricing (plans configured in the Partner
+ * Dashboard's Pricing page) - Shopify shows its own plan-picker and handles
+ * checkout entirely before the merchant ever reaches the app, so this
+ * service never calls appSubscriptionCreate/Cancel itself. It only reads
+ * back which plan Shopify says is active and mirrors that onto the shop's
+ * `plan` column, which PlanPolicy already reads from.
  */
 class BillingService
 {
@@ -17,71 +19,32 @@ class BillingService
     {
     }
 
-    public function createSubscription(ShopInstallation $shop, string $planKey): array
+    /**
+     * Called right after OAuth completes and from the app_subscriptions/update
+     * webhook - both moments Shopify's chosen plan can change.
+     */
+    public function syncActivePlan(ShopInstallation $shop): void
     {
-        $plan = Plan::findByKey($planKey);
-
-        if (! $plan || ! $plan->active || $plan->price <= 0) {
-            throw new RuntimeException("Plan [{$planKey}] is not billable (inactive or unknown).");
-        }
-
         $data = $this->client->query(<<<'GRAPHQL'
-            mutation appSubscriptionCreate(
-                $name: String!, $price: Decimal!, $returnUrl: URL!, $trialDays: Int
-            ) {
-                appSubscriptionCreate(
-                    name: $name
-                    trialDays: $trialDays
-                    returnUrl: $returnUrl
-                    lineItems: [{
-                        plan: {
-                            appRecurringPricingDetails: {
-                                price: { amount: $price, currencyCode: USD }
-                                interval: EVERY_30_DAYS
-                            }
-                        }
-                    }]
-                ) {
-                    appSubscription { id }
-                    confirmationUrl
-                    userErrors { field message }
+            query activeSubscriptions {
+                currentAppInstallation {
+                    activeSubscriptions {
+                        id
+                        name
+                        status
+                    }
                 }
             }
-        GRAPHQL, [
-            'name' => "SpeedPilot {$plan->name}",
-            'price' => (string) $plan->price,
-            'returnUrl' => rtrim(config('shopify.frontend_url'), '/').'/billing/confirm',
-            'trialDays' => $plan->trial_days,
-        ]);
+        GRAPHQL);
 
-        $result = $data['appSubscriptionCreate'] ?? [];
+        $subscriptions = $data['currentAppInstallation']['activeSubscriptions'] ?? [];
+        $active = collect($subscriptions)->firstWhere('status', 'ACTIVE');
 
-        if (! empty($result['userErrors'])) {
-            throw new RuntimeException('Billing charge creation failed: '.json_encode($result['userErrors']));
-        }
+        $plan = $active ? Plan::findByShopifyName($active['name']) : null;
 
         $shop->update([
-            'plan' => $planKey,
-            'shopify_subscription_id' => $result['appSubscription']['id'] ?? null,
+            'plan' => $plan?->key,
+            'shopify_subscription_id' => $active['id'] ?? null,
         ]);
-
-        return $result;
-    }
-
-    public function cancelSubscription(ShopInstallation $shop): void
-    {
-        if (! $shop->shopify_subscription_id) {
-            return;
-        }
-
-        $this->client->query(<<<'GRAPHQL'
-            mutation appSubscriptionCancel($id: ID!) {
-                appSubscriptionCancel(id: $id) {
-                    userErrors { field message }
-                }
-            }
-        GRAPHQL, ['id' => $shop->shopify_subscription_id]);
-
-        $shop->update(['plan' => null, 'shopify_subscription_id' => null]);
     }
 }
