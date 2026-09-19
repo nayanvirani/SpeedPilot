@@ -1,34 +1,19 @@
 import { useState } from 'react';
-import type { LoaderFunctionArgs } from '@remix-run/node';
-import { json } from '@remix-run/node';
-import { useLoaderData, useRevalidator } from '@remix-run/react';
-import { Badge, BlockStack, Button, Card, InlineStack, Page, Text } from '@shopify/polaris';
+import { Badge, BlockStack, Card, InlineStack, Page, SkeletonBodyText, Text } from '@shopify/polaris';
 
-import { backendFetch, sessionTokenFromRequest } from '~/utils/api.server';
-import { getSessionToken } from '~/utils/shopify.client';
+import { apiPost, useApiData } from '~/utils/useApiData';
 import type { Audit } from '~/utils/types';
 
-export async function loader({ request }: LoaderFunctionArgs) {
-  const token = sessionTokenFromRequest(request);
-  const { audits } = await backendFetch<{ audits: Audit[] }>('/audits', token);
-
-  return json({ latestAudit: audits[0] ?? null });
-}
-
 export default function Dashboard() {
-  const { latestAudit } = useLoaderData<typeof loader>();
-  const revalidator = useRevalidator();
+  const { data, loading, refetch } = useApiData<{ audits: Audit[] }>('/audits');
   const [scanning, setScanning] = useState(false);
+  const latestAudit = data?.audits?.[0] ?? null;
 
   async function scanNow() {
     setScanning(true);
     try {
-      const token = await getSessionToken();
-      await fetch('/api-proxy/audits', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      revalidator.revalidate();
+      await apiPost('/audits');
+      await refetch();
     } finally {
       setScanning(false);
     }
@@ -41,7 +26,9 @@ export default function Dashboard() {
     >
       <BlockStack gap="400">
         <Card>
-          {!latestAudit ? (
+          {loading ? (
+            <SkeletonBodyText lines={4} />
+          ) : !latestAudit ? (
             <BlockStack gap="200">
               <Text as="h2" variant="headingMd">
                 No scans yet

@@ -1,37 +1,21 @@
 import { useState } from 'react';
-import type { LoaderFunctionArgs } from '@remix-run/node';
-import { json } from '@remix-run/node';
-import { useLoaderData, useRevalidator } from '@remix-run/react';
-import { Badge, ButtonGroup, Button, Card, DataTable, Page, Text } from '@shopify/polaris';
+import { Badge, ButtonGroup, Button, Card, DataTable, Page, SkeletonBodyText, Text } from '@shopify/polaris';
 
-import { backendFetch, sessionTokenFromRequest } from '~/utils/api.server';
-import { getSessionToken } from '~/utils/shopify.client';
+import { apiPatch, useApiData } from '~/utils/useApiData';
 import type { AppImpact } from '~/utils/types';
-
-export async function loader({ request }: LoaderFunctionArgs) {
-  const token = sessionTokenFromRequest(request);
-  const { app_impacts } = await backendFetch<{ app_impacts: AppImpact[] }>('/app-impacts', token);
-
-  return json({ appImpacts: app_impacts });
-}
 
 const IMPACT_TONE = { high: 'critical', medium: 'warning', low: 'success' } as const;
 
 export default function AppImpactPage() {
-  const { appImpacts } = useLoaderData<typeof loader>();
-  const revalidator = useRevalidator();
+  const { data, loading, refetch } = useApiData<{ app_impacts: AppImpact[] }>('/app-impacts');
+  const appImpacts = data?.app_impacts ?? [];
   const [pendingId, setPendingId] = useState<number | null>(null);
 
   async function setStatus(id: number, status: string) {
     setPendingId(id);
     try {
-      const token = await getSessionToken();
-      await fetch(`/api-proxy/app-impacts/${id}`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status, persist_as_rule: true }),
-      });
-      revalidator.revalidate();
+      await apiPatch(`/app-impacts/${id}`, { status, persist_as_rule: true });
+      await refetch();
     } finally {
       setPendingId(null);
     }
@@ -72,7 +56,9 @@ export default function AppImpactPage() {
       }
     >
       <Card>
-        {appImpacts.length === 0 ? (
+        {loading ? (
+          <SkeletonBodyText lines={4} />
+        ) : appImpacts.length === 0 ? (
           <Text as="p" tone="subdued">
             Run a scan first to see which installed apps and scripts are slowing down your store.
           </Text>

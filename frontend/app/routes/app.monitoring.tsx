@@ -1,23 +1,11 @@
-import type { LoaderFunctionArgs } from '@remix-run/node';
-import { json } from '@remix-run/node';
-import { useLoaderData } from '@remix-run/react';
-import { Badge, Card, DataTable, Page, Text } from '@shopify/polaris';
+import { Badge, Card, DataTable, Page, SkeletonBodyText, Text } from '@shopify/polaris';
 
-import { backendFetch, sessionTokenFromRequest } from '~/utils/api.server';
+import { useApiData } from '~/utils/useApiData';
 import type { MonitoringRun } from '~/utils/types';
 
-export async function loader({ request }: LoaderFunctionArgs) {
-  const token = sessionTokenFromRequest(request);
-  const { monitoring_runs } = await backendFetch<{ monitoring_runs: MonitoringRun[] }>(
-    '/monitoring/trend',
-    token,
-  );
-
-  return json({ runs: monitoring_runs });
-}
-
 export default function MonitoringPage() {
-  const { runs } = useLoaderData<typeof loader>();
+  const { data, loading } = useApiData<{ monitoring_runs: MonitoringRun[] }>('/monitoring/trend');
+  const runs = data?.monitoring_runs ?? [];
 
   const rows = runs.map((run) => [
     new Date(run.run_at).toLocaleDateString(),
@@ -34,7 +22,9 @@ export default function MonitoringPage() {
   return (
     <Page title="Monitoring">
       <Card>
-        {runs.length === 0 ? (
+        {loading ? (
+          <SkeletonBodyText lines={4} />
+        ) : runs.length === 0 ? (
           <Text as="p" tone="subdued">
             Monitoring history will appear here once daily scans start running (requires a
             Starter plan or above).

@@ -1,39 +1,21 @@
 import { useState } from 'react';
-import type { LoaderFunctionArgs } from '@remix-run/node';
-import { json } from '@remix-run/node';
-import { useLoaderData, useRevalidator } from '@remix-run/react';
-import { Badge, Button, Card, DataTable, Page } from '@shopify/polaris';
+import { Badge, Button, Card, DataTable, Page, SkeletonBodyText } from '@shopify/polaris';
 
-import { backendFetch, sessionTokenFromRequest } from '~/utils/api.server';
-import { getSessionToken } from '~/utils/shopify.client';
+import { apiPost, useApiData } from '~/utils/useApiData';
 import type { Optimization } from '~/utils/types';
-
-export async function loader({ request }: LoaderFunctionArgs) {
-  const token = sessionTokenFromRequest(request);
-  const { optimizations } = await backendFetch<{ optimizations: Optimization[] }>(
-    '/optimizations',
-    token,
-  );
-
-  return json({ optimizations });
-}
 
 const STATUS_TONE = { applied: 'success', rolled_back: 'new', recommended: 'info' } as const;
 
 export default function OptimizationsPage() {
-  const { optimizations } = useLoaderData<typeof loader>();
-  const revalidator = useRevalidator();
+  const { data, loading, refetch } = useApiData<{ optimizations: Optimization[] }>('/optimizations');
+  const optimizations = data?.optimizations ?? [];
   const [pendingId, setPendingId] = useState<number | null>(null);
 
   async function rollback(id: number) {
     setPendingId(id);
     try {
-      const token = await getSessionToken();
-      await fetch(`/api-proxy/optimizations/${id}/rollback`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      revalidator.revalidate();
+      await apiPost(`/optimizations/${id}/rollback`);
+      await refetch();
     } finally {
       setPendingId(null);
     }
@@ -58,11 +40,15 @@ export default function OptimizationsPage() {
   return (
     <Page title="Optimizations">
       <Card>
-        <DataTable
-          columnContentTypes={['text', 'text', 'text', 'text', 'text']}
-          headings={['Fix', 'Risk tier', 'Status', 'Applied at', 'Action']}
-          rows={rows}
-        />
+        {loading ? (
+          <SkeletonBodyText lines={4} />
+        ) : (
+          <DataTable
+            columnContentTypes={['text', 'text', 'text', 'text', 'text']}
+            headings={['Fix', 'Risk tier', 'Status', 'Applied at', 'Action']}
+            rows={rows}
+          />
+        )}
       </Card>
     </Page>
   );
