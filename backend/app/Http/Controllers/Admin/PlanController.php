@@ -7,10 +7,11 @@ use App\Models\Plan;
 use Illuminate\Http\Request;
 
 /**
- * Lets the admin edit feature gating (auto-fixes, limits, monitoring) without
- * a redeploy. Billing is Shopify Managed Pricing - shopify_plan_name is what
- * maps a row here to the matching plan Shopify's Partner Dashboard reports
- * as active; price is display-only, not what's actually charged.
+ * Lets the admin manage feature gating (auto-fixes, limits, monitoring)
+ * without a redeploy. Billing is Shopify Managed Pricing -
+ * shopify_plan_name is what maps a row here to the matching plan Shopify's
+ * Partner Dashboard reports as active; price is display-only, not what's
+ * actually charged.
  */
 class PlanController extends Controller
 {
@@ -21,14 +22,46 @@ class PlanController extends Controller
         return view('admin.plans.index', compact('plans'));
     }
 
+    public function create()
+    {
+        $plan = new Plan;
+
+        return view('admin.plans.form', compact('plan'));
+    }
+
+    public function store(Request $request)
+    {
+        $plan = Plan::create($this->validated($request));
+
+        return redirect()->route('admin.plans.index')->with('status', "{$plan->name} plan created.");
+    }
+
     public function edit(Plan $plan)
     {
-        return view('admin.plans.edit', compact('plan'));
+        return view('admin.plans.form', compact('plan'));
     }
 
     public function update(Request $request, Plan $plan)
     {
+        $plan->update($this->validated($request, $plan));
+
+        return redirect()->route('admin.plans.index')->with('status', "{$plan->name} plan updated.");
+    }
+
+    public function destroy(Plan $plan)
+    {
+        $plan->delete();
+
+        return redirect()->route('admin.plans.index')->with('status', "{$plan->name} plan deleted.");
+    }
+
+    private function validated(Request $request, ?Plan $plan = null): array
+    {
         $data = $request->validate([
+            'key' => [
+                'required', 'string', 'max:255', 'alpha_dash',
+                'unique:plans,key'.($plan?->id ? ",{$plan->id}" : ''),
+            ],
             'name' => 'required|string|max:255',
             'shopify_plan_name' => 'nullable|string|max:255',
             'price' => 'required|numeric|min:0',
@@ -51,8 +84,14 @@ class PlanController extends Controller
         $data['ai_recommendations'] = $request->boolean('ai_recommendations');
         $data['active'] = $request->boolean('active');
 
-        $plan->update($data);
+        // key is the identifier ShopInstallation.plan and Plan::findByKey
+        // reference directly (not a foreign key) - changing it on an
+        // existing plan would desync every shop currently on it, so it's
+        // only ever settable at creation.
+        if ($plan?->exists) {
+            unset($data['key']);
+        }
 
-        return redirect()->route('admin.plans.index')->with('status', "{$plan->name} plan updated.");
+        return $data;
     }
 }

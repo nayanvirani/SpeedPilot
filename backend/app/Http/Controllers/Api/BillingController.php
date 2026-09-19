@@ -26,14 +26,25 @@ class BillingController extends Controller
     {
         /** @var ShopInstallation $shop */
         $shop = $request->attributes->get('shop');
+        $plan = Plan::findByKey($shop->plan);
 
         return response()->json([
-            'plan' => Plan::findByKey($shop->plan),
+            'plan' => $plan,
             'manage_url' => sprintf(
                 'https://admin.shopify.com/store/%s/charges/%s/pricing_plans',
                 str_replace('.myshopify.com', '', $shop->shop_domain),
                 config('shopify.app_handle'),
             ),
+            'usage' => [
+                'script_rules' => [
+                    'used' => $shop->scriptRules()->where('active', true)->count(),
+                    'limit' => $plan?->script_rule_limit,
+                ],
+                'auto_fixes_applied' => [
+                    'used' => $shop->optimizations()->where('status', 'applied')->count(),
+                    'limit' => $plan?->auto_fix_limit,
+                ],
+            ],
         ]);
     }
 }

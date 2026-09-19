@@ -3,7 +3,12 @@
 @section('title', 'Plans')
 
 @section('content')
-    <h1 class="text-2xl font-semibold mb-2">Plans</h1>
+    <div class="flex items-center justify-between mb-2">
+        <h1 class="text-2xl font-semibold">Plans</h1>
+        <a href="{{ route('admin.plans.create') }}" class="text-sm bg-slate-900 text-white rounded-md px-3 py-1.5">
+            New plan
+        </a>
+    </div>
     <p class="text-sm text-slate-500 mb-6">
         Billing itself is Shopify Managed Pricing now - merchants pick a plan and pay through
         Shopify's own screen, configured in the
@@ -42,8 +47,14 @@
                                 <span class="text-slate-400">Hidden</span>
                             @endif
                         </td>
-                        <td class="px-4 py-2 text-right">
+                        <td class="px-4 py-2 text-right space-x-3">
                             <a href="{{ route('admin.plans.edit', $plan) }}" class="text-slate-700 hover:underline">Edit</a>
+                            <form method="POST" action="{{ route('admin.plans.destroy', $plan) }}" class="inline"
+                                  onsubmit="return confirm('Delete the {{ $plan->name }} plan? Shops currently on it will show as unsubscribed.')">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="text-red-600 hover:underline">Delete</button>
+                            </form>
                         </td>
                     </tr>
                 @endforeach

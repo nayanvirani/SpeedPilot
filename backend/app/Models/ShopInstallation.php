@@ -71,6 +71,11 @@ class ShopInstallation extends Model
         return $this->hasMany(ScriptRule::class);
     }
 
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(Subscription::class, 'shop_installation_id');
+    }
+
     public function latestAudit(): ?Audit
     {
         return $this->audits()->latest()->first();

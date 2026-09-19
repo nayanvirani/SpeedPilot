@@ -4,6 +4,8 @@ namespace App\Services\Shopify;
 
 use App\Models\Plan;
 use App\Models\ShopInstallation;
+use App\Models\Subscription;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Billing is Shopify Managed Pricing (plans configured in the Partner
@@ -27,13 +29,13 @@ class BillingService
 
         $chargeId = (string) ($subscription['admin_graphql_api_id'] ?? '');
         $planName = strtolower((string) ($subscription['name'] ?? ''));
-        $status = strtolower((string) ($subscription['status'] ?? ''));
+        $status = strtolower((string) ($subscription['status'] ?? 'pending'));
 
         if (! $chargeId) {
             return;
         }
 
-        $this->applyPlan($shop, $status === 'active' ? $planName : null, $status === 'active' ? $chargeId : null);
+        $this->applyPlan($shop, $chargeId, $planName, $status);
     }
 
     /**
@@ -63,20 +65,51 @@ class BillingService
         $subscriptions = $data['currentAppInstallation']['activeSubscriptions'] ?? [];
         $active = collect($subscriptions)->firstWhere('status', 'ACTIVE');
 
-        $this->applyPlan(
-            $shop,
-            $active ? strtolower((string) $active['name']) : null,
-            $active['id'] ?? null,
-        );
+        if (! $active) {
+            return;
+        }
+
+        $this->applyPlan($shop, (string) $active['id'], strtolower((string) $active['name']), 'active');
     }
 
-    private function applyPlan(ShopInstallation $shop, ?string $lowercasePlanName, ?string $chargeId): void
+    /**
+     * Records every status change as its own Subscription row (upgrades,
+     * downgrades, cancellations each get their own history entry rather than
+     * overwriting the last), and mirrors the currently-active plan onto
+     * shop_installations.plan as a fast-path cache for PlanPolicy - matches
+     * the reference app's Subscription-history pattern exactly.
+     */
+    private function applyPlan(ShopInstallation $shop, string $chargeId, string $planName, string $status): void
     {
-        $plan = $lowercasePlanName ? Plan::findByShopifyName($lowercasePlanName) : null;
+        $isActive = $status === 'active';
+        $plan = $planName ? Plan::findByShopifyName($planName) : null;
+
+        DB::transaction(function () use ($shop, $chargeId, $planName, $status, $plan) {
+            Subscription::updateOrCreate(
+                ['shop_installation_id' => $shop->id, 'shopify_charge_id' => $chargeId],
+                [
+                    'plan_id' => $plan?->id,
+                    'shopify_plan_name' => $planName ?: null,
+                    'status' => $status,
+                ],
+            );
+
+            // Shopify only ever has one subscription active per shop - when
+            // this one activates, any other row still marked active is a
+            // stale prior plan (a switch that never got its own "cancelled"
+            // webhook, or arrived out of order) and must not keep gating
+            // the app as if it were current.
+            if ($status === 'active') {
+                Subscription::where('shop_installation_id', $shop->id)
+                    ->where('shopify_charge_id', '!=', $chargeId)
+                    ->where('status', 'active')
+                    ->update(['status' => 'cancelled']);
+            }
+        });
 
         $shop->update([
-            'plan' => $plan?->key,
-            'shopify_subscription_id' => $chargeId,
+            'plan' => $isActive ? $plan?->key : null,
+            'shopify_subscription_id' => $isActive ? $chargeId : null,
         ]);
     }
 }
