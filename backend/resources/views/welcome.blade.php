@@ -81,7 +81,9 @@
                 <h2 class="text-3xl font-bold mb-3">Simple, transparent pricing</h2>
                 <p class="text-slate-600">Start with a free scan. Upgrade when you're ready for automatic fixes.</p>
             </div>
-            @php($plans = \App\Models\Plan::where('active', true)->orderBy('sort_order')->get())
+            @php
+                $plans = \App\Models\Plan::where('active', true)->orderBy('sort_order')->get();
+            @endphp
             <div class="grid md:grid-cols-{{ max($plans->count(), 1) }} gap-6 items-start">
                 @foreach ($plans as $plan)
                     @php $isHighlighted = $loop->last && $plans->count() > 1; @endphp
