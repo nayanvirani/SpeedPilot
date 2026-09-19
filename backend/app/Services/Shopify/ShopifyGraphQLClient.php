@@ -36,7 +36,14 @@ class ShopifyGraphQLClient
                     'X-Shopify-Access-Token' => $this->accessToken,
                     'Content-Type' => 'application/json',
                 ],
-                'json' => ['query' => $query, 'variables' => $variables],
+                // An empty PHP array encodes as JSON `[]`, but Shopify's
+                // GraphQL endpoint requires `variables` to be an object -
+                // `[]` gets rejected with "Invalid variables parameter."
+                // Casting to stdClass when empty forces json_encode to
+                // emit `{}` instead. Only affects queries with no $params
+                // (e.g. activeSubscriptions) - anything with real variables
+                // was never affected, which is why this stayed hidden.
+                'json' => ['query' => $query, 'variables' => $variables ?: new \stdClass],
             ]);
         } catch (RequestException $e) {
             throw new RuntimeException(
