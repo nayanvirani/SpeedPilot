@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Audit;
 use App\Models\Optimization;
+use App\Models\Plan;
 use App\Models\RumEvent;
 use App\Models\ShopInstallation;
 use Illuminate\Support\Facades\DB;
@@ -22,9 +23,9 @@ class DashboardController extends Controller
             ->groupBy('plan')
             ->pluck('total', 'plan');
 
-        $mrr = collect(config('speedpilot.plans'))
-            ->reduce(function (float $carry, array $plan, string $key) use ($shopsByPlan) {
-                return $carry + ($plan['price'] * ($shopsByPlan[$key] ?? 0));
+        $mrr = Plan::all()
+            ->reduce(function (float $carry, Plan $plan) use ($shopsByPlan) {
+                return $carry + ((float) $plan->price * ($shopsByPlan[$plan->key] ?? 0));
             }, 0.0);
 
         $stats = [

@@ -2,6 +2,7 @@
 
 namespace App\Services\Shopify;
 
+use App\Models\Plan;
 use App\Models\ShopInstallation;
 use RuntimeException;
 
@@ -18,10 +19,10 @@ class BillingService
 
     public function createSubscription(ShopInstallation $shop, string $planKey): array
     {
-        $plan = config("speedpilot.plans.{$planKey}");
+        $plan = Plan::findByKey($planKey);
 
-        if (! $plan || $plan['price'] <= 0) {
-            throw new RuntimeException("Plan [{$planKey}] is not billable (free tier or unknown).");
+        if (! $plan || ! $plan->active || $plan->price <= 0) {
+            throw new RuntimeException("Plan [{$planKey}] is not billable (inactive or unknown).");
         }
 
         $data = $this->client->query(<<<'GRAPHQL'
@@ -47,10 +48,10 @@ class BillingService
                 }
             }
         GRAPHQL, [
-            'name' => "SpeedPilot {$plan['name']}",
-            'price' => (string) $plan['price'],
+            'name' => "SpeedPilot {$plan->name}",
+            'price' => (string) $plan->price,
             'returnUrl' => rtrim(config('shopify.frontend_url'), '/').'/billing/confirm',
-            'trialDays' => $plan['trial_days'] ?? 0,
+            'trialDays' => $plan->trial_days,
         ]);
 
         $result = $data['appSubscriptionCreate'] ?? [];

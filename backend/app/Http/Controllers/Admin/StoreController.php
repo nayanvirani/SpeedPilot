@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Plan;
 use App\Models\ShopInstallation;
 use Illuminate\Http\Request;
 
@@ -27,7 +28,7 @@ class StoreController extends Controller
         }
 
         $stores = $query->latest('installed_at')->paginate(20)->withQueryString();
-        $plans = array_keys(config('speedpilot.plans'));
+        $plans = Plan::orderBy('sort_order')->pluck('key');
 
         return view('admin.stores.index', compact('stores', 'plans'));
     }

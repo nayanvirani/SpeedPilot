@@ -81,37 +81,38 @@
                 <h2 class="text-3xl font-bold mb-3">Simple, transparent pricing</h2>
                 <p class="text-slate-600">Start with a free scan. Upgrade when you're ready for automatic fixes.</p>
             </div>
-            <div class="grid md:grid-cols-3 gap-6 items-start">
-                @foreach (config('speedpilot.plans') as $key => $plan)
-                    @php $isPro = $key === 'pro'; @endphp
-                    <div class="bg-white rounded-2xl p-8 {{ $isPro ? 'ring-2 ring-slate-900 shadow-xl' : 'ring-1 ring-slate-200 shadow-sm' }} relative">
-                        @if ($isPro)
+            @php($plans = \App\Models\Plan::where('active', true)->orderBy('sort_order')->get())
+            <div class="grid md:grid-cols-{{ max($plans->count(), 1) }} gap-6 items-start">
+                @foreach ($plans as $plan)
+                    @php $isHighlighted = $loop->last && $plans->count() > 1; @endphp
+                    <div class="bg-white rounded-2xl p-8 {{ $isHighlighted ? 'ring-2 ring-slate-900 shadow-xl' : 'ring-1 ring-slate-200 shadow-sm' }} relative">
+                        @if ($isHighlighted)
                             <span class="absolute -top-3 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-xs font-medium px-3 py-1 rounded-full">Most popular</span>
                         @endif
-                        <h3 class="font-semibold text-lg">{{ $plan['name'] }}</h3>
+                        <h3 class="font-semibold text-lg">{{ $plan->name }}</h3>
                         <p class="mt-3 mb-6">
-                            <span class="text-4xl font-bold">${{ rtrim(rtrim(number_format($plan['price'], 2), '0'), '.') }}</span>
+                            <span class="text-4xl font-bold">${{ rtrim(rtrim(number_format($plan->price, 2), '0'), '.') }}</span>
                             <span class="text-slate-500 text-sm">/mo</span>
                         </p>
                         <ul class="text-sm text-slate-600 space-y-2.5 mb-8">
-                            @if ($plan['auto_fixes'])
-                                <li class="flex gap-2"><span class="text-emerald-600">&check;</span> Automatic safe fixes{{ $plan['auto_fix_limit'] ? " (up to {$plan['auto_fix_limit']})" : ' (unlimited)' }}</li>
+                            @if ($plan->auto_fixes)
+                                <li class="flex gap-2"><span class="text-emerald-600">&check;</span> Automatic safe fixes{{ $plan->auto_fix_limit ? " (up to {$plan->auto_fix_limit})" : ' (unlimited)' }}</li>
                             @else
                                 <li class="flex gap-2"><span class="text-emerald-600">&check;</span> Speed audit &amp; app impact report</li>
                             @endif
-                            @if ($plan['medium_risk_fixes'])
+                            @if ($plan->medium_risk_fixes)
                                 <li class="flex gap-2"><span class="text-emerald-600">&check;</span> Medium-risk fixes via preview theme</li>
                             @endif
-                            @if ($plan['high_risk_recommendations'])
+                            @if ($plan->high_risk_recommendations)
                                 <li class="flex gap-2"><span class="text-emerald-600">&check;</span> High-risk recommendations</li>
                             @endif
-                            @if (!empty($plan['ai_recommendations']))
+                            @if ($plan->ai_recommendations)
                                 <li class="flex gap-2"><span class="text-emerald-600">&check;</span> AI-generated recommendations</li>
                             @endif
-                            <li class="flex gap-2"><span class="text-emerald-600">&check;</span> {{ $plan['history_days'] > 0 ? "{$plan['history_days']}-day history" : 'One-time scan' }}</li>
+                            <li class="flex gap-2"><span class="text-emerald-600">&check;</span> {{ $plan->history_days > 0 ? "{$plan->history_days}-day history" : 'One-time scan' }}</li>
                         </ul>
-                        <a href="https://apps.shopify.com" class="block text-center rounded-full px-5 py-2.5 text-sm font-medium {{ $isPro ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-slate-100 text-slate-900 hover:bg-slate-200' }}">
-                            Start {{ $plan['trial_days'] }}-day free trial
+                        <a href="https://apps.shopify.com" class="block text-center rounded-full px-5 py-2.5 text-sm font-medium {{ $isHighlighted ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-slate-100 text-slate-900 hover:bg-slate-200' }}">
+                            Start {{ $plan->trial_days }}-day free trial
                         </a>
                     </div>
                 @endforeach

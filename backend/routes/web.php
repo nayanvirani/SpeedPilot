@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AuthController as AdminAuthController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Admin\PlanController as AdminPlanController;
 use App\Http\Controllers\Admin\ProfileController as AdminProfileController;
 use App\Http\Controllers\Admin\SettingsController as AdminSettingsController;
 use App\Http\Controllers\Admin\StoreController as AdminStoreController;
@@ -36,6 +37,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
         Route::get('/stores', [AdminStoreController::class, 'index'])->name('stores.index');
         Route::get('/stores/{store}', [AdminStoreController::class, 'show'])->name('stores.show');
+        Route::get('/plans', [AdminPlanController::class, 'index'])->name('plans.index');
+        Route::get('/plans/{plan}/edit', [AdminPlanController::class, 'edit'])->name('plans.edit');
+        Route::put('/plans/{plan}', [AdminPlanController::class, 'update'])->name('plans.update');
         Route::get('/settings', [AdminSettingsController::class, 'edit'])->name('settings.edit');
         Route::post('/settings', [AdminSettingsController::class, 'update'])->name('settings.update');
         Route::get('/profile', [AdminProfileController::class, 'edit'])->name('profile.edit');

@@ -33,22 +33,8 @@
         </button>
     </form>
 
-    <div class="mt-8 bg-white rounded-lg shadow p-6 max-w-lg text-sm">
-        <h2 class="font-medium mb-3">Pricing plans (config/speedpilot.php)</h2>
-        <table class="w-full text-left">
-            <thead class="text-slate-500">
-                <tr><th class="py-1">Plan</th><th>Price</th><th>Auto-fixes</th></tr>
-            </thead>
-            <tbody>
-                @foreach (config('speedpilot.plans') as $key => $plan)
-                    <tr class="border-t">
-                        <td class="py-1 capitalize">{{ $plan['name'] }}</td>
-                        <td>${{ $plan['price'] }}/mo</td>
-                        <td>{{ $plan['auto_fixes'] ? 'Yes' : 'No' }}</td>
-                    </tr>
-                @endforeach
-            </tbody>
-        </table>
-        <p class="text-slate-400 text-xs mt-3">Editing plan prices/features requires a code change and redeploy, not this form.</p>
+    <div class="mt-8 max-w-lg text-sm text-slate-500">
+        Looking to change pricing, limits, or features? That's under
+        <a href="{{ route('admin.plans.index') }}" class="text-slate-900 underline">Plans</a> now, not here.
     </div>
 @endsection

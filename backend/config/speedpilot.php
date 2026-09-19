@@ -13,37 +13,10 @@ return [
         'api_key' => env('AI_PROVIDER_API_KEY'),
     ],
 
-    // Billable pricing tiers - matches the exact plans/prices created in the
-    // Shopify Partner Dashboard (Starter $29.99 / Pro $49.99). There is no
-    // "Free" billing plan: a shop with no subscription yet (plan === null)
-    // still gets the free audit/scan (RunAuditJob never checks plan at all),
-    // it just can't use auto-fixes until it subscribes - see PlanPolicy's
-    // NO_PLAN fallback for exactly what an unsubscribed shop can/can't do.
-    'plans' => [
-        'starter' => [
-            'name' => 'Starter',
-            'price' => 29.99,
-            'trial_days' => 7,
-            'script_rule_limit' => 3,
-            'history_days' => 30,
-            'auto_fixes' => true,
-            'auto_fix_limit' => null, // unlimited
-            'medium_risk_fixes' => false,
-            'high_risk_recommendations' => false,
-            'monitoring' => 'basic',
-        ],
-        'pro' => [
-            'name' => 'Pro',
-            'price' => 49.99,
-            'trial_days' => 7,
-            'script_rule_limit' => null, // unlimited
-            'history_days' => 90,
-            'auto_fixes' => true,
-            'auto_fix_limit' => null,
-            'medium_risk_fixes' => true,
-            'high_risk_recommendations' => true,
-            'monitoring' => 'advanced_priority',
-            'ai_recommendations' => true,
-        ],
-    ],
+    // Pricing plans live in the `plans` database table (see App\Models\Plan),
+    // editable from /admin/plans - not here. There is no billable "Free"
+    // plan: a shop with no subscription (plan === null) still gets the free
+    // audit/scan since RunAuditJob never checks plan at all; PlanPolicy's
+    // null-plan fallback covers exactly what an unsubscribed shop can't do
+    // (auto-fix, monitoring, etc.) until it picks a paid plan.
 ];

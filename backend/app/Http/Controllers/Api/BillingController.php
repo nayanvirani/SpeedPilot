@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Plan;
 use App\Models\ShopInstallation;
 use App\Services\Shopify\BillingService;
 use App\Services\Shopify\ShopifyGraphQLClient;
@@ -13,7 +14,9 @@ class BillingController extends Controller
 {
     public function plans()
     {
-        return response()->json(['plans' => config('speedpilot.plans')]);
+        return response()->json([
+            'plans' => Plan::where('active', true)->orderBy('sort_order')->get(),
+        ]);
     }
 
     public function subscribe(Request $request)
@@ -22,7 +25,7 @@ class BillingController extends Controller
         $shop = $request->attributes->get('shop');
 
         $data = $request->validate([
-            'plan' => ['required', Rule::in(['starter', 'pro'])],
+            'plan' => ['required', Rule::in(Plan::where('active', true)->pluck('key'))],
         ]);
 
         $billing = new BillingService(new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token));
