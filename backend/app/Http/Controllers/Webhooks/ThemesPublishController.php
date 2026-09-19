@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Webhooks;
 use App\Http\Controllers\Controller;
 use App\Jobs\RunAuditJob;
 use App\Models\ShopInstallation;
-use App\Services\Shopify\WebhookVerifier;
 use Illuminate\Http\Request;
 
 /**
@@ -18,10 +17,6 @@ class ThemesPublishController extends Controller
 {
     public function __invoke(Request $request)
     {
-        if (! WebhookVerifier::isValid($request->getContent(), $request->header('X-Shopify-Hmac-Sha256', ''))) {
-            return response('Invalid signature', 401);
-        }
-
         $shopDomain = $request->header('X-Shopify-Shop-Domain');
         $shop = ShopInstallation::where('shop_domain', $shopDomain)->first();
 

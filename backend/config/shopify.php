@@ -7,4 +7,10 @@ return [
     'scopes' => env('SHOPIFY_SCOPES', 'read_themes,write_themes,read_products'),
     'app_url' => env('SHOPIFY_APP_URL', env('APP_URL')),
     'frontend_url' => env('FRONTEND_URL', 'http://localhost:3000'),
+
+    // The app's handle as it appears in admin.shopify.com/store/{shop}/apps/{app_handle}
+    // and in the Managed Pricing deep link (.../charges/{app_handle}/pricing_plans).
+    // Not the same as api_key - Shopify assigns this separately (visible in the
+    // app's admin URL once installed; ours is "speedpilot-1").
+    'app_handle' => env('SHOPIFY_APP_HANDLE', 'speedpilot-1'),
 ];

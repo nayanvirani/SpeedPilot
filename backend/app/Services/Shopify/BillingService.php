@@ -8,43 +8,35 @@ use App\Models\ShopInstallation;
 /**
  * Billing is Shopify Managed Pricing (plans configured in the Partner
  * Dashboard's Pricing page) - Shopify shows its own plan-picker and handles
- * checkout entirely before the merchant ever reaches the app, so this
- * service never calls appSubscriptionCreate/Cancel itself. It only reads
- * back which plan Shopify says is active and mirrors that onto the shop's
- * `plan` column, which PlanPolicy already reads from.
+ * checkout entirely before the merchant ever reaches the app, so this app
+ * never creates or cancels a subscription itself. The only way it learns a
+ * plan is active is the app_subscriptions/update webhook payload, handled
+ * here - no GraphQL round-trip needed, the payload already has everything.
  */
 class BillingService
 {
-    public function __construct(private readonly ShopifyGraphQLClient $client)
-    {
-    }
-
     /**
-     * Called right after OAuth completes and from the app_subscriptions/update
-     * webhook - both moments Shopify's chosen plan can change.
+     * @param  array<string, mixed>  $payload  The webhook body (or its
+     *                                          nested "app_subscription" key).
      */
-    public function syncActivePlan(ShopInstallation $shop): void
+    public function syncFromWebhookPayload(ShopInstallation $shop, array $payload): void
     {
-        $data = $this->client->query(<<<'GRAPHQL'
-            query activeSubscriptions {
-                currentAppInstallation {
-                    activeSubscriptions {
-                        id
-                        name
-                        status
-                    }
-                }
-            }
-        GRAPHQL);
+        $subscription = $payload['app_subscription'] ?? $payload;
 
-        $subscriptions = $data['currentAppInstallation']['activeSubscriptions'] ?? [];
-        $active = collect($subscriptions)->firstWhere('status', 'ACTIVE');
+        $chargeId = (string) ($subscription['admin_graphql_api_id'] ?? '');
+        $planName = strtolower((string) ($subscription['name'] ?? ''));
+        $status = strtolower((string) ($subscription['status'] ?? ''));
 
-        $plan = $active ? Plan::findByShopifyName($active['name']) : null;
+        if (! $chargeId) {
+            return;
+        }
+
+        $isActive = $status === 'active';
+        $plan = $isActive ? Plan::findByShopifyName($planName) : null;
 
         $shop->update([
-            'plan' => $plan?->key,
-            'shopify_subscription_id' => $active['id'] ?? null,
+            'plan' => $isActive ? $plan?->key : null,
+            'shopify_subscription_id' => $isActive ? $chargeId : null,
         ]);
     }
 }

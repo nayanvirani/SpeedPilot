@@ -19,14 +19,16 @@ Route::view('/', 'welcome');
 Route::get('/auth/install', [ShopifyOAuthController::class, 'install']);
 Route::get('/auth/callback', [ShopifyOAuthController::class, 'callback']);
 
-// Webhooks - HMAC-verified against the raw body inside each controller,
-// never App-Bridge session tokens.
-Route::post('/webhooks/app/uninstalled', AppUninstalledController::class);
-Route::post('/webhooks/app_subscriptions/update', AppSubscriptionsUpdateController::class);
-Route::post('/webhooks/themes/publish', ThemesPublishController::class);
-Route::post('/webhooks/customers/data_request', [GdprController::class, 'customersDataRequest']);
-Route::post('/webhooks/customers/redact', [GdprController::class, 'customersRedact']);
-Route::post('/webhooks/shop/redact', [GdprController::class, 'shopRedact']);
+// Webhooks - HMAC-verified and deduped by shopify.webhook, never App-Bridge
+// session tokens.
+Route::middleware('shopify.webhook')->group(function () {
+    Route::post('/webhooks/app/uninstalled', AppUninstalledController::class);
+    Route::post('/webhooks/app_subscriptions/update', AppSubscriptionsUpdateController::class);
+    Route::post('/webhooks/themes/publish', ThemesPublishController::class);
+    Route::post('/webhooks/customers/data_request', [GdprController::class, 'customersDataRequest']);
+    Route::post('/webhooks/customers/redact', [GdprController::class, 'customersRedact']);
+    Route::post('/webhooks/shop/redact', [GdprController::class, 'shopRedact']);
+});
 
 // Super-admin panel - session-based Laravel auth, separate from the
 // per-shop embedded app (which auths via App Bridge session tokens instead).

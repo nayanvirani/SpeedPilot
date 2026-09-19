@@ -3,8 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\ShopInstallation;
-use App\Services\Shopify\BillingService;
-use App\Services\Shopify\ShopifyGraphQLClient;
 use App\Services\Shopify\ShopifyOAuthService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -39,7 +37,7 @@ class ShopifyOAuthController extends Controller
 
         $tokenData = $oauth->exchangeCodeForToken($shop, $request->query('code'));
 
-        $shopInstallation = ShopInstallation::updateOrCreate(
+        ShopInstallation::updateOrCreate(
             ['shop_domain' => $shop],
             [
                 'access_token' => $tokenData['access_token'],
@@ -51,11 +49,15 @@ class ShopifyOAuthController extends Controller
 
         // With Shopify Managed Pricing, the merchant already picked a plan
         // as part of Shopify's own install flow, before this callback ever
-        // ran - read it back now so the app isn't stuck on "no plan" until
-        // the next webhook.
-        (new BillingService(new ShopifyGraphQLClient($shop, $tokenData['access_token'])))
-            ->syncActivePlan($shopInstallation);
+        // ran - the app_subscriptions/update webhook (fired around the same
+        // time) is what actually syncs it, not a query here.
+        //
+        // Redirect into Shopify's own admin URL for the app, not our raw
+        // frontend URL directly - Shopify then loads application_url
+        // embedded in its iframe/top bar as normal. Redirecting straight to
+        // our own domain would break out of the embedded context entirely.
+        $shopHandle = str_replace('.myshopify.com', '', $shop);
 
-        return redirect(rtrim(config('shopify.frontend_url'), '/')."?shop={$shop}");
+        return redirect("https://admin.shopify.com/store/{$shopHandle}/apps/".config('shopify.api_key'));
     }
 }

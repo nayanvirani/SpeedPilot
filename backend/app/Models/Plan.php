@@ -38,9 +38,11 @@ class Plan extends Model
 
     /**
      * Resolve Shopify Managed Pricing's active-subscription name (e.g.
-     * "Starter") back to one of our plan rows. Unmatched names (a plan
-     * renamed in the Partner Dashboard without updating shopify_plan_name
-     * here) resolve to null - PlanPolicy treats that exactly like "no plan".
+     * "Starter") back to one of our plan rows. Matched case-insensitively -
+     * shopify_plan_name is stored lowercase and the caller lowercases the
+     * incoming name too, so a merchant-facing rename's capitalization in
+     * the Partner Dashboard can't silently break the match. An unmatched
+     * name resolves to null - PlanPolicy treats that exactly like "no plan".
      */
     public static function findByShopifyName(?string $shopifyPlanName): ?self
     {
@@ -48,7 +50,7 @@ class Plan extends Model
             return null;
         }
 
-        return static::where('shopify_plan_name', $shopifyPlanName)->first();
+        return static::whereRaw('LOWER(shopify_plan_name) = ?', [strtolower($shopifyPlanName)])->first();
     }
 
     protected static function booted(): void

@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Webhooks;
 use App\Http\Controllers\Controller;
 use App\Models\RumEvent;
 use App\Models\ShopInstallation;
-use App\Services\Shopify\WebhookVerifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -17,17 +16,8 @@ use Illuminate\Support\Facades\Log;
  */
 class GdprController extends Controller
 {
-    private function verify(Request $request): bool
-    {
-        return WebhookVerifier::isValid($request->getContent(), $request->header('X-Shopify-Hmac-Sha256', ''));
-    }
-
     public function customersDataRequest(Request $request)
     {
-        if (! $this->verify($request)) {
-            return response('Invalid signature', 401);
-        }
-
         Log::info('GDPR customers/data_request received', $request->all());
 
         return response('', 200); // no customer PII stored - nothing to return
@@ -35,10 +25,6 @@ class GdprController extends Controller
 
     public function customersRedact(Request $request)
     {
-        if (! $this->verify($request)) {
-            return response('Invalid signature', 401);
-        }
-
         Log::info('GDPR customers/redact received', $request->all());
 
         return response('', 200); // no customer PII stored - nothing to redact
@@ -46,10 +32,6 @@ class GdprController extends Controller
 
     public function shopRedact(Request $request)
     {
-        if (! $this->verify($request)) {
-            return response('Invalid signature', 401);
-        }
-
         $shopDomain = $request->input('shop_domain');
         $shop = ShopInstallation::where('shop_domain', $shopDomain)->first();
 

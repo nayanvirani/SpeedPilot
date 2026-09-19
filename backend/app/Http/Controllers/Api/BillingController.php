@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 
 /**
  * Billing is Shopify Managed Pricing now - the app never creates or cancels
- * subscriptions itself (see BillingService::syncActivePlan), so this
+ * subscriptions itself (see BillingService::syncFromWebhookPayload), so this
  * controller is read-only: what plans exist, what the shop is currently on,
  * and a deep link to Shopify's own plan-picker for changing it.
  */
@@ -32,7 +32,7 @@ class BillingController extends Controller
             'manage_url' => sprintf(
                 'https://admin.shopify.com/store/%s/charges/%s/pricing_plans',
                 str_replace('.myshopify.com', '', $shop->shop_domain),
-                config('shopify.api_key'),
+                config('shopify.app_handle'),
             ),
         ]);
     }

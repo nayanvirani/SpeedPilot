@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\EnsureIsSuperAdmin;
 use App\Http\Middleware\VerifyShopifySessionToken;
+use App\Http\Middleware\VerifyShopifyWebhook;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -28,6 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'shopify.session' => VerifyShopifySessionToken::class,
             'super_admin' => EnsureIsSuperAdmin::class,
+            'shopify.webhook' => VerifyShopifyWebhook::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
