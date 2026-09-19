@@ -1,0 +1,24 @@
+# Railway's Railpack PHP builder bakes its own FrankenPHP/Caddy web-server
+# entrypoint regardless of the platform-level startCommand override, so the
+# queue worker needs its own image. No Vite/npm build here - the worker never
+# serves the SPA, only processes queued jobs.
+FROM php:8.3-cli
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libpq-dev \
+        unzip \
+        git \
+    && docker-php-ext-install pdo pdo_pgsql \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+WORKDIR /app
+
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --no-interaction --no-scripts --no-autoloader --prefer-dist
+
+COPY . .
+RUN composer dump-autoload --optimize --no-dev
+
+CMD ["php", "artisan", "queue:work", "--tries=3", "--sleep=3", "--timeout=120"]

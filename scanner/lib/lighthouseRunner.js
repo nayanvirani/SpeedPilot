@@ -12,7 +12,16 @@ async function runLighthouse(url) {
   const lighthouse = (await import('lighthouse')).default;
 
   const browser = await chromium.launch({
-    args: ['--remote-debugging-port=9222', '--headless=new'],
+    // Railway's container doesn't grant the privileges Chromium's sandbox
+    // needs, which makes browserType.launch fail outright without these -
+    // this is the standard fix for running Chromium in most containers.
+    args: [
+      '--remote-debugging-port=9222',
+      '--headless=new',
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+    ],
   });
 
   try {
