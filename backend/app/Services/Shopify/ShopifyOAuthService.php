@@ -87,6 +87,11 @@ class ShopifyOAuthService
                 'subject_token' => $sessionToken,
                 'subject_token_type' => 'urn:ietf:params:oauth:token-type:id_token',
                 'requested_token_type' => 'urn:shopify:params:oauth:token-type:offline-access-token',
+                // Without this, Shopify issues a non-expiring offline token,
+                // which the Admin API now rejects outright ("Non-expiring
+                // access tokens are no longer accepted") - this is required,
+                // not optional, on current API versions.
+                'expiring' => 1,
             ],
         ]);
 

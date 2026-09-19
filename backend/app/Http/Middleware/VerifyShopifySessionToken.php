@@ -59,7 +59,7 @@ class VerifyShopifySessionToken
 
         $shop = ShopInstallation::where('shop_domain', $shopDomain)->first();
 
-        if (! $shop || ! $shop->isActive() || ! $shop->access_token) {
+        if (! $shop || ! $shop->isActive() || $shop->needsFreshAccessToken()) {
             try {
                 $shop = $this->provisionViaTokenExchange($shopDomain, $token);
             } catch (Throwable $e) {
@@ -86,6 +86,9 @@ class VerifyShopifySessionToken
             ['shop_domain' => $shopDomain],
             [
                 'access_token' => $tokenData['access_token'],
+                'access_token_expires_at' => isset($tokenData['expires_in'])
+                    ? now()->addSeconds((int) $tokenData['expires_in'])
+                    : null,
                 'scope' => $tokenData['scope'] ?? null,
                 'installed_at' => now(),
                 'uninstalled_at' => null,
@@ -95,7 +98,16 @@ class VerifyShopifySessionToken
         // The merchant already picked a plan as part of Shopify's managed
         // install flow - the app_subscriptions/update webhook may not have
         // landed yet, so seed it now rather than showing "no plan" briefly.
-        $this->billing->syncActivePlanViaApi($shop);
+        // Non-fatal: a plan-sync hiccup shouldn't break auth itself, since
+        // the webhook (or a manual admin resync) can still catch it later.
+        try {
+            $this->billing->syncActivePlanViaApi($shop);
+        } catch (Throwable $e) {
+            Log::warning('Initial plan sync failed during provisioning', [
+                'shop' => $shopDomain,
+                'message' => $e->getMessage(),
+            ]);
+        }
 
         return $shop->fresh();
     }

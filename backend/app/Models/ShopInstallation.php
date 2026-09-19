@@ -13,6 +13,7 @@ class ShopInstallation extends Model
     protected $fillable = [
         'shop_domain',
         'access_token',
+        'access_token_expires_at',
         'scope',
         'plan',
         'shopify_subscription_id',
@@ -28,9 +29,16 @@ class ShopInstallation extends Model
     {
         return [
             'access_token' => 'encrypted',
+            'access_token_expires_at' => 'datetime',
             'installed_at' => 'datetime',
             'uninstalled_at' => 'datetime',
         ];
+    }
+
+    public function needsFreshAccessToken(): bool
+    {
+        return ! $this->access_token
+            || ($this->access_token_expires_at && $this->access_token_expires_at->isPast());
     }
 
     public function audits(): HasMany
