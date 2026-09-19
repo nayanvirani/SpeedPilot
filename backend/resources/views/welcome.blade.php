@@ -112,7 +112,7 @@
                             <li class="flex gap-2"><span class="text-emerald-600">&check;</span> {{ $plan->history_days > 0 ? "{$plan->history_days}-day history" : 'One-time scan' }}</li>
                         </ul>
                         <a href="https://apps.shopify.com" class="block text-center rounded-full px-5 py-2.5 text-sm font-medium {{ $isHighlighted ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-slate-100 text-slate-900 hover:bg-slate-200' }}">
-                            Start {{ $plan->trial_days }}-day free trial
+                            {{ $plan->trial_days > 0 ? "Start {$plan->trial_days}-day free trial" : 'Subscribe now' }}
                         </a>
                     </div>
                 @endforeach
