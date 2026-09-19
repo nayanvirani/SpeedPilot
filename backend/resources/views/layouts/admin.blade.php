@@ -14,7 +14,9 @@
                 <a href="{{ route('admin.dashboard') }}" class="px-5 py-2 hover:bg-slate-800 {{ request()->routeIs('admin.dashboard') ? 'bg-slate-800 text-white' : '' }}">Dashboard</a>
                 <a href="{{ route('admin.stores.index') }}" class="px-5 py-2 hover:bg-slate-800 {{ request()->routeIs('admin.stores.*') ? 'bg-slate-800 text-white' : '' }}">Stores</a>
                 <a href="{{ route('admin.settings.edit') }}" class="px-5 py-2 hover:bg-slate-800 {{ request()->routeIs('admin.settings.*') ? 'bg-slate-800 text-white' : '' }}">Settings</a>
+                <a href="{{ route('admin.profile.edit') }}" class="px-5 py-2 hover:bg-slate-800 {{ request()->routeIs('admin.profile.*') ? 'bg-slate-800 text-white' : '' }}">Profile</a>
             </nav>
+            <div class="px-5 py-2 text-xs text-slate-500">{{ auth()->user()?->email }}</div>
             <form method="POST" action="{{ route('admin.logout') }}" class="px-5 py-4 mt-4">
                 @csrf
                 <button type="submit" class="text-sm text-slate-400 hover:text-white">Log out</button>

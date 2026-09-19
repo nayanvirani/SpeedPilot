@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AuthController as AdminAuthController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Admin\ProfileController as AdminProfileController;
 use App\Http\Controllers\Admin\SettingsController as AdminSettingsController;
 use App\Http\Controllers\Admin\StoreController as AdminStoreController;
 use App\Http\Controllers\ShopifyOAuthController;
@@ -37,5 +38,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/stores/{store}', [AdminStoreController::class, 'show'])->name('stores.show');
         Route::get('/settings', [AdminSettingsController::class, 'edit'])->name('settings.edit');
         Route::post('/settings', [AdminSettingsController::class, 'update'])->name('settings.update');
+        Route::get('/profile', [AdminProfileController::class, 'edit'])->name('profile.edit');
+        Route::post('/profile/password', [AdminProfileController::class, 'updatePassword'])->name('profile.password');
     });
 });

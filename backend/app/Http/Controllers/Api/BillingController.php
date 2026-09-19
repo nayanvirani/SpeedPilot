@@ -22,7 +22,7 @@ class BillingController extends Controller
         $shop = $request->attributes->get('shop');
 
         $data = $request->validate([
-            'plan' => ['required', Rule::in(['starter', 'growth', 'pro'])],
+            'plan' => ['required', Rule::in(['starter', 'pro'])],
         ]);
 
         $billing = new BillingService(new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token));

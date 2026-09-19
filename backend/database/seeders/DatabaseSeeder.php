@@ -21,7 +21,7 @@ class DatabaseSeeder extends Seeder
             [
                 'access_token' => 'dev-placeholder-token',
                 'scope' => config('shopify.scopes'),
-                'plan' => 'growth',
+                'plan' => 'pro',
                 'installed_at' => now(),
             ],
         );

@@ -15,7 +15,7 @@ class ShopInstallationFactory extends Factory
             'shop_domain' => $this->faker->unique()->domainWord().'.myshopify.com',
             'access_token' => 'test-access-token',
             'scope' => 'read_themes,write_themes',
-            'plan' => 'free',
+            'plan' => null,
             'installed_at' => now(),
         ];
     }

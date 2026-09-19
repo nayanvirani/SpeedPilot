@@ -81,6 +81,6 @@ class BillingService
             }
         GRAPHQL, ['id' => $shop->shopify_subscription_id]);
 
-        $shop->update(['plan' => 'free', 'shopify_subscription_id' => null]);
+        $shop->update(['plan' => null, 'shopify_subscription_id' => null]);
     }
 }

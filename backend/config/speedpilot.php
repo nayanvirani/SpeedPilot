@@ -13,49 +13,30 @@ return [
         'api_key' => env('AI_PROVIDER_API_KEY'),
     ],
 
-    // Pricing tiers, agreed with the merchant-facing plan. Kept in one place so
-    // PlanPolicy and BillingService never hardcode limits/prices separately.
+    // Billable pricing tiers - matches the exact plans/prices created in the
+    // Shopify Partner Dashboard (Starter $29.99 / Pro $49.99). There is no
+    // "Free" billing plan: a shop with no subscription yet (plan === null)
+    // still gets the free audit/scan (RunAuditJob never checks plan at all),
+    // it just can't use auto-fixes until it subscribes - see PlanPolicy's
+    // NO_PLAN fallback for exactly what an unsubscribed shop can/can't do.
     'plans' => [
-        'free' => [
-            'name' => 'Free Scan',
-            'price' => 0,
-            'trial_days' => 0,
-            'script_rule_limit' => 0,
-            'history_days' => 0,
-            'auto_fixes' => false,
-            'medium_risk_fixes' => false,
-            'high_risk_recommendations' => false,
-            'monitoring' => false,
-        ],
         'starter' => [
             'name' => 'Starter',
-            'price' => 19,
+            'price' => 29.99,
             'trial_days' => 7,
-            'script_rule_limit' => 1,
-            'history_days' => 7,
+            'script_rule_limit' => 3,
+            'history_days' => 30,
             'auto_fixes' => true,
-            'auto_fix_limit' => 5,
+            'auto_fix_limit' => null, // unlimited
             'medium_risk_fixes' => false,
             'high_risk_recommendations' => false,
             'monitoring' => 'basic',
         ],
-        'growth' => [
-            'name' => 'Growth',
-            'price' => 39,
-            'trial_days' => 7,
-            'script_rule_limit' => null, // unlimited
-            'history_days' => 30,
-            'auto_fixes' => true,
-            'auto_fix_limit' => null,
-            'medium_risk_fixes' => true,
-            'high_risk_recommendations' => false,
-            'monitoring' => 'advanced',
-        ],
         'pro' => [
             'name' => 'Pro',
-            'price' => 79,
+            'price' => 49.99,
             'trial_days' => 7,
-            'script_rule_limit' => null,
+            'script_rule_limit' => null, // unlimited
             'history_days' => 90,
             'auto_fixes' => true,
             'auto_fix_limit' => null,

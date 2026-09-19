@@ -24,7 +24,7 @@ class RunAuditJobTest extends TestCase
     {
         Queue::fake();
 
-        $shop = ShopInstallation::factory()->create(['plan' => 'growth']);
+        $shop = ShopInstallation::factory()->create(['plan' => 'pro']);
 
         $scanner = Mockery::mock(ScannerClient::class);
         $scanner->shouldReceive('scan')->once()->andReturn([
@@ -70,11 +70,11 @@ class RunAuditJobTest extends TestCase
         Queue::assertPushed(ApplySafeFixesJob::class);
     }
 
-    public function test_it_does_not_queue_fixes_on_the_free_plan(): void
+    public function test_it_does_not_queue_fixes_for_an_unsubscribed_shop(): void
     {
         Queue::fake();
 
-        $shop = ShopInstallation::factory()->create(['plan' => 'free']);
+        $shop = ShopInstallation::factory()->create(['plan' => null]);
 
         $scanner = Mockery::mock(ScannerClient::class);
         $scanner->shouldReceive('scan')->once()->andReturn([

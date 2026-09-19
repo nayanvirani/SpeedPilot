@@ -7,31 +7,25 @@ const PLANS = [
   {
     key: 'starter',
     name: 'Starter',
-    price: 19,
-    features: ['Up to 5 safe auto-fixes', '1 script rule', 'Weekly re-scan', '7-day history'],
-  },
-  {
-    key: 'growth',
-    name: 'Growth',
-    price: 39,
-    recommended: true,
+    price: 29.99,
     features: [
       'Unlimited safe auto-fixes',
-      'Unlimited script rules',
-      'Medium-risk fixes via preview theme',
-      'Daily monitoring',
+      'Up to 3 script rules',
+      'Weekly re-scan',
       '30-day history',
     ],
   },
   {
     key: 'pro',
     name: 'Pro',
-    price: 79,
+    price: 49.99,
+    recommended: true,
     features: [
-      'Everything in Growth',
-      'High-risk recommendations',
-      '90-day history + trends',
+      'Everything in Starter',
+      'Unlimited script rules',
+      'Medium + high-risk fixes via preview theme',
       'AI-generated recommendations',
+      'Daily monitoring, 90-day history',
       'Priority support',
     ],
   },
@@ -61,7 +55,7 @@ export default function BillingPage() {
 
   return (
     <Page title="Billing">
-      <InlineGrid columns={3} gap="400">
+      <InlineGrid columns={2} gap="400">
         {PLANS.map((plan) => (
           <Card key={plan.key}>
             <BlockStack gap="300">

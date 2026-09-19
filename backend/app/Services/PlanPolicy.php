@@ -15,7 +15,12 @@ class PlanPolicy
 
     public function __construct(private readonly ShopInstallation $shop)
     {
-        $this->plan = config("speedpilot.plans.{$shop->plan}") ?? config('speedpilot.plans.free');
+        // A shop with no recognized/active plan (not yet subscribed, or
+        // uninstalled) resolves to an empty plan - every getter below
+        // already defaults safely (false/0/null) when a key is missing, so
+        // an unsubscribed shop simply can't auto-fix, run monitoring, etc.
+        // until it picks Starter or Pro. There is no billable "Free" tier.
+        $this->plan = config("speedpilot.plans.{$shop->plan}") ?? [];
     }
 
     public function canAutoFix(): bool
