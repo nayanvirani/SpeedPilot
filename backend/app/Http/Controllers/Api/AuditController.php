@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\RunAuditJob;
+use App\Models\AppSetting;
 use App\Models\Audit;
 use App\Models\ShopInstallation;
 use Illuminate\Http\Request;
@@ -12,6 +13,12 @@ class AuditController extends Controller
 {
     public function store(Request $request)
     {
+        if (AppSetting::get('maintenance_mode', '0') === '1') {
+            return response()->json([
+                'error' => 'SpeedPilot is undergoing maintenance. Please try again shortly.',
+            ], 503);
+        }
+
         /** @var ShopInstallation $shop */
         $shop = $request->attributes->get('shop');
 

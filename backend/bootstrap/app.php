@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureIsSuperAdmin;
 use App\Http\Middleware\VerifyShopifySessionToken;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -15,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
             'shopify.session' => VerifyShopifySessionToken::class,
+            'super_admin' => EnsureIsSuperAdmin::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

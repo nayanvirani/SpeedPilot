@@ -14,6 +14,8 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        $this->call(SuperAdminSeeder::class);
+
         ShopInstallation::updateOrCreate(
             ['shop_domain' => 'speedpilot-dev.myshopify.com'],
             [

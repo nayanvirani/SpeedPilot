@@ -2,6 +2,7 @@
 
 namespace App\Services\Scanner;
 
+use App\Models\AppSetting;
 use GuzzleHttp\Client;
 use Illuminate\Support\Facades\Cache;
 
@@ -25,7 +26,10 @@ class PsiClient
         $key = "psi_quota:{$shopDomain}:".now()->format('Y-m-d');
         $used = (int) Cache::get($key, 0);
 
-        return $used < config('speedpilot.psi.daily_quota');
+        $override = AppSetting::get('psi_daily_quota', '');
+        $quota = $override !== '' ? (int) $override : config('speedpilot.psi.daily_quota');
+
+        return $used < $quota;
     }
 
     public function spotCheck(string $shopDomain, string $url): ?array
