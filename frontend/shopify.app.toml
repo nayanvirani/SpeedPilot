@@ -1,41 +1,44 @@
-# Shopify app configuration. application_url is what Shopify actually loads
-# as the embedded admin iframe src - that's this Remix frontend, NOT the
-# Laravel backend (which only owns OAuth/webhooks/API, see
-# backend/app/Http/Controllers/ShopifyOAuthController.php). redirect_urls
-# stays pointed at the backend since that's where /auth/callback lives.
-name = "SpeedPilot"
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
 client_id = "18daa143e8994476086f856dd653dd3f"
+name = "SpeedPilot"
 application_url = "https://speedpilotfrontend-production.up.railway.app"
 embedded = true
 
-[access_scopes]
-scopes = "read_themes,write_themes,read_products,read_script_tags,write_script_tags"
-
-[auth]
-redirect_urls = ["https://speedpilot-production.up.railway.app/auth/callback"]
-
-[webhooks]
-api_version = "2025-01"
-
-  [[webhooks.subscriptions]]
-  topics = ["app/uninstalled"]
-  uri = "/webhooks/app/uninstalled"
-
-  [[webhooks.subscriptions]]
-  topics = ["themes/publish"]
-  uri = "/webhooks/themes/publish"
-
-  [[webhooks.subscriptions]]
-  compliance_topics = ["customers/data_request"]
-  uri = "/webhooks/customers/data_request"
-
-  [[webhooks.subscriptions]]
-  compliance_topics = ["customers/redact"]
-  uri = "/webhooks/customers/redact"
-
-  [[webhooks.subscriptions]]
-  compliance_topics = ["shop/redact"]
-  uri = "/webhooks/shop/redact"
-
 [build]
 automatically_update_urls_on_dev = true
+
+[webhooks]
+api_version = "2026-07"
+
+  # Absolute URLs, not relative paths - these handlers live on the Laravel
+  # backend (see backend/routes/web.php), not on application_url (the
+  # frontend), which is what a relative uri would resolve against.
+  [[webhooks.subscriptions]]
+  uri = "https://speedpilot-production.up.railway.app/webhooks/customers/data_request"
+  compliance_topics = [ "customers/data_request" ]
+
+  [[webhooks.subscriptions]]
+  uri = "https://speedpilot-production.up.railway.app/webhooks/customers/redact"
+  compliance_topics = [ "customers/redact" ]
+
+  [[webhooks.subscriptions]]
+  uri = "https://speedpilot-production.up.railway.app/webhooks/shop/redact"
+  compliance_topics = [ "shop/redact" ]
+
+  [[webhooks.subscriptions]]
+  uri = "https://speedpilot-production.up.railway.app/webhooks/app/uninstalled"
+  topics = [ "app/uninstalled" ]
+
+  [[webhooks.subscriptions]]
+  uri = "https://speedpilot-production.up.railway.app/webhooks/themes/publish"
+  topics = [ "themes/publish" ]
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_themes,write_themes,read_products,read_script_tags,write_script_tags"
+optional_scopes = [ ]
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [ "https://speedpilot-production.up.railway.app/auth/callback" ]
