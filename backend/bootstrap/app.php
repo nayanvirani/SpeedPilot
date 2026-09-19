@@ -31,6 +31,17 @@ return Application::configure(basePath: dirname(__DIR__))
             'super_admin' => EnsureIsSuperAdmin::class,
             'shopify.webhook' => VerifyShopifyWebhook::class,
         ]);
+
+        // Webhook routes live in routes/web.php (for the admin panel's
+        // session/CSRF needs elsewhere in that file) and so inherited
+        // Laravel's default CSRF verification - Shopify's webhook POSTs
+        // carry no session/CSRF token at all, so every single delivery was
+        // silently rejected with 419 before ever reaching a controller.
+        // HMAC verification (shopify.webhook middleware) is this endpoint's
+        // real authenticity check, not CSRF.
+        $middleware->validateCsrfTokens(except: [
+            'webhooks/*',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
