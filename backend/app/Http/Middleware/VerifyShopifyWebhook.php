@@ -23,17 +23,22 @@ class VerifyShopifyWebhook
         }
 
         $webhookId = $request->header('X-Shopify-Webhook-Id');
+        $cacheKey = $webhookId ? "shopify:webhook:{$webhookId}" : null;
 
-        if ($webhookId) {
-            $cacheKey = "shopify:webhook:{$webhookId}";
+        if ($cacheKey && Cache::has($cacheKey)) {
+            return response()->json(['status' => 'duplicate_ignored']);
+        }
 
-            if (Cache::has($cacheKey)) {
-                return response()->json(['status' => 'duplicate_ignored']);
-            }
+        $response = $next($request);
 
+        // Marked processed only after the handler actually completes without
+        // throwing - caching this beforehand would mean a retry of a request
+        // that failed on its first attempt gets silently swallowed here
+        // forever instead of ever actually being processed.
+        if ($cacheKey) {
             Cache::put($cacheKey, true, now()->addHours(24));
         }
 
-        return $next($request);
+        return $response;
     }
 }

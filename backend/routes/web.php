@@ -41,6 +41,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
         Route::get('/stores', [AdminStoreController::class, 'index'])->name('stores.index');
         Route::get('/stores/{store}', [AdminStoreController::class, 'show'])->name('stores.show');
+        Route::post('/stores/{store}/resync-plan', [AdminStoreController::class, 'resyncPlan'])->name('stores.resync-plan');
         Route::get('/plans', [AdminPlanController::class, 'index'])->name('plans.index');
         Route::get('/plans/{plan}/edit', [AdminPlanController::class, 'edit'])->name('plans.edit');
         Route::put('/plans/{plan}', [AdminPlanController::class, 'update'])->name('plans.update');

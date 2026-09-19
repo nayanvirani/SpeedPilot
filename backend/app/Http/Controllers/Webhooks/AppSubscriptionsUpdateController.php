@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ShopInstallation;
 use App\Services\Shopify\BillingService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Fires on every Shopify Managed Pricing subscription status change
@@ -22,8 +23,18 @@ class AppSubscriptionsUpdateController extends Controller
         $shopDomain = $request->header('X-Shopify-Shop-Domain');
         $shop = ShopInstallation::where('shop_domain', $shopDomain)->whereNull('uninstalled_at')->first();
 
+        // TEMPORARY diagnostic logging - a real subscription webhook arrived
+        // three times but never updated shop.plan; removing once the cause
+        // is confirmed and fixed.
+        Log::info('app_subscriptions/update received', [
+            'shop_domain' => $shopDomain,
+            'shop_found' => (bool) $shop,
+            'payload' => $request->getContent(),
+        ]);
+
         if ($shop) {
             $billing->syncFromWebhookPayload($shop, $request->json()->all());
+            Log::info('app_subscriptions/update processed', ['shop_plan_after' => $shop->fresh()->plan]);
         }
 
         return response('', 200);
