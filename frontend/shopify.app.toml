@@ -4,14 +4,14 @@
 # not this Remix app.
 name = "SpeedPilot"
 client_id = "18daa143e8994476086f856dd653dd3f"
-application_url = "http://127.0.0.1:8000"
+application_url = "https://speedpilot-production.up.railway.app"
 embedded = true
 
 [access_scopes]
 scopes = "read_themes,write_themes,read_products,read_script_tags,write_script_tags"
 
 [auth]
-redirect_urls = ["http://127.0.0.1:8000/auth/callback"]
+redirect_urls = ["https://speedpilot-production.up.railway.app/auth/callback"]
 
 [webhooks]
 api_version = "2025-01"
