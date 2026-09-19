@@ -66,4 +66,30 @@ class ShopifyOAuthService
 
         return json_decode((string) $response->getBody(), true);
     }
+
+    /**
+     * With shopify.app.toml's use_legacy_install_flow = false, Shopify grants
+     * scopes and embeds the app itself ("managed installation") without ever
+     * calling /auth/callback - the classic OAuth flow above is a fallback,
+     * not the primary path. Token Exchange is how the app actually obtains
+     * an offline access token: it swaps the App Bridge session token
+     * (already proven valid - this shop has it because Shopify itself
+     * handed it a token for this app) for a real API access token, on the
+     * first authenticated request from an unknown shop.
+     */
+    public function exchangeSessionTokenForOfflineToken(string $shop, string $sessionToken): array
+    {
+        $response = $this->http->post("https://{$shop}/admin/oauth/access_token", [
+            'json' => [
+                'client_id' => config('shopify.api_key'),
+                'client_secret' => config('shopify.api_secret'),
+                'grant_type' => 'urn:ietf:params:oauth:grant-type:token-exchange',
+                'subject_token' => $sessionToken,
+                'subject_token_type' => 'urn:ietf:params:oauth:token-type:id_token',
+                'requested_token_type' => 'urn:shopify:params:oauth:token-type:offline-access-token',
+            ],
+        ]);
+
+        return json_decode((string) $response->getBody(), true);
+    }
 }

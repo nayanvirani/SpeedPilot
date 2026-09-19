@@ -3,19 +3,37 @@
 namespace App\Http\Middleware;
 
 use App\Models\ShopInstallation;
+use App\Services\Shopify\BillingService;
+use App\Services\Shopify\ShopifyOAuthService;
 use Closure;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 /**
  * Verifies the App Bridge session token the Remix frontend forwards as a
- * Bearer header, then resolves it to a shop_installations row on the request
- * so controllers never touch raw JWTs.
+ * Bearer header, then resolves it to a shop_installations row on the
+ * request so controllers never touch raw JWTs.
+ *
+ * Because shopify.app.toml has use_legacy_install_flow = false, Shopify
+ * grants scopes and embeds the app itself ("managed installation") without
+ * ever calling our classic /auth/callback - the first this app hears about
+ * a shop is often a session token on a request exactly like this one. So on
+ * first contact with an unknown (or previously uninstalled) shop, this
+ * middleware performs Token Exchange itself to obtain an offline access
+ * token and provisions the row right here, instead of rejecting the request.
  */
 class VerifyShopifySessionToken
 {
+    public function __construct(
+        private readonly ShopifyOAuthService $oauth,
+        private readonly BillingService $billing,
+    ) {
+    }
+
     public function handle(Request $request, Closure $next): Response
     {
         $token = $request->bearerToken();
@@ -26,21 +44,59 @@ class VerifyShopifySessionToken
 
         try {
             $payload = JWT::decode($token, new Key(config('shopify.api_secret'), 'HS256'));
-        } catch (\Throwable) {
+        } catch (Throwable $e) {
+            Log::warning('Shopify session token verification failed', ['message' => $e->getMessage()]);
+
             return response()->json(['error' => 'Invalid session token'], 401);
         }
 
         // dest looks like "https://{shop}.myshopify.com"
         $shopDomain = parse_url($payload->dest ?? '', PHP_URL_HOST);
 
+        if (! $shopDomain) {
+            return response()->json(['error' => 'Invalid session token'], 401);
+        }
+
         $shop = ShopInstallation::where('shop_domain', $shopDomain)->first();
 
-        if (! $shop || ! $shop->isActive()) {
-            return response()->json(['error' => 'Unknown or uninstalled shop'], 401);
+        if (! $shop || ! $shop->isActive() || ! $shop->access_token) {
+            try {
+                $shop = $this->provisionViaTokenExchange($shopDomain, $token);
+            } catch (Throwable $e) {
+                Log::error('Shopify token exchange failed', ['shop' => $shopDomain, 'message' => $e->getMessage()]);
+
+                return response()->json(['error' => 'Shop not installed'], 401);
+            }
         }
 
         $request->attributes->set('shop', $shop);
 
         return $next($request);
+    }
+
+    private function provisionViaTokenExchange(string $shopDomain, string $sessionToken): ShopInstallation
+    {
+        $tokenData = $this->oauth->exchangeSessionTokenForOfflineToken($shopDomain, $sessionToken);
+
+        if (! isset($tokenData['access_token'])) {
+            throw new \RuntimeException('Token exchange response had no access_token: '.json_encode($tokenData));
+        }
+
+        $shop = ShopInstallation::updateOrCreate(
+            ['shop_domain' => $shopDomain],
+            [
+                'access_token' => $tokenData['access_token'],
+                'scope' => $tokenData['scope'] ?? null,
+                'installed_at' => now(),
+                'uninstalled_at' => null,
+            ],
+        );
+
+        // The merchant already picked a plan as part of Shopify's managed
+        // install flow - the app_subscriptions/update webhook may not have
+        // landed yet, so seed it now rather than showing "no plan" briefly.
+        $this->billing->syncActivePlanViaApi($shop);
+
+        return $shop->fresh();
     }
 }

@@ -24,11 +24,13 @@ export function useApiData<T>(path: string) {
       });
 
       if (!response.ok) {
-        throw new Error(`Request failed (${response.status})`);
+        throw new Error(await describeFailedResponse(response));
       }
 
       setData(await response.json());
     } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error(`useApiData(${path}) failed:`, e);
       setError(e instanceof Error ? e.message : 'Something went wrong');
     } finally {
       setLoading(false);
@@ -43,6 +45,23 @@ export function useApiData<T>(path: string) {
   return { data, loading, error, refetch };
 }
 
+/**
+ * Our backend returns { error: "..." } on 4xx/5xx (see e.g.
+ * VerifyShopifySessionToken) - surface that instead of a bare status code,
+ * since "Missing session token" vs "Unknown or uninstalled shop" vs a
+ * generic 500 point at completely different fixes.
+ */
+async function describeFailedResponse(response: Response): Promise<string> {
+  try {
+    const body = await response.clone().json();
+    if (body?.error) return `${body.error} (${response.status})`;
+  } catch {
+    // response wasn't JSON - fall through to the generic message
+  }
+
+  return `Request failed (${response.status})`;
+}
+
 export async function apiPost<T = unknown>(path: string, body?: unknown): Promise<T> {
   const token = await getSessionToken();
   const response = await fetch(`/api-proxy${path}`, {
@@ -52,7 +71,7 @@ export async function apiPost<T = unknown>(path: string, body?: unknown): Promis
   });
 
   if (!response.ok) {
-    throw new Error(`Request failed (${response.status})`);
+    throw new Error(await describeFailedResponse(response));
   }
 
   return response.json();
@@ -67,7 +86,7 @@ export async function apiPatch<T = unknown>(path: string, body?: unknown): Promi
   });
 
   if (!response.ok) {
-    throw new Error(`Request failed (${response.status})`);
+    throw new Error(await describeFailedResponse(response));
   }
 
   return response.json();

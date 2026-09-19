@@ -15,26 +15,49 @@ interface CurrentPlanResponse {
  * change it (not an in-app subscribe button).
  */
 export default function BillingPage() {
-  const { data: plansData, loading: plansLoading } = useApiData<{ plans: PlanRow[] }>('/billing/plans');
-  const { data: currentData, loading: currentLoading } = useApiData<CurrentPlanResponse>('/billing/current');
+  const { data: plansData, loading: plansLoading, error: plansError, refetch: refetchPlans } =
+    useApiData<{ plans: PlanRow[] }>('/billing/plans');
+  const { data: currentData, loading: currentLoading, error: currentError, refetch: refetchCurrent } =
+    useApiData<CurrentPlanResponse>('/billing/current');
+
+  const error = plansError ?? currentError;
+  const loading = plansLoading || currentLoading;
 
   return (
     <Page title="Billing">
       <BlockStack gap="400">
+        {error && (
+          <Banner
+            tone="critical"
+            title="Couldn't load plans"
+            action={{
+              content: 'Retry',
+              onAction: () => {
+                refetchPlans();
+                refetchCurrent();
+              },
+            }}
+          >
+            {error}
+          </Banner>
+        )}
+
         {!currentLoading && currentData?.plan && (
           <Banner tone="success">
             You're on the {currentData.plan.name} plan. Manage or change it on Shopify.
           </Banner>
         )}
 
-        {plansLoading || currentLoading ? (
+        {loading ? (
           <SkeletonBodyText lines={6} />
         ) : (
-          <PlanPicker
-            plans={plansData?.plans ?? []}
-            currentPlanKey={currentData?.plan?.key}
-            manageUrl={currentData?.manage_url}
-          />
+          !error && (
+            <PlanPicker
+              plans={plansData?.plans ?? []}
+              currentPlanKey={currentData?.plan?.key}
+              manageUrl={currentData?.manage_url}
+            />
+          )
         )}
       </BlockStack>
     </Page>

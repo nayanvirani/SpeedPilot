@@ -28,7 +28,7 @@ export default function AppLayout() {
   // ever see the paywall below, regardless of which route it's on. This
   // mirrors Shopify's own Managed Pricing gate rather than relying on it
   // alone, so a cancelled-mid-session merchant is caught here too.
-  const { data, loading } = useApiData<CurrentPlanResponse>('/billing/current');
+  const { data, loading, error, refetch } = useApiData<CurrentPlanResponse>('/billing/current');
 
   const navigation = (
     <Navigation location={location.pathname}>
@@ -47,6 +47,22 @@ export default function AppLayout() {
       <AppProvider i18n={{}}>
         <Frame navigation={navigation}>
           <SkeletonPage />
+        </Frame>
+      </AppProvider>
+    );
+  }
+
+  // A fetch failure (bad/expired session token, backend unreachable, ...)
+  // is not the same thing as "confirmed no active plan" - showing the
+  // paywall for a network error would be misleading and impossible to
+  // debug from the merchant's side, so it gets its own state with a retry.
+  if (error) {
+    return (
+      <AppProvider i18n={{}}>
+        <Frame navigation={navigation}>
+          <Banner tone="critical" title="Couldn't load SpeedPilot" action={{ content: 'Retry', onAction: refetch }}>
+            {error}
+          </Banner>
         </Frame>
       </AppProvider>
     );
