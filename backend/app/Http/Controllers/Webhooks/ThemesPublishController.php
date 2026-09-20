@@ -21,7 +21,10 @@ class ThemesPublishController extends Controller
         $shop = ShopInstallation::where('shop_domain', $shopDomain)->first();
 
         if ($shop && $shop->isActive()) {
-            $audit = $shop->audits()->create(['url' => "https://{$shop->shop_domain}", 'status' => 'pending']);
+            // url stays null so RunAuditJob re-audits every page the plan
+            // covers, not just the homepage - a theme switch can move fixes
+            // out from under any of them, not only the home template.
+            $audit = $shop->audits()->create(['status' => 'pending']);
 
             RunAuditJob::dispatch($audit->id);
         }

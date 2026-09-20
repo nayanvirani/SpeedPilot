@@ -96,6 +96,14 @@
             </div>
         </div>
 
+        <div>
+            <label class="block text-sm font-medium text-slate-700">
+                Pages per scan <span class="text-slate-400 font-normal">(1 = homepage only; higher also covers a product + collection page)</span>
+            </label>
+            <input type="number" min="1" name="pages_per_scan" value="{{ old('pages_per_scan', $plan->pages_per_scan ?? 1) }}" required
+                   class="mt-1 w-24 rounded-md border-slate-300 shadow-sm text-sm">
+        </div>
+
         <div class="space-y-2 pt-2 border-t">
             <label class="flex items-center gap-2 text-sm">
                 <input type="checkbox" name="auto_fixes" value="1" class="rounded border-slate-300" @checked($plan->auto_fixes)>

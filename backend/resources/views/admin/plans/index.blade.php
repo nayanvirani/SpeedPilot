@@ -28,6 +28,7 @@
                     <th class="px-4 py-2">Shopify plan name</th>
                     <th class="px-4 py-2">Price</th>
                     <th class="px-4 py-2">Auto-fixes</th>
+                    <th class="px-4 py-2">Pages/scan</th>
                     <th class="px-4 py-2">Status</th>
                     <th class="px-4 py-2"></th>
                 </tr>
@@ -40,6 +41,7 @@
                         <td class="px-4 py-2 font-mono text-xs">{{ $plan->shopify_plan_name ?? '—' }}</td>
                         <td class="px-4 py-2">${{ number_format($plan->price, 2) }}/mo</td>
                         <td class="px-4 py-2">{{ $plan->auto_fixes ? 'Yes' : 'No' }}</td>
+                        <td class="px-4 py-2">{{ $plan->pages_per_scan }}</td>
                         <td class="px-4 py-2">
                             @if ($plan->active)
                                 <span class="text-green-600">Active</span>

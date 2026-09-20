@@ -12,6 +12,7 @@ class AppImpact extends Model
 
     protected $fillable = [
         'audit_id',
+        'audit_page_id',
         'app_name',
         'script_url',
         'requests',

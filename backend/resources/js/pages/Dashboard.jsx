@@ -15,6 +15,29 @@ function Metric({ label, value, suffix }) {
     );
 }
 
+const PAGE_TYPE_LABEL = { home: 'Homepage', product: 'Product page', collection: 'Collection page', custom: 'Custom URL' };
+
+function PageBreakdown({ pages }) {
+    if (!pages || pages.length < 2) {
+        return null;
+    }
+
+    return (
+        <BlockStack gap="200">
+            <Text as="h3" variant="headingSm">Scanned pages</Text>
+            {pages.map((page) => (
+                <InlineStack key={page.id} align="space-between">
+                    <Text as="span">{PAGE_TYPE_LABEL[page.page_type] ?? page.page_type}</Text>
+                    <InlineStack gap="200">
+                        <Text as="span" tone="subdued">{page.score ?? '—'}</Text>
+                        <Badge tone={statusTone(page.status)}>{page.status}</Badge>
+                    </InlineStack>
+                </InlineStack>
+            ))}
+        </BlockStack>
+    );
+}
+
 export default function Dashboard() {
     const [latestAudit, setLatestAudit] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -104,6 +127,7 @@ export default function Dashboard() {
                                     {latestAudit.issues.filter((i) => i.fix_available).length} auto-fixable.
                                 </Text>
                             )}
+                            <PageBreakdown pages={latestAudit.pages} />
                         </BlockStack>
                     )}
                 </Card>

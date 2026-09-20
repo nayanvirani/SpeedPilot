@@ -26,9 +26,11 @@ class AuditController extends Controller
             'url' => 'nullable|url',
         ]);
 
-        $url = $data['url'] ?? "https://{$shop->shop_domain}";
-
-        $audit = $shop->audits()->create(['url' => $url, 'status' => 'pending']);
+        // A null url means "full store scan" - RunAuditJob discovers which
+        // pages to cover (plan-limited). An explicit url pins it to that one
+        // page only, for spot-checking a specific page or a different
+        // domain entirely (e.g. a password-protected dev store).
+        $audit = $shop->audits()->create(['url' => $data['url'] ?? null, 'status' => 'pending']);
 
         RunAuditJob::dispatch($audit->id);
 
@@ -40,7 +42,7 @@ class AuditController extends Controller
         $shop = $request->attributes->get('shop');
 
         return response()->json([
-            'audits' => $shop->audits()->latest('id')->limit(20)->get(),
+            'audits' => $shop->audits()->with(['pages', 'issues'])->latest('id')->limit(20)->get(),
         ]);
     }
 
@@ -49,7 +51,7 @@ class AuditController extends Controller
         $shop = $request->attributes->get('shop');
 
         $audit = Audit::where('shop_installation_id', $shop->id)
-            ->with(['issues', 'appImpacts'])
+            ->with(['issues', 'appImpacts', 'pages'])
             ->findOrFail($id);
 
         return response()->json(['audit' => $audit]);

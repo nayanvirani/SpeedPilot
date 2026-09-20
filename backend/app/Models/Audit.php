@@ -50,6 +50,11 @@ class Audit extends Model
         return $this->hasMany(AppImpact::class);
     }
 
+    public function pages(): HasMany
+    {
+        return $this->hasMany(AuditPage::class);
+    }
+
     public function isComplete(): bool
     {
         return $this->status === 'complete';

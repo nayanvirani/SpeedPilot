@@ -32,9 +32,10 @@ class RunMonitoringJob implements ShouldQueue
         }
 
         $previousScore = $shop->latestAudit()?->score;
-        $url = 'https://'.$shop->shop_domain;
 
-        $audit = $shop->audits()->create(['url' => $url, 'status' => 'pending']);
+        // url stays null so this covers every page the plan allows, not
+        // just the homepage - matches what "Scan My Store" now does.
+        $audit = $shop->audits()->create(['status' => 'pending']);
 
         RunAuditJob::dispatchSync($audit->id);
 

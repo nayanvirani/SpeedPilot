@@ -13,6 +13,7 @@ class AuditIssue extends Model
 
     protected $fillable = [
         'audit_id',
+        'audit_page_id',
         'category',
         'severity',
         'title',
@@ -33,6 +34,11 @@ class AuditIssue extends Model
     public function audit(): BelongsTo
     {
         return $this->belongsTo(Audit::class);
+    }
+
+    public function auditPage(): BelongsTo
+    {
+        return $this->belongsTo(AuditPage::class);
     }
 
     public function optimizations(): HasMany

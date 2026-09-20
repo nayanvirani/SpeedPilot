@@ -49,7 +49,13 @@ class ApplySafeFixesJob implements ShouldQueue
         $safeIssues = $audit->issues()
             ->where('risk_tier', 'safe')
             ->where('fix_available', true)
-            ->get();
+            ->get()
+            // A multi-page scan can report the same theme asset's issue
+            // once per page it appears on (e.g. a shared header snippet) -
+            // fixing it once already fixes it everywhere the asset is used,
+            // so applying it again per duplicate would just waste the
+            // plan's auto-fix limit on the same underlying change.
+            ->unique(fn ($issue) => $issue->meta['asset_key'] ?? $issue->id);
 
         $limit = $policy->autoFixLimit();
         if ($limit !== null) {

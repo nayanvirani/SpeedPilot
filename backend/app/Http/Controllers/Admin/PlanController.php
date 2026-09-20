@@ -69,6 +69,7 @@ class PlanController extends Controller
             'script_rule_limit' => 'nullable|integer|min:0',
             'auto_fix_limit' => 'nullable|integer|min:0',
             'history_days' => 'required|integer|min:0',
+            'pages_per_scan' => 'required|integer|min:1',
             'monitoring' => 'nullable|string|in:basic,advanced,advanced_priority',
             'auto_fixes' => 'nullable|boolean',
             'medium_risk_fixes' => 'nullable|boolean',

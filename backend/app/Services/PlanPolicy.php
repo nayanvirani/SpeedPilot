@@ -63,4 +63,9 @@ class PlanPolicy
     {
         return (bool) $this->plan?->ai_recommendations;
     }
+
+    public function pagesPerScan(): int
+    {
+        return $this->plan?->pages_per_scan ?? 1;
+    }
 }
