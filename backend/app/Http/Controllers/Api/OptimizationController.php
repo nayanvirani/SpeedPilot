@@ -18,7 +18,7 @@ class OptimizationController extends Controller
         $shop = $request->attributes->get('shop');
 
         return response()->json([
-            'optimizations' => $shop->optimizations()->with('backups')->latest()->get(),
+            'optimizations' => $shop->optimizations()->with(['backups', 'auditIssue'])->latest()->get(),
         ]);
     }
 

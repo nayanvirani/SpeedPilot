@@ -29,7 +29,8 @@ export default function Optimizations() {
     }
 
     const rows = optimizations.map((opt) => [
-        opt.type,
+        opt.audit_issue?.title ?? opt.type,
+        opt.asset_key ?? '—',
         opt.risk_tier,
         <Badge key={`status-${opt.id}`} tone={STATUS_TONE[opt.status]}>{opt.status}</Badge>,
         opt.applied_at ?? '—',
@@ -47,8 +48,8 @@ export default function Optimizations() {
                     <SkeletonBodyText lines={4} />
                 ) : (
                     <DataTable
-                        columnContentTypes={['text', 'text', 'text', 'text', 'text']}
-                        headings={['Fix', 'Risk tier', 'Status', 'Applied at', 'Action']}
+                        columnContentTypes={['text', 'text', 'text', 'text', 'text', 'text']}
+                        headings={['Fix', 'File changed', 'Risk tier', 'Status', 'Applied at', 'Action']}
                         rows={rows}
                     />
                 )}

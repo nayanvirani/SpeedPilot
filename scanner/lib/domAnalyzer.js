@@ -29,10 +29,12 @@ function imageIssues(audits) {
       category: 'image',
       severity: 'medium',
       title: `Missing width/height: ${shortUrl(item.url)}`,
-      description: 'Image has no explicit width/height, causing layout shift (CLS).',
-      riskTier: 'safe',
-      fixAvailable: true,
-      meta: { asset_key: null, fix_type: 'image_dimensions', selector: shortUrl(item.url) },
+      description: 'Image has no explicit width/height, causing layout shift (CLS). '
+        + 'Set explicit dimensions on this image in the theme editor - the correct '
+        + "values depend on the image's real size, so this isn't auto-applied.",
+      riskTier: 'medium',
+      fixAvailable: false,
+      meta: {},
     });
   }
 
@@ -42,10 +44,12 @@ function imageIssues(audits) {
       category: 'image',
       severity: 'medium',
       title: `Lazy-load candidate: ${shortUrl(item.url)}`,
-      description: 'Below-the-fold image is not lazy-loaded.',
+      description: 'Below-the-fold image is not lazy-loaded. Fixed by adding '
+        + 'loading="lazy" to every plain image tag across the theme at once, '
+        + 'not just this one image.',
       riskTier: 'safe',
       fixAvailable: true,
-      meta: { asset_key: null, fix_type: 'lazy_load', selector: shortUrl(item.url) },
+      meta: { fix_type: 'lazy_load_sweep' },
     });
   }
 

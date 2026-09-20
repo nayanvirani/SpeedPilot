@@ -52,6 +52,75 @@ class ThemeAssetService
         ]);
     }
 
+    /**
+     * @return array<int, string> every filename in the theme (paginated up
+     *                             to 3 pages of 250 - generous for any theme)
+     */
+    public function listFilenames(string $themeId): array
+    {
+        $filenames = [];
+        $after = null;
+
+        for ($page = 0; $page < 3; $page++) {
+            $data = $this->client->query(<<<'GRAPHQL'
+                query themeFileNames($id: ID!, $after: String) {
+                    theme(id: $id) {
+                        files(first: 250, after: $after) {
+                            nodes { filename }
+                            pageInfo { hasNextPage endCursor }
+                        }
+                    }
+                }
+            GRAPHQL, ['id' => "gid://shopify/OnlineStoreTheme/{$themeId}", 'after' => $after]);
+
+            $connection = $data['theme']['files'] ?? [];
+
+            foreach ($connection['nodes'] ?? [] as $node) {
+                $filenames[] = $node['filename'];
+            }
+
+            if (! ($connection['pageInfo']['hasNextPage'] ?? false)) {
+                break;
+            }
+
+            $after = $connection['pageInfo']['endCursor'];
+        }
+
+        return $filenames;
+    }
+
+    /**
+     * @param  array<int, string>  $assetKeys
+     * @return array<string, ?string> filename => content (null if binary/missing)
+     */
+    public function readMany(string $themeId, array $assetKeys): array
+    {
+        if (empty($assetKeys)) {
+            return [];
+        }
+
+        $data = $this->client->query(<<<'GRAPHQL'
+            query themeFilesContent($id: ID!, $filenames: [String!]) {
+                theme(id: $id) {
+                    files(filenames: $filenames, first: 250) {
+                        nodes {
+                            filename
+                            body { ... on OnlineStoreThemeFileBodyText { content } }
+                        }
+                    }
+                }
+            }
+        GRAPHQL, ['id' => "gid://shopify/OnlineStoreTheme/{$themeId}", 'filenames' => $assetKeys]);
+
+        $result = [];
+
+        foreach ($data['theme']['files']['nodes'] ?? [] as $node) {
+            $result[$node['filename']] = $node['body']['content'] ?? null;
+        }
+
+        return $result;
+    }
+
     public function activeThemeId(): ?string
     {
         $data = $this->client->query(<<<'GRAPHQL'
