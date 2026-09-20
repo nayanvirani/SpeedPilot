@@ -55,6 +55,14 @@ class ShopifyGraphQLClient
         $body = json_decode((string) $response->getBody(), true);
 
         if (isset($body['errors'])) {
+            $codes = array_column(array_column($body['errors'], 'extensions'), 'code');
+
+            if (in_array('ACCESS_DENIED', $codes, true)) {
+                throw new ThemeWriteAccessDeniedException(
+                    "Shopify denied this request - protected scope not yet exempted: ".json_encode($body['errors']),
+                );
+            }
+
             throw new RuntimeException(
                 "Shopify GraphQL returned errors: ".json_encode($body['errors']),
             );

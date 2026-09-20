@@ -142,7 +142,7 @@ function StorefrontPasswordSettings() {
 
 function TargetThemeSettings() {
     const [themes, setThemes] = useState(null);
-    const [current, setCurrent] = useState({ id: null, mode: null, diverged: null });
+    const [current, setCurrent] = useState({ id: null, mode: null, diverged: null, writeBlocked: null });
     const [selectedThemeId, setSelectedThemeId] = useState('');
     const [saving, setSaving] = useState(null);
 
@@ -151,7 +151,12 @@ function TargetThemeSettings() {
             api.get('/settings'),
             api.get('/themes').catch(() => ({ themes: [] })),
         ]);
-        setCurrent({ id: settings.target_theme_id, mode: settings.target_theme_mode, diverged: settings.theme_diverged });
+        setCurrent({
+            id: settings.target_theme_id,
+            mode: settings.target_theme_mode,
+            diverged: settings.theme_diverged,
+            writeBlocked: settings.theme_write_blocked,
+        });
         setThemes(themeList.themes);
         if (!selectedThemeId && themeList.themes[0]) {
             setSelectedThemeId(themeList.themes[0].id);
@@ -215,6 +220,14 @@ function TargetThemeSettings() {
                 )}
                 {!current.mode && (
                     <Banner tone="info">No target theme set yet - fixes will stay recommendation-only until you pick one.</Banner>
+                )}
+                {current.writeBlocked && (
+                    <Banner tone="critical" title="Waiting on Shopify's approval to edit your theme">
+                        SpeedPilot has the permission it needs, but Shopify requires a one-time manual approval
+                        before any app can edit theme files. This isn't something wrong with your store or a
+                        setting you need to change - auto-fixes and App &amp; Script Impact actions will start
+                        working as soon as that approval clears.
+                    </Banner>
                 )}
 
                 <InlineStack gap="200" blockAlign="end" wrap>

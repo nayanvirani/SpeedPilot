@@ -36,6 +36,7 @@ class ShopSettingsController extends Controller
             'target_theme_id' => $shop->target_theme_id,
             'target_theme_mode' => $shop->target_theme_mode,
             'theme_diverged' => $themeDiverged,
+            'theme_write_blocked' => $shop->theme_write_blocked_at !== null,
         ]);
     }
 

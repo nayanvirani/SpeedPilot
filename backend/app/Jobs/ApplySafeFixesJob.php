@@ -13,6 +13,7 @@ use App\Models\OptimizedTheme;
 use App\Services\Shopify\ThemeAssetLocatorService;
 use App\Services\Shopify\ThemeAssetService;
 use App\Services\Shopify\ThemeDuplicateService;
+use App\Services\Shopify\ThemeWriteAccessDeniedException;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -102,46 +103,57 @@ class ApplySafeFixesJob implements ShouldQueue
         }
 
         foreach ($safeIssues as $issue) {
-            $fixType = $issue->meta['fix_type'] ?? null;
+            try {
+                $fixType = $issue->meta['fix_type'] ?? null;
 
-            if ($fixType === 'lazy_load_sweep') {
-                $appliedCount += $this->applyLazyLoadSweep($shop, $issue, $liveThemeId, $writeThemeId, $themeAssets, $backups, $sweeper);
+                if ($fixType === 'lazy_load_sweep') {
+                    $appliedCount += $this->applyLazyLoadSweep($shop, $issue, $liveThemeId, $writeThemeId, $themeAssets, $backups, $sweeper);
 
-                continue;
+                    continue;
+                }
+
+                $assetKey = $issue->meta['asset_key'] ?? null;
+
+                if (! $assetKey && $fixType === 'defer_script' && isset($issue->meta['script_src'])) {
+                    $assetKey = $locator->findScriptSource($liveThemeId, $issue->meta['script_src']);
+                }
+
+                if (! $assetKey) {
+                    continue; // couldn't resolve a real file to edit - recommendation-only
+                }
+
+                $optimization = $shop->optimizations()->create([
+                    'audit_issue_id' => $issue->id,
+                    'type' => $fixType ?? $issue->category,
+                    'risk_tier' => 'safe',
+                    'status' => 'recommended',
+                    'theme_id' => $writeThemeId,
+                    'asset_key' => $assetKey,
+                ]);
+
+                $original = $themeAssets->read($liveThemeId, $assetKey);
+
+                if ($original === null) {
+                    continue;
+                }
+
+                $fixed = $this->applyFix($issue->category, $issue->meta ?? [], $original);
+
+                $backups->backup($optimization, $writeThemeId, $assetKey, $original, $fixed);
+                $themeAssets->write($writeThemeId, $assetKey, $fixed);
+
+                $optimization->update(['status' => 'applied', 'applied_at' => now()]);
+                $appliedCount++;
+            } catch (ThemeWriteAccessDeniedException) {
+                // Shopify hasn't approved this app's write_themes exemption
+                // yet - an account-wide gate, so every remaining write in
+                // this batch would fail identically. Stop rather than churn
+                // through the rest, and flag it for the Dashboard to say so
+                // honestly instead of quietly reporting "0 fixes applied."
+                $shop->update(['theme_write_blocked_at' => now()]);
+
+                break;
             }
-
-            $assetKey = $issue->meta['asset_key'] ?? null;
-
-            if (! $assetKey && $fixType === 'defer_script' && isset($issue->meta['script_src'])) {
-                $assetKey = $locator->findScriptSource($liveThemeId, $issue->meta['script_src']);
-            }
-
-            if (! $assetKey) {
-                continue; // couldn't resolve a real file to edit - recommendation-only
-            }
-
-            $optimization = $shop->optimizations()->create([
-                'audit_issue_id' => $issue->id,
-                'type' => $fixType ?? $issue->category,
-                'risk_tier' => 'safe',
-                'status' => 'recommended',
-                'theme_id' => $writeThemeId,
-                'asset_key' => $assetKey,
-            ]);
-
-            $original = $themeAssets->read($liveThemeId, $assetKey);
-
-            if ($original === null) {
-                continue;
-            }
-
-            $fixed = $this->applyFix($issue->category, $issue->meta ?? [], $original);
-
-            $backups->backup($optimization, $writeThemeId, $assetKey, $original, $fixed);
-            $themeAssets->write($writeThemeId, $assetKey, $fixed);
-
-            $optimization->update(['status' => 'applied', 'applied_at' => now()]);
-            $appliedCount++;
         }
 
         // Safety rule: validate/re-scan after applying changes. Comparable
@@ -150,6 +162,8 @@ class ApplySafeFixesJob implements ShouldQueue
         // but a preview-duplicate fix needs Shopify's theme preview URL, or
         // "verify" would just be re-measuring the untouched live site.
         if ($appliedCount > 0) {
+            $shop->update(['theme_write_blocked_at' => null]);
+
             $verifyUrl = $shop->target_theme_mode === 'duplicate'
                 ? "https://{$shop->shop_domain}/?preview_theme_id={$writeThemeId}"
                 : null;

@@ -67,7 +67,17 @@ class ScriptImpactActionService
             return ['applied' => true, 'message' => null];
         }
 
-        $restored = $this->backups->restore($optimization, $this->themeAssets);
+        try {
+            $restored = $this->backups->restore($optimization, $this->themeAssets);
+        } catch (ThemeWriteAccessDeniedException) {
+            $shop->update(['theme_write_blocked_at' => now()]);
+
+            return [
+                'applied' => false,
+                'message' => "Shopify hasn't approved this app's theme-editing access yet, so the original ".
+                    "script can't be restored automatically right now.",
+            ];
+        }
 
         return [
             'applied' => $restored,
@@ -143,7 +153,21 @@ class ScriptImpactActionService
         ]);
 
         $this->backups->backup($optimization, $writeThemeId, $assetKey, $original, $updated);
-        $this->themeAssets->write($writeThemeId, $assetKey, $updated);
+
+        try {
+            $this->themeAssets->write($writeThemeId, $assetKey, $updated);
+        } catch (ThemeWriteAccessDeniedException) {
+            $shop->update(['theme_write_blocked_at' => now()]);
+
+            return [
+                'applied' => false,
+                'message' => "SpeedPilot found the script and is ready to edit it, but Shopify hasn't approved ".
+                    "this app's theme-editing access yet. This is a one-time approval on Shopify's side, not ".
+                    'something wrong with your store - try again once it clears.',
+            ];
+        }
+
+        $shop->update(['theme_write_blocked_at' => null]);
         $optimization->update(['status' => 'applied', 'applied_at' => now()]);
 
         return ['applied' => true, 'message' => null];

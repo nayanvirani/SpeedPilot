@@ -11,6 +11,7 @@ use App\Services\Shopify\MediumFixService;
 use App\Services\Shopify\ShopifyGraphQLClient;
 use App\Services\Shopify\ThemeAssetLocatorService;
 use App\Services\Shopify\ThemeAssetService;
+use App\Services\Shopify\ThemeWriteAccessDeniedException;
 use Illuminate\Http\Request;
 use RuntimeException;
 
@@ -47,7 +48,16 @@ class MediumFixController extends Controller
         try {
             $optimization = $this->service($shop)->apply($issue, $shop);
 
+            $shop->update(['theme_write_blocked_at' => null]);
+
             return response()->json(['optimization' => $optimization]);
+        } catch (ThemeWriteAccessDeniedException) {
+            $shop->update(['theme_write_blocked_at' => now()]);
+
+            return response()->json([
+                'error' => "Shopify hasn't approved this app's theme-editing access yet - this is a one-time ".
+                    'approval on Shopify\'s side. The preview above is accurate; applying it will work once that clears.',
+            ], 503);
         } catch (RuntimeException $e) {
             return response()->json(['error' => $e->getMessage()], 422);
         }

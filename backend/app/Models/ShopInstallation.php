@@ -17,6 +17,7 @@ class ShopInstallation extends Model
         'storefront_password',
         'target_theme_id',
         'target_theme_mode',
+        'theme_write_blocked_at',
         'scope',
         'plan',
         'shopify_subscription_id',
@@ -37,6 +38,7 @@ class ShopInstallation extends Model
             'access_token_expires_at' => 'datetime',
             'installed_at' => 'datetime',
             'uninstalled_at' => 'datetime',
+            'theme_write_blocked_at' => 'datetime',
         ];
     }
 
