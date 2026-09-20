@@ -49,10 +49,83 @@ function PageScoreCards({ pages }) {
     );
 }
 
+function fixBadge(issue) {
+    if (issue.risk_tier === 'safe' && issue.fix_available) {
+        return { tone: 'success', label: 'Eligible for auto-fix' };
+    }
+    if (issue.risk_tier === 'medium' && issue.fix_available) {
+        return { tone: 'attention', label: 'Fix available - needs your approval' };
+    }
+    return { tone: 'attention', label: 'Recommendation only' };
+}
+
+function MediumFixControls({ issue }) {
+    const [preview, setPreview] = useState(null);
+    const [applied, setApplied] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+
+    async function loadPreview() {
+        setLoading(true);
+        setError(null);
+        try {
+            const res = await api.post(`/audit-issues/${issue.id}/medium-fix/preview`, {});
+            setPreview(res.preview);
+        } catch (e) {
+            setError(e.body?.error || 'Could not preview this fix right now.');
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    async function apply() {
+        setLoading(true);
+        setError(null);
+        try {
+            const res = await api.post(`/audit-issues/${issue.id}/medium-fix/apply`, {});
+            setApplied(res.optimization);
+        } catch (e) {
+            setError(e.body?.error || 'Could not apply this fix right now.');
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    if (applied) {
+        return <Text as="p" tone="success">Applied to {applied.asset_key} - roll back anytime from the Optimizations page.</Text>;
+    }
+
+    return (
+        <BlockStack gap="150">
+            {!preview ? (
+                <InlineStack gap="200" blockAlign="center">
+                    <Button size="micro" loading={loading} onClick={loadPreview}>Preview fix</Button>
+                    {error && <Text as="span" tone="critical">{error}</Text>}
+                </InlineStack>
+            ) : (
+                <BlockStack gap="150">
+                    <Text as="p" tone="subdued">
+                        Minifying <b>{preview.asset_key}</b> would shrink it from {Math.round(preview.original_bytes / 1024)}KB
+                        to {Math.round(preview.minified_bytes / 1024)}KB
+                        ({Math.round(preview.savings_bytes / 1024)}KB saved). Nothing has been changed yet.
+                    </Text>
+                    <InlineStack gap="200" blockAlign="center">
+                        <Button size="micro" variant="primary" loading={loading} onClick={apply}>
+                            Apply this fix
+                        </Button>
+                        {error && <Text as="span" tone="critical">{error}</Text>}
+                    </InlineStack>
+                </BlockStack>
+            )}
+        </BlockStack>
+    );
+}
+
 function IssueRow({ issue, page }) {
     const [recommendation, setRecommendation] = useState(null);
     const [loadingRec, setLoadingRec] = useState(false);
     const [recError, setRecError] = useState(null);
+    const badge = fixBadge(issue);
 
     async function getRecommendation() {
         setLoadingRec(true);
@@ -74,9 +147,7 @@ function IssueRow({ issue, page }) {
                     <Badge tone={SEVERITY_TONE[issue.severity]}>{issue.severity}</Badge>
                     <Text as="span" fontWeight="semibold">{issue.title}</Text>
                 </InlineStack>
-                <Badge tone={issue.fix_available ? 'success' : 'attention'}>
-                    {issue.fix_available ? 'Eligible for auto-fix' : 'Recommendation only'}
-                </Badge>
+                <Badge tone={badge.tone}>{badge.label}</Badge>
             </InlineStack>
             {issue.description && <Text as="p" tone="subdued">{issue.description}</Text>}
             <InlineStack gap="400">
@@ -84,6 +155,7 @@ function IssueRow({ issue, page }) {
                 <Text as="span" tone="subdued">Risk tier: {issue.risk_tier}</Text>
                 {page && <Text as="span" tone="subdued">Found on: {PAGE_TYPE_LABEL[page.page_type] ?? page.page_type}</Text>}
             </InlineStack>
+            {issue.risk_tier === 'medium' && issue.fix_available && <MediumFixControls issue={issue} />}
             {recommendation ? (
                 <Text as="p">✨ {recommendation}</Text>
             ) : (

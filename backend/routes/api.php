@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AiRecommendationController;
 use App\Http\Controllers\Api\AppImpactController;
 use App\Http\Controllers\Api\AuditController;
 use App\Http\Controllers\Api\BillingController;
+use App\Http\Controllers\Api\MediumFixController;
 use App\Http\Controllers\Api\MonitoringController;
 use App\Http\Controllers\Api\OptimizationController;
 use App\Http\Controllers\Api\RumEventController;
@@ -22,6 +23,8 @@ Route::middleware('shopify.session')->group(function () {
     Route::get('/audits', [AuditController::class, 'index']);
     Route::get('/audits/{id}', [AuditController::class, 'show']);
     Route::get('/audit-issues/{id}/recommendation', [AiRecommendationController::class, 'show']);
+    Route::post('/audit-issues/{id}/medium-fix/preview', [MediumFixController::class, 'preview']);
+    Route::post('/audit-issues/{id}/medium-fix/apply', [MediumFixController::class, 'apply']);
 
     Route::get('/app-impacts', [AppImpactController::class, 'index']);
     Route::patch('/app-impacts/{id}', [AppImpactController::class, 'updateStatus']);

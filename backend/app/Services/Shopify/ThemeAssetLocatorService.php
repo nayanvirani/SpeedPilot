@@ -42,6 +42,32 @@ class ThemeAssetLocatorService
     }
 
     /**
+     * A stylesheet Lighthouse flags on the rendered page is, unlike an
+     * app-injected script, almost always a literal theme asset served
+     * straight from the theme's own file tree (assets/*.css) - so this
+     * matches the URL's basename directly against the theme's real asset
+     * list instead of text-searching Liquid source for a needle. Exact
+     * match only: a basename collision with an unrelated file would silently
+     * edit the wrong stylesheet.
+     */
+    public function findAssetByBasename(string $themeId, string $url): ?string
+    {
+        $basename = basename(parse_url($url, PHP_URL_PATH) ?? '');
+
+        if ($basename === '') {
+            return null;
+        }
+
+        foreach ($this->assets->listFilenames($themeId) as $filename) {
+            if (basename($filename) === $basename) {
+                return $filename;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @return array<int, string>
      */
     private function searchableFilenames(string $themeId): array

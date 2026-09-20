@@ -170,10 +170,12 @@ function cssIssues(audits) {
       category: 'css',
       severity: (item.wastedBytes ?? 0) > 30_000 ? 'medium' : 'low',
       title: `Unminified CSS: ${shortUrl(item.url)}`,
-      description: `${Math.round((item.wastedBytes ?? 0) / 1024)}KB could be saved by minifying this file.`,
+      description: `${Math.round((item.wastedBytes ?? 0) / 1024)}KB could be saved by minifying this file. `
+        + 'Preview the exact byte savings before this is applied - whitespace inside CSS string '
+        + 'values (rare) is the only thing minification could change unexpectedly.',
       riskTier: 'medium',
-      fixAvailable: false,
-      meta: {},
+      fixAvailable: true,
+      meta: { fix_type: 'minify_css', css_url: item.url },
     });
   }
 
