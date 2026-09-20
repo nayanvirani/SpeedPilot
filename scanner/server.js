@@ -52,9 +52,9 @@ function buildReport(lhr) {
     },
     weight: {
       page_bytes: audits['total-byte-weight']?.numericValue ?? null,
-      js_bytes: sumResourceType(audits, 'Script'),
-      css_bytes: sumResourceType(audits, 'Stylesheet'),
-      image_bytes: sumResourceType(audits, 'Image'),
+      js_bytes: sumResourceType(audits, 'script'),
+      css_bytes: sumResourceType(audits, 'stylesheet'),
+      image_bytes: sumResourceType(audits, 'image'),
       request_count: totalRequestCount(audits),
     },
     issues: issuesFromLighthouse(lhr),
