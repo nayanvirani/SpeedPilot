@@ -21,6 +21,7 @@ class AuditPage extends Model
         'page_weight_bytes',
         'js_weight_bytes',
         'css_weight_bytes',
+        'screenshot',
         'status',
     ];
 

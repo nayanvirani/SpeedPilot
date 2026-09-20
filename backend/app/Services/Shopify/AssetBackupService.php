@@ -12,12 +12,18 @@ use App\Models\Optimization;
  */
 class AssetBackupService
 {
-    public function backup(Optimization $optimization, string $themeId, string $assetKey, string $originalContent): AssetBackup
-    {
+    public function backup(
+        Optimization $optimization,
+        string $themeId,
+        string $assetKey,
+        string $originalContent,
+        ?string $updatedContent = null,
+    ): AssetBackup {
         return $optimization->backups()->create([
             'theme_id' => $themeId,
             'asset_key' => $assetKey,
             'original_content' => $originalContent,
+            'updated_content' => $updatedContent,
             'checksum' => hash('sha256', $originalContent),
         ]);
     }

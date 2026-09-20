@@ -119,6 +119,7 @@ class RunAuditJob implements ShouldQueue
             'page_weight_bytes' => $weight['page_bytes'] ?? null,
             'js_weight_bytes' => $weight['js_bytes'] ?? null,
             'css_weight_bytes' => $weight['css_bytes'] ?? null,
+            'screenshot' => $report['screenshot'] ?? null,
         ]);
 
         foreach ($report['issues'] ?? [] as $issue) {

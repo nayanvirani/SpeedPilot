@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Badge, Card, DataTable, Page, SkeletonBodyText, Text } from '@shopify/polaris';
+import { Badge, BlockStack, Card, DataTable, Page, SkeletonBodyText, Text } from '@shopify/polaris';
 import { api } from '../api';
+import TrendChart from '../components/TrendChart';
 
 export default function Monitoring() {
     const [runs, setRuns] = useState([]);
@@ -11,6 +12,11 @@ export default function Monitoring() {
             .then((res) => setRuns(res.monitoring_runs))
             .finally(() => setLoading(false));
     }, []);
+
+    const chartPoints = runs.map((run) => ({
+        score: run.audit.score,
+        label: new Date(run.run_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+    }));
 
     const rows = runs.map((run) => [
         new Date(run.run_at).toLocaleDateString(),
@@ -24,22 +30,31 @@ export default function Monitoring() {
 
     return (
         <Page title="Monitoring">
-            <Card>
-                {loading ? (
-                    <SkeletonBodyText lines={4} />
-                ) : runs.length === 0 ? (
-                    <Text as="p" tone="subdued">
-                        Monitoring history will appear here once daily scans start running (requires a
-                        Starter plan or above).
-                    </Text>
-                ) : (
-                    <DataTable
-                        columnContentTypes={['text', 'numeric', 'text']}
-                        headings={['Date', 'Score', 'Change']}
-                        rows={rows}
-                    />
+            <BlockStack gap="400">
+                <Card>
+                    {loading ? (
+                        <SkeletonBodyText lines={4} />
+                    ) : runs.length === 0 ? (
+                        <Text as="p" tone="subdued">
+                            Monitoring history will appear here once daily scans start running.
+                        </Text>
+                    ) : (
+                        <BlockStack gap="200">
+                            <Text as="h2" variant="headingSm">Score over time</Text>
+                            <TrendChart points={chartPoints} />
+                        </BlockStack>
+                    )}
+                </Card>
+                {runs.length > 0 && (
+                    <Card>
+                        <DataTable
+                            columnContentTypes={['text', 'numeric', 'text']}
+                            headings={['Date', 'Score', 'Change']}
+                            rows={rows}
+                        />
+                    </Card>
                 )}
-            </Card>
+            </BlockStack>
         </Page>
     );
 }

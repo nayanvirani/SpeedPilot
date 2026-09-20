@@ -103,9 +103,9 @@ class ApplySafeFixesJob implements ShouldQueue
                 continue;
             }
 
-            $backups->backup($optimization, $themeId, $assetKey, $original);
-
             $fixed = $this->applyFix($issue->category, $issue->meta ?? [], $original);
+
+            $backups->backup($optimization, $themeId, $assetKey, $original, $fixed);
             $themeAssets->write($themeId, $assetKey, $fixed);
 
             $optimization->update(['status' => 'applied', 'applied_at' => now()]);
@@ -136,7 +136,7 @@ class ApplySafeFixesJob implements ShouldQueue
                 'asset_key' => $filename,
             ]);
 
-            $backups->backup($optimization, $themeId, $filename, $change['original']);
+            $backups->backup($optimization, $themeId, $filename, $change['original'], $change['updated']);
             $themeAssets->write($themeId, $filename, $change['updated']);
             $optimization->update(['status' => 'applied', 'applied_at' => now()]);
         }

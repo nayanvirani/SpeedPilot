@@ -18,22 +18,31 @@ function Metric({ label, value, suffix }) {
 const PAGE_TYPE_LABEL = { home: 'Homepage', product: 'Product page', collection: 'Collection page', custom: 'Custom URL' };
 
 function PageBreakdown({ pages }) {
-    if (!pages || pages.length < 2) {
+    if (!pages || pages.length === 0) {
         return null;
     }
 
     return (
-        <BlockStack gap="200">
+        <BlockStack gap="300">
             <Text as="h3" variant="headingSm">Scanned pages</Text>
-            {pages.map((page) => (
-                <InlineStack key={page.id} align="space-between">
-                    <Text as="span">{PAGE_TYPE_LABEL[page.page_type] ?? page.page_type}</Text>
-                    <InlineStack gap="200">
-                        <Text as="span" tone="subdued">{page.score ?? '—'}</Text>
-                        <Badge tone={statusTone(page.status)}>{page.status}</Badge>
-                    </InlineStack>
-                </InlineStack>
-            ))}
+            <InlineStack gap="400" wrap>
+                {pages.map((page) => (
+                    <BlockStack key={page.id} gap="150">
+                        {page.screenshot && (
+                            <img
+                                src={page.screenshot}
+                                alt={`Screenshot of ${page.url}`}
+                                style={{ width: '120px', borderRadius: '8px', border: '1px solid var(--p-color-border-secondary)', display: 'block' }}
+                            />
+                        )}
+                        <Text as="span" fontWeight="medium">{PAGE_TYPE_LABEL[page.page_type] ?? page.page_type}</Text>
+                        <InlineStack gap="200">
+                            <Text as="span" tone="subdued">{page.score ?? '—'}</Text>
+                            <Badge tone={statusTone(page.status)}>{page.status}</Badge>
+                        </InlineStack>
+                    </BlockStack>
+                ))}
+            </InlineStack>
         </BlockStack>
     );
 }

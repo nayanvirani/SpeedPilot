@@ -15,6 +15,7 @@ class AssetBackup extends Model
         'theme_id',
         'asset_key',
         'original_content',
+        'updated_content',
         'checksum',
         'restored_at',
     ];

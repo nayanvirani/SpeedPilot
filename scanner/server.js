@@ -53,6 +53,11 @@ function buildReport(lhr) {
     },
     issues: issuesFromLighthouse(lhr),
     thirdParty: thirdPartyImpacts(lhr),
+    // Lighthouse already captures this as part of scoring performance - a
+    // base64 JPEG data URI, small enough (mobile viewport, Lighthouse's own
+    // compression) to store directly rather than needing separate file
+    // storage/CDN infrastructure just for this.
+    screenshot: audits['final-screenshot']?.details?.data ?? null,
   };
 }
 

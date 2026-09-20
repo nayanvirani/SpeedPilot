@@ -1,12 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Badge, BlockStack, Card, InlineStack, Page, SkeletonBodyText, Text } from '@shopify/polaris';
+import { Badge, BlockStack, Button, Card, InlineStack, Page, SkeletonBodyText, Text } from '@shopify/polaris';
 import { api } from '../api';
 
 const SEVERITY_TONE = { high: 'critical', medium: 'warning', low: 'info' };
 const PAGE_TYPE_LABEL = { home: 'Homepage', product: 'Product page', collection: 'Collection page', custom: 'Custom URL' };
 
 function IssueRow({ issue, page }) {
+    const [recommendation, setRecommendation] = useState(null);
+    const [loadingRec, setLoadingRec] = useState(false);
+    const [recError, setRecError] = useState(null);
+
+    async function getRecommendation() {
+        setLoadingRec(true);
+        setRecError(null);
+        try {
+            const res = await api.get(`/audit-issues/${issue.id}/recommendation`);
+            setRecommendation(res.recommendation);
+        } catch (e) {
+            setRecError(e.body?.error || 'Could not load a recommendation right now.');
+        } finally {
+            setLoadingRec(false);
+        }
+    }
+
     return (
         <BlockStack gap="150">
             <InlineStack align="space-between" blockAlign="start">
@@ -24,6 +41,16 @@ function IssueRow({ issue, page }) {
                 <Text as="span" tone="subdued">Risk tier: {issue.risk_tier}</Text>
                 {page && <Text as="span" tone="subdued">Found on: {PAGE_TYPE_LABEL[page.page_type] ?? page.page_type}</Text>}
             </InlineStack>
+            {recommendation ? (
+                <Text as="p">✨ {recommendation}</Text>
+            ) : (
+                <InlineStack gap="200" blockAlign="center">
+                    <Button size="micro" loading={loadingRec} onClick={getRecommendation}>
+                        Get AI recommendation
+                    </Button>
+                    {recError && <Text as="span" tone="critical">{recError}</Text>}
+                </InlineStack>
+            )}
         </BlockStack>
     );
 }
@@ -50,7 +77,16 @@ export default function AuditDetail() {
             <BlockStack gap="400">
                 <Card>
                     {loading ? <SkeletonBodyText lines={2} /> : (
-                        <Text as="h2" variant="headingLg">Score: {audit?.score ?? '—'}</Text>
+                        <InlineStack gap="400" blockAlign="center">
+                            {audit?.pages?.[0]?.screenshot && (
+                                <img
+                                    src={audit.pages[0].screenshot}
+                                    alt="Page screenshot"
+                                    style={{ width: '100px', borderRadius: '8px', border: '1px solid var(--p-color-border-secondary)' }}
+                                />
+                            )}
+                            <Text as="h2" variant="headingLg">Score: {audit?.score ?? '—'}</Text>
+                        </InlineStack>
                     )}
                 </Card>
                 <Card>
