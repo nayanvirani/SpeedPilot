@@ -4,6 +4,7 @@ namespace App\Services\Scanner;
 
 use App\Models\ShopInstallation;
 use App\Services\Shopify\ShopifyGraphQLClient;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
@@ -49,29 +50,33 @@ class PageDiscoveryService
                         edges { node { onlineStoreUrl } }
                     }
                     collections(first: 1, sortKey: UPDATED_AT, reverse: true) {
-                        edges { node { onlineStoreUrl } }
+                        edges { node { handle } }
                     }
                 }
             GRAPHQL);
-        } catch (Throwable) {
+        } catch (Throwable $e) {
             // A discovery failure shouldn't block the homepage scan that's
             // already guaranteed above - just fall back to fewer pages.
+            Log::warning('Page discovery failed', ['shop' => $shop->shop_domain, 'message' => $e->getMessage()]);
+
             return [];
         }
 
         $candidates = [];
 
         $productUrl = $data['products']['edges'][0]['node']['onlineStoreUrl'] ?? null;
-        $collectionUrl = $data['collections']['edges'][0]['node']['onlineStoreUrl'] ?? null;
+        $collectionHandle = $data['collections']['edges'][0]['node']['handle'] ?? null;
 
-        // onlineStoreUrl is null for a product/collection not published to
-        // the Online Store sales channel - skip it rather than scan null.
+        // onlineStoreUrl is null for a product not published to the Online
+        // Store sales channel - skip it rather than scan null. Collection
+        // has no onlineStoreUrl field on the Admin API, so its storefront
+        // URL is built from handle instead.
         if ($productUrl) {
             $candidates[] = ['type' => 'product', 'url' => $productUrl];
         }
 
-        if ($collectionUrl) {
-            $candidates[] = ['type' => 'collection', 'url' => $collectionUrl];
+        if ($collectionHandle) {
+            $candidates[] = ['type' => 'collection', 'url' => "https://{$shop->shop_domain}/collections/{$collectionHandle}"];
         }
 
         return $candidates;
