@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Jobs\RunAuditJob;
 use App\Models\ShopInstallation;
 use App\Services\Shopify\BillingService;
 use App\Services\Shopify\ShopifyOAuthService;
@@ -104,6 +105,23 @@ class VerifyShopifySessionToken
             $this->billing->syncActivePlanViaApi($shop);
         } catch (Throwable $e) {
             Log::warning('Initial plan sync failed during provisioning', [
+                'shop' => $shopDomain,
+                'message' => $e->getMessage(),
+            ]);
+        }
+
+        // First contact ever (or a reinstall with no audit history) - queue
+        // a scan right away instead of leaving the merchant looking at an
+        // empty "No scans yet" dashboard until they think to click the
+        // button themselves. Non-fatal: a queueing hiccup shouldn't break
+        // auth, and the button is still right there either way.
+        try {
+            if ($shop->audits()->doesntExist()) {
+                $audit = $shop->audits()->create(['status' => 'pending']);
+                RunAuditJob::dispatch($audit->id);
+            }
+        } catch (Throwable $e) {
+            Log::warning('Auto first-scan dispatch failed', [
                 'shop' => $shopDomain,
                 'message' => $e->getMessage(),
             ]);
