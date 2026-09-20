@@ -158,8 +158,17 @@ function TargetThemeSettings() {
             writeBlocked: settings.theme_write_blocked,
         });
         setThemes(themeList.themes);
-        if (!selectedThemeId && themeList.themes[0]) {
-            setSelectedThemeId(themeList.themes[0].id);
+        if (!selectedThemeId) {
+            // The dropdown should reflect what's actually configured, not
+            // just whatever Shopify happened to list first - fall back to
+            // the live theme, then the first theme, only when nothing is
+            // set yet.
+            const initial = settings.target_theme_id
+                ?? themeList.themes.find((t) => t.role === 'main')?.id
+                ?? themeList.themes[0]?.id;
+            if (initial) {
+                setSelectedThemeId(initial);
+            }
         }
     }, [selectedThemeId]);
 
