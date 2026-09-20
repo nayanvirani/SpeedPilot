@@ -4,7 +4,7 @@ import { openShopifyPricingPage } from '../api';
 
 export default function PlanPicker({ plans, currentPlanKey, manageUrl }) {
     return (
-        <InlineGrid columns={{ xs: 1, sm: 2 }} gap="400">
+        <InlineGrid columns={{ xs: 1, sm: plans.length > 1 ? 2 : 1 }} gap="400">
             {plans.map((plan) => {
                 const isCurrent = currentPlanKey === plan.key;
 
