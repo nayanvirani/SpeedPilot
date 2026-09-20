@@ -6,10 +6,13 @@ use App\Models\OptimizedTheme;
 use App\Models\ShopInstallation;
 
 /**
- * Maintains the single reusable "SpeedPilot Optimized" duplicate theme per shop
- * (never a fresh duplicate per run - Shopify caps stores at 20/100 themes and
- * duplication is an async job). Medium/high-risk fixes land here for preview
- * before the merchant explicitly publishes.
+ * Tracks a preview theme the merchant picked as SpeedPilot's write target -
+ * one they duplicated themselves in Shopify admin (Shopify's own theme
+ * library UI already does this, no API call or write_themes-gated mutation
+ * needed on our side). This is purely bookkeeping for the divergence check
+ * below: which live theme a given preview theme was picked alongside, so a
+ * later refresh can tell whether the merchant kept editing the live one
+ * since.
  */
 class ThemeDuplicateService
 {
@@ -17,44 +20,12 @@ class ThemeDuplicateService
     {
     }
 
-    public function getOrCreate(ShopInstallation $shop, string $sourceThemeId): OptimizedTheme
+    public function trackPreviewTheme(ShopInstallation $shop, string $sourceThemeId, string $previewThemeId): OptimizedTheme
     {
-        $existing = OptimizedTheme::where('shop_installation_id', $shop->id)
-            ->where('source_theme_id', $sourceThemeId)
-            ->first();
-
-        if ($existing) {
-            return $existing;
-        }
-
-        $duplicateId = $this->duplicateTheme($sourceThemeId);
-
-        return OptimizedTheme::create([
-            'shop_installation_id' => $shop->id,
-            'duplicate_theme_id' => $duplicateId,
-            'source_theme_id' => $sourceThemeId,
-            'last_synced_at' => now(),
-            'diverged' => false,
-        ]);
-    }
-
-    private function duplicateTheme(string $sourceThemeId): string
-    {
-        $data = $this->client->query(<<<'GRAPHQL'
-            mutation themeDuplicate($id: ID!, $name: String!) {
-                themeDuplicate(id: $id, name: $name) {
-                    theme { id }
-                    userErrors { field message }
-                }
-            }
-        GRAPHQL, [
-            'id' => "gid://shopify/OnlineStoreTheme/{$sourceThemeId}",
-            'name' => 'SpeedPilot Optimized',
-        ]);
-
-        $gid = $data['themeDuplicate']['theme']['id'] ?? '';
-
-        return (string) filter_var($gid, FILTER_SANITIZE_NUMBER_INT);
+        return OptimizedTheme::firstOrCreate(
+            ['shop_installation_id' => $shop->id, 'duplicate_theme_id' => $previewThemeId],
+            ['source_theme_id' => $sourceThemeId, 'last_synced_at' => now(), 'diverged' => false],
+        );
     }
 
     /**

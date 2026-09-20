@@ -9,7 +9,6 @@ use App\Services\Shopify\ShopifyGraphQLClient;
 use App\Services\Shopify\ThemeAssetService;
 use App\Services\Shopify\ThemeDuplicateService;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class ShopSettingsController extends Controller
 {
@@ -69,21 +68,32 @@ class ShopSettingsController extends Controller
         return response()->json(['themes' => $themeAssets->listThemes()]);
     }
 
+    /**
+     * The merchant picks any theme from their own store - their live theme
+     * for immediate effect, or one they've already duplicated themselves in
+     * Shopify admin (Online Store > Themes > Duplicate) for a safe preview.
+     * SpeedPilot never creates a theme on their behalf; mode is derived from
+     * the selected theme's own role, not a separate choice.
+     */
     public function updateTargetTheme(Request $request)
     {
         /** @var ShopInstallation $shop */
         $shop = $request->attributes->get('shop');
 
         $data = $request->validate([
-            'mode' => ['required', Rule::in(['live', 'duplicate'])],
-            'theme_id' => 'required_if:mode,live|nullable|string',
+            'theme_id' => 'required|string',
         ]);
 
         $themeAssets = new ThemeAssetService(new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token));
+        $theme = collect($themeAssets->listThemes())->firstWhere('id', $data['theme_id']);
 
-        if ($data['mode'] === 'live') {
+        if (! $theme) {
+            return response()->json(['error' => 'Could not find that theme - it may have been deleted.'], 422);
+        }
+
+        if ($theme['role'] === 'main') {
             $shop->update([
-                'target_theme_id' => $data['theme_id'],
+                'target_theme_id' => $theme['id'],
                 'target_theme_mode' => 'live',
             ]);
         } else {
@@ -94,10 +104,10 @@ class ShopSettingsController extends Controller
             }
 
             $duplicator = new ThemeDuplicateService(new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token));
-            $optimizedTheme = $duplicator->getOrCreate($shop, $liveThemeId);
+            $duplicator->trackPreviewTheme($shop, $liveThemeId, $theme['id']);
 
             $shop->update([
-                'target_theme_id' => $optimizedTheme->duplicate_theme_id,
+                'target_theme_id' => $theme['id'],
                 'target_theme_mode' => 'duplicate',
             ]);
         }

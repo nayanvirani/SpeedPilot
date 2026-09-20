@@ -165,23 +165,13 @@ function TargetThemeSettings() {
 
     useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    async function useLiveTheme() {
-        setSaving('live');
+    async function setTargetTheme() {
+        setSaving(true);
         try {
-            const res = await api.put('/settings/target-theme', { mode: 'live', theme_id: selectedThemeId });
-            setCurrent({ id: res.target_theme_id, mode: res.target_theme_mode });
+            const res = await api.put('/settings/target-theme', { theme_id: selectedThemeId });
+            setCurrent((c) => ({ ...c, id: res.target_theme_id, mode: res.target_theme_mode, diverged: null }));
         } finally {
-            setSaving(null);
-        }
-    }
-
-    async function useDuplicateTheme() {
-        setSaving('duplicate');
-        try {
-            const res = await api.put('/settings/target-theme', { mode: 'duplicate' });
-            setCurrent({ id: res.target_theme_id, mode: res.target_theme_mode });
-        } finally {
-            setSaving(null);
+            setSaving(false);
         }
     }
 
@@ -190,6 +180,7 @@ function TargetThemeSettings() {
     }
 
     const currentThemeName = themes.find((t) => t.id === current.id)?.name;
+    const selectedIsLive = themes.find((t) => t.id === selectedThemeId)?.role === 'main';
 
     return (
         <Card>
@@ -197,7 +188,11 @@ function TargetThemeSettings() {
                 <Text as="h3" variant="headingSm"><span className="sp-heading">Target theme</span></Text>
                 <Text as="p" tone="subdued">
                     Choose which theme SpeedPilot applies fixes to. Nothing is auto-fixed or
-                    changed on the App &amp; Script Impact page until you choose one here.
+                    changed on the App &amp; Script Impact page until you choose one here. Pick your
+                    live theme for fixes to take effect immediately, or pick a theme you've already
+                    duplicated yourself (Shopify admin &gt; Online Store &gt; Themes &gt; Duplicate)
+                    to preview fixes safely first - SpeedPilot never creates or duplicates a theme
+                    for you.
                 </Text>
 
                 {current.mode === 'live' && (
@@ -208,13 +203,14 @@ function TargetThemeSettings() {
                 )}
                 {current.mode === 'duplicate' && (
                     <Banner tone="success">
-                        Applying to a safe preview theme ("SpeedPilot Optimized") - your live storefront is
-                        unaffected until you review and publish it yourself from Shopify's theme editor.
+                        Applying to <b>{currentThemeName ?? 'your preview theme'}</b> - not your live theme, so
+                        your storefront is unaffected until you review and publish it yourself from Shopify's
+                        theme editor.
                     </Banner>
                 )}
                 {current.mode === 'duplicate' && current.diverged && (
                     <Banner tone="warning" title="Your live theme has changed since this preview was last refreshed">
-                        Edits made directly to your live theme aren't reflected in "SpeedPilot Optimized" yet.
+                        Edits made directly to your live theme aren't reflected in this preview theme yet.
                         Publishing it now could revert those changes - run a new scan to refresh it first.
                     </Banner>
                 )}
@@ -231,19 +227,16 @@ function TargetThemeSettings() {
                 )}
 
                 <InlineStack gap="200" blockAlign="end" wrap>
-                    <div style={{ minWidth: '220px' }}>
+                    <div style={{ minWidth: '260px' }}>
                         <Select
-                            label="Live theme"
+                            label="Theme"
                             options={themes.map((t) => ({ label: `${t.name} (${t.role})`, value: t.id }))}
                             value={selectedThemeId}
                             onChange={setSelectedThemeId}
                         />
                     </div>
-                    <Button loading={saving === 'live'} onClick={useLiveTheme} disabled={!selectedThemeId}>
-                        Apply to this theme directly
-                    </Button>
-                    <Button loading={saving === 'duplicate'} onClick={useDuplicateTheme} variant="primary">
-                        Use a safe preview theme instead
+                    <Button loading={saving} onClick={setTargetTheme} disabled={!selectedThemeId} variant="primary">
+                        {selectedIsLive ? 'Apply to this theme directly' : 'Use as preview theme'}
                     </Button>
                 </InlineStack>
             </BlockStack>
