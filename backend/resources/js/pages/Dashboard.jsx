@@ -1,51 +1,54 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Badge, BlockStack, Button, Card, InlineStack, Page, SkeletonBodyText, Text, TextField } from '@shopify/polaris';
+import { Badge, BlockStack, Card, InlineStack, Page, SkeletonBodyText, Text } from '@shopify/polaris';
 import { api } from '../api';
 
 function statusTone(status) {
     return status === 'complete' ? 'success' : status === 'failed' ? 'critical' : 'attention';
 }
 
-function Metric({ label, value, suffix }) {
+function scoreClass(score) {
+    if (score === null || score === undefined) return '';
+    if (score >= 90) return 'sp-score--good';
+    if (score >= 50) return 'sp-score--warn';
+    return 'sp-score--critical';
+}
+
+function CwvStat({ label, value, suffix }) {
     return (
-        <BlockStack gap="100">
-            <Text as="span" tone="subdued">{label}</Text>
-            <Text as="span" variant="headingMd">{value !== null && value !== undefined ? `${value}${suffix}` : '—'}</Text>
-        </BlockStack>
+        <div className="sp-cwv">
+            <div className="sp-cwv-label">{label}</div>
+            <div className="sp-cwv-val">{value !== null && value !== undefined ? `${value}${suffix}` : '—'}</div>
+        </div>
     );
 }
 
 const PAGE_TYPE_LABEL = { home: 'Homepage', product: 'Product page', collection: 'Collection page', custom: 'Custom URL' };
 
-function PageBreakdown({ pages }) {
+function PageScoreCards({ pages }) {
     if (!pages || pages.length === 0) {
         return null;
     }
 
     return (
         <BlockStack gap="300">
-            <Text as="h3" variant="headingSm">Scanned pages</Text>
-            <InlineStack gap="400" wrap>
+            <Text as="h3" variant="headingSm" fontWeight="semibold">
+                <span className="sp-heading">Score by page</span>
+            </Text>
+            <InlineStack gap="300" wrap>
                 {pages.map((page) => (
-                    <BlockStack key={page.id} gap="150">
-                        {page.screenshot && (
-                            <img
-                                src={page.screenshot}
-                                alt={`Screenshot of ${page.url}`}
-                                style={{ width: '120px', borderRadius: '8px', border: '1px solid var(--p-color-border-secondary)', display: 'block' }}
-                            />
-                        )}
-                        <Text as="span" fontWeight="medium">{PAGE_TYPE_LABEL[page.page_type] ?? page.page_type}</Text>
-                        <InlineStack gap="200">
-                            <Text as="span" tone="subdued">{page.score ?? '—'}</Text>
+                    <div key={page.id} className="sp-page-card">
+                        {page.screenshot && <img src={page.screenshot} alt={`Screenshot of ${page.url}`} className="sp-page-thumb" />}
+                        <InlineStack align="space-between" blockAlign="center">
+                            <Text as="span" fontWeight="medium">{PAGE_TYPE_LABEL[page.page_type] ?? page.page_type}</Text>
                             <Badge tone={statusTone(page.status)}>{page.status}</Badge>
                         </InlineStack>
+                        <span className={`sp-score ${scoreClass(page.score)}`} style={{ fontSize: '28px' }}>
+                            {page.score ?? '—'}
+                        </span>
                         {page.status === 'failed' && page.error_message && (
-                            <div style={{ maxWidth: '220px' }}>
-                                <Text as="span" tone="critical">{page.error_message}</Text>
-                            </div>
+                            <Text as="span" tone="critical">{page.error_message}</Text>
                         )}
-                    </BlockStack>
+                    </div>
                 ))}
             </InlineStack>
         </BlockStack>
@@ -56,7 +59,6 @@ export default function Dashboard() {
     const [latestAudit, setLatestAudit] = useState(null);
     const [loading, setLoading] = useState(true);
     const [scanning, setScanning] = useState(false);
-    const [customUrl, setCustomUrl] = useState('');
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -78,10 +80,10 @@ export default function Dashboard() {
 
     useEffect(() => { load(); }, [load]);
 
-    async function scanNow(url) {
+    async function scanNow() {
         setScanning(true);
         try {
-            await api.post('/audits', url ? { url } : {});
+            await api.post('/audits');
             await load();
         } finally {
             setScanning(false);
@@ -91,37 +93,9 @@ export default function Dashboard() {
     return (
         <Page
             title="SpeedPilot"
-            primaryAction={{ content: 'Scan My Store', loading: scanning, onAction: () => scanNow() }}
+            primaryAction={{ content: 'Scan My Store', loading: scanning, onAction: scanNow }}
         >
             <BlockStack gap="400">
-                <Card>
-                    <BlockStack gap="200">
-                        <Text as="h3" variant="headingSm">Scan a different URL</Text>
-                        <Text as="p" tone="subdued">
-                            Useful when your store's own domain is password-protected (e.g. a
-                            development store) - point a scan at any public storefront instead.
-                        </Text>
-                        <InlineStack gap="200" blockAlign="end">
-                            <div style={{ flexGrow: 1 }}>
-                                <TextField
-                                    label="URL"
-                                    labelHidden
-                                    placeholder="https://example.com"
-                                    value={customUrl}
-                                    onChange={setCustomUrl}
-                                    autoComplete="off"
-                                />
-                            </div>
-                            <Button
-                                loading={scanning}
-                                disabled={!customUrl}
-                                onClick={() => scanNow(customUrl)}
-                            >
-                                Scan this URL
-                            </Button>
-                        </InlineStack>
-                    </BlockStack>
-                </Card>
                 <Card>
                     {loading ? (
                         <SkeletonBodyText lines={4} />
@@ -134,25 +108,28 @@ export default function Dashboard() {
                             </Text>
                         </BlockStack>
                     ) : (
-                        <BlockStack gap="300">
-                            <InlineStack align="space-between">
-                                <Text as="h2" variant="headingLg">Score: {latestAudit.score ?? '—'}</Text>
+                        <BlockStack gap="400">
+                            <InlineStack align="space-between" blockAlign="center">
+                                <InlineStack gap="300" blockAlign="baseline">
+                                    <span className={`sp-score ${scoreClass(latestAudit.score)}`}>{latestAudit.score ?? '—'}</span>
+                                    <Text as="span" tone="subdued">/ 100</Text>
+                                </InlineStack>
                                 <Badge tone={statusTone(latestAudit.status)}>{latestAudit.status}</Badge>
                             </InlineStack>
-                            <InlineStack gap="600">
-                                <Metric label="LCP" value={latestAudit.lcp} suffix="s" />
-                                <Metric label="INP" value={latestAudit.inp} suffix="ms" />
-                                <Metric label="CLS" value={latestAudit.cls} suffix="" />
-                                <Metric label="FCP" value={latestAudit.fcp} suffix="s" />
-                                <Metric label="TTFB" value={latestAudit.ttfb} suffix="s" />
-                            </InlineStack>
+                            <div className="sp-cwv-grid">
+                                <CwvStat label="LCP" value={latestAudit.lcp} suffix="s" />
+                                <CwvStat label="INP" value={latestAudit.inp} suffix="ms" />
+                                <CwvStat label="CLS" value={latestAudit.cls} suffix="" />
+                                <CwvStat label="FCP" value={latestAudit.fcp} suffix="s" />
+                                <CwvStat label="TTFB" value={latestAudit.ttfb} suffix="s" />
+                            </div>
                             {latestAudit.issues && latestAudit.issues.length > 0 && (
                                 <Text as="p">
                                     {latestAudit.issues.length} issues found,{' '}
                                     {latestAudit.issues.filter((i) => i.fix_available).length} auto-fixable.
                                 </Text>
                             )}
-                            <PageBreakdown pages={latestAudit.pages} />
+                            <PageScoreCards pages={latestAudit.pages} />
                         </BlockStack>
                     )}
                 </Card>

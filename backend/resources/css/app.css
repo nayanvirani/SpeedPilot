@@ -1,3 +1,104 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * SpeedPilot's own visual identity for score/data displays, layered on top
+ * of Polaris (Page/Card/Frame stay Polaris - this only restyles the
+ * score/metric surfaces so they read as SpeedPilot's product, not generic
+ * admin chrome). Light-only: Polaris itself renders light in this embedded
+ * context, so a dark variant here would mismatch the surrounding chrome.
+ */
+:root {
+  --sp-accent: #0d9488;
+  --sp-accent-2: #7c3aed;
+  --sp-good: #16a34a;
+  --sp-good-bg: #e9f8ee;
+  --sp-warn: #b45309;
+  --sp-warn-bg: #fdf3e2;
+  --sp-critical: #dc2626;
+  --sp-critical-bg: #fdecec;
+  --sp-surface-2: #eef1f5;
+  --sp-border: #dde3ea;
+  --sp-text-faint: #8b96a5;
+}
+
+.sp-heading {
+  font-family: 'Sora', system-ui, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+.sp-mono {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+.sp-score {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-weight: 600;
+  font-size: 44px;
+  line-height: 1;
+}
+
+.sp-score--good { color: var(--sp-good); }
+.sp-score--warn { color: var(--sp-warn); }
+.sp-score--critical { color: var(--sp-critical); }
+
+.sp-cwv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  gap: 8px;
+}
+
+.sp-cwv {
+  background: var(--sp-surface-2);
+  border: 1px solid var(--sp-border);
+  border-radius: 8px;
+  padding: 8px 6px;
+  text-align: center;
+}
+
+.sp-cwv-label {
+  font-size: 10px;
+  color: var(--sp-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sp-cwv-val {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 14px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.sp-page-card {
+  background: #fff;
+  border: 1px solid var(--sp-border);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 180px;
+  flex: 1;
+}
+
+.sp-page-thumb {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--sp-border);
+  display: block;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  background: var(--sp-surface-2);
+}
+
+.sp-diff-before {
+  background: var(--sp-critical-bg);
+  color: var(--sp-critical);
+}
+
+.sp-diff-after {
+  background: var(--sp-good-bg);
+  color: var(--sp-good);
+}

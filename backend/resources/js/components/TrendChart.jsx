@@ -4,7 +4,7 @@ import { Text } from '@shopify/polaris';
 const WIDTH = 640;
 const HEIGHT = 220;
 const PAD = { top: 16, right: 16, bottom: 28, left: 32 };
-const LINE_COLOR = 'var(--p-color-text-success)';
+const LINE_COLOR = 'var(--sp-accent)';
 const GRID_COLOR = 'var(--p-color-border-secondary)';
 const TEXT_COLOR = 'var(--p-color-text-secondary)';
 

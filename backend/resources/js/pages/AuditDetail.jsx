@@ -6,6 +6,43 @@ import { api } from '../api';
 const SEVERITY_TONE = { high: 'critical', medium: 'warning', low: 'info' };
 const PAGE_TYPE_LABEL = { home: 'Homepage', product: 'Product page', collection: 'Collection page', custom: 'Custom URL' };
 
+function scoreClass(score) {
+    if (score === null || score === undefined) return '';
+    if (score >= 90) return 'sp-score--good';
+    if (score >= 50) return 'sp-score--warn';
+    return 'sp-score--critical';
+}
+
+function statusTone(status) {
+    return status === 'complete' ? 'success' : status === 'failed' ? 'critical' : 'attention';
+}
+
+function PageScoreCards({ pages }) {
+    if (!pages || pages.length === 0) {
+        return null;
+    }
+
+    return (
+        <BlockStack gap="300">
+            <Text as="h3" variant="headingSm"><span className="sp-heading">Score by page</span></Text>
+            <InlineStack gap="300" wrap>
+                {pages.map((page) => (
+                    <div key={page.id} className="sp-page-card">
+                        {page.screenshot && <img src={page.screenshot} alt={`Screenshot of ${page.url}`} className="sp-page-thumb" />}
+                        <InlineStack align="space-between" blockAlign="center">
+                            <Text as="span" fontWeight="medium">{PAGE_TYPE_LABEL[page.page_type] ?? page.page_type}</Text>
+                            <Badge tone={statusTone(page.status)}>{page.status}</Badge>
+                        </InlineStack>
+                        <span className={`sp-score ${scoreClass(page.score)}`} style={{ fontSize: '28px' }}>
+                            {page.score ?? '—'}
+                        </span>
+                    </div>
+                ))}
+            </InlineStack>
+        </BlockStack>
+    );
+}
+
 function IssueRow({ issue, page }) {
     const [recommendation, setRecommendation] = useState(null);
     const [loadingRec, setLoadingRec] = useState(false);
@@ -83,16 +120,13 @@ export default function AuditDetail() {
                 ))}
                 <Card>
                     {loading ? <SkeletonBodyText lines={2} /> : (
-                        <InlineStack gap="400" blockAlign="center">
-                            {audit?.pages?.[0]?.screenshot && (
-                                <img
-                                    src={audit.pages[0].screenshot}
-                                    alt="Page screenshot"
-                                    style={{ width: '100px', borderRadius: '8px', border: '1px solid var(--p-color-border-secondary)' }}
-                                />
-                            )}
-                            <Text as="h2" variant="headingLg">Score: {audit?.score ?? '—'}</Text>
-                        </InlineStack>
+                        <BlockStack gap="400">
+                            <InlineStack gap="300" blockAlign="baseline">
+                                <span className={`sp-score ${scoreClass(audit?.score)}`}>{audit?.score ?? '—'}</span>
+                                <Text as="span" tone="subdued">/ 100</Text>
+                            </InlineStack>
+                            <PageScoreCards pages={audit?.pages} />
+                        </BlockStack>
                     )}
                 </Card>
                 <Card>

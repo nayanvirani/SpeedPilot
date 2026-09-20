@@ -8,15 +8,11 @@ function CodeBlock({ label, content, tone }) {
     return (
         <div style={{ flex: 1, minWidth: 0 }}>
             <Text as="p" fontWeight="semibold">{label}</Text>
-            <Box
-                background={tone === 'before' ? 'bg-surface-critical' : 'bg-surface-success'}
-                padding="300"
-                borderRadius="200"
-            >
-                <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '12px', maxHeight: '400px', overflow: 'auto' }}>
+            <div className={tone === 'before' ? 'sp-diff-before' : 'sp-diff-after'} style={{ borderRadius: '8px', padding: '12px' }}>
+                <pre className="sp-mono" style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '12px', maxHeight: '400px', overflow: 'auto' }}>
                     {content ?? '(empty)'}
                 </pre>
-            </Box>
+            </div>
         </div>
     );
 }
