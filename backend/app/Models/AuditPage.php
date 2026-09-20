@@ -23,6 +23,7 @@ class AuditPage extends Model
         'css_weight_bytes',
         'screenshot',
         'status',
+        'error_message',
     ];
 
     public function audit(): BelongsTo

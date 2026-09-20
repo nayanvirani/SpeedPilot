@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Badge, BlockStack, Button, Card, InlineStack, Page, SkeletonBodyText, Text } from '@shopify/polaris';
+import { Badge, Banner, BlockStack, Button, Card, InlineStack, Page, SkeletonBodyText, Text } from '@shopify/polaris';
 import { api } from '../api';
 
 const SEVERITY_TONE = { high: 'critical', medium: 'warning', low: 'info' };
@@ -69,12 +69,18 @@ export default function AuditDetail() {
 
     const pagesById = Object.fromEntries((audit?.pages ?? []).map((p) => [p.id, p]));
     const issues = audit?.issues ?? [];
+    const failedPages = (audit?.pages ?? []).filter((p) => p.status === 'failed' && p.error_message);
 
     const subtitle = audit?.url ?? (audit?.pages?.length > 1 ? `Full store scan (${audit.pages.length} pages)` : undefined);
 
     return (
         <Page title={audit ? `Audit #${audit.id}` : 'Audit'} subtitle={subtitle}>
             <BlockStack gap="400">
+                {failedPages.map((page) => (
+                    <Banner key={page.id} tone="critical" title={`Couldn't scan ${PAGE_TYPE_LABEL[page.page_type] ?? page.page_type}`}>
+                        <Text as="p">{page.error_message}</Text>
+                    </Banner>
+                ))}
                 <Card>
                     {loading ? <SkeletonBodyText lines={2} /> : (
                         <InlineStack gap="400" blockAlign="center">

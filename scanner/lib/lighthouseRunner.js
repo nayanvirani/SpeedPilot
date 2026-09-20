@@ -36,7 +36,26 @@ async function runLighthouse(url) {
       screenEmulation: { mobile: true, width: 375, height: 667, deviceScaleFactor: 2 },
     });
 
-    return runnerResult.lhr;
+    const lhr = runnerResult.lhr;
+
+    // A password-protected store (any dev store, or a live store with
+    // "restrict access" on) 302s every URL to /password - Lighthouse
+    // follows that redirect silently and would otherwise audit the
+    // password page itself, reporting a misleadingly perfect score for
+    // content nobody can actually see. Fail loudly instead.
+    const finalUrl = lhr.finalDisplayedUrl || lhr.finalUrl || '';
+    if (/\/password(\?|$)/.test(new URL(finalUrl).pathname)) {
+      const err = new Error(
+        'This store is password-protected, so the scan was redirected to the '
+        + 'password page instead of reaching the real content. Remove the '
+        + 'storefront password (Online Store > Preferences) or scan a different, '
+        + 'publicly accessible URL.'
+      );
+      err.code = 'PASSWORD_PROTECTED';
+      throw err;
+    }
+
+    return lhr;
   } finally {
     await browser.close();
   }

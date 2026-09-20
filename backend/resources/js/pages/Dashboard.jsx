@@ -40,6 +40,11 @@ function PageBreakdown({ pages }) {
                             <Text as="span" tone="subdued">{page.score ?? '—'}</Text>
                             <Badge tone={statusTone(page.status)}>{page.status}</Badge>
                         </InlineStack>
+                        {page.status === 'failed' && page.error_message && (
+                            <div style={{ maxWidth: '220px' }}>
+                                <Text as="span" tone="critical">{page.error_message}</Text>
+                            </div>
+                        )}
                     </BlockStack>
                 ))}
             </InlineStack>

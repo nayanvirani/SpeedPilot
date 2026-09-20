@@ -66,7 +66,7 @@ class RunAuditJob implements ShouldQueue
                     $this->mergeThirdParty($thirdPartyByApp, $app);
                 }
             } catch (Throwable $e) {
-                $page->update(['status' => 'failed']);
+                $page->update(['status' => 'failed', 'error_message' => $e->getMessage()]);
             }
         }
 

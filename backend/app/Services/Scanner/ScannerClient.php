@@ -33,7 +33,13 @@ class ScannerClient
                 'json' => ['url' => $url],
             ]);
         } catch (RequestException $e) {
-            throw new RuntimeException("Scanner request failed for {$url}: ".$e->getMessage(), previous: $e);
+            // The scanner returns a clean, merchant-readable message in its
+            // JSON error body (e.g. "this store is password-protected") -
+            // Guzzle's own exception message just dumps a truncated raw
+            // response, which is far less useful surfaced in the UI.
+            $body = $e->getResponse() ? json_decode((string) $e->getResponse()->getBody(), true) : null;
+
+            throw new RuntimeException($body['message'] ?? "Scanner request failed for {$url}: ".$e->getMessage(), previous: $e);
         }
 
         return json_decode((string) $response->getBody(), true) ?? [];
