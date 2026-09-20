@@ -42,7 +42,16 @@ class AuditController extends Controller
         $shop = $request->attributes->get('shop');
 
         return response()->json([
-            'audits' => $shop->audits()->with(['pages', 'issues'])->latest('id')->limit(20)->get(),
+            // The list view only ever renders the latest audit's summary -
+            // pulling every page's full screenshot (a ~15KB base64 blob
+            // each) for all 20 rows here would multiply a small response
+            // into several MB for no reason. The full page data (including
+            // screenshot) is what show() below is for.
+            'audits' => $shop->audits()
+                ->with(['pages:id,audit_id,page_type,url,score,status,error_message', 'issues'])
+                ->latest('id')
+                ->limit(20)
+                ->get(),
         ]);
     }
 

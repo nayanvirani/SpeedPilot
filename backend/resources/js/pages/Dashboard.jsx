@@ -58,11 +58,22 @@ export default function Dashboard() {
     const [scanning, setScanning] = useState(false);
     const [customUrl, setCustomUrl] = useState('');
 
-    const load = useCallback(() => {
+    const load = useCallback(async () => {
         setLoading(true);
-        return api.get('/audits')
-            .then((res) => setLatestAudit(res.audits[0] ?? null))
-            .finally(() => setLoading(false));
+        try {
+            // The list endpoint is intentionally lightweight (no screenshots)
+            // - fetch full detail for just the one audit this page actually
+            // displays instead of paying for all 20 rows' worth of images.
+            const { audits } = await api.get('/audits');
+            if (!audits[0]) {
+                setLatestAudit(null);
+                return;
+            }
+            const { audit } = await api.get(`/audits/${audits[0].id}`);
+            setLatestAudit(audit);
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
     useEffect(() => { load(); }, [load]);
