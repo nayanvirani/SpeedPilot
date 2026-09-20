@@ -106,6 +106,7 @@ class RunAuditJob implements ShouldQueue
 
         $audit->update([
             'raw_report' => ['psi' => $psiReport],
+            'category_scores' => $this->computeCategoryScores($audit->fresh()),
             'status' => 'complete',
         ]);
 
@@ -216,6 +217,95 @@ class RunAuditJob implements ShouldQueue
         $values = array_filter($values, fn ($v) => $v !== null);
 
         return count($values) > 0 ? array_sum($values) / count($values) : null;
+    }
+
+    /**
+     * Spec section 10: "a simple 0-100 Store Performance Score backed by
+     * transparent sub-scores" across Core Web Vitals, Images, JavaScript,
+     * CSS, Third-party resources and Theme. Issue-backed categories are
+     * scored by deducting per-issue-severity from 100; Core Web Vitals is
+     * scored from the actual averaged metric values against Google's
+     * published good/needs-improvement/poor thresholds, blended with any
+     * CLS root-cause issues found (a CLS issue IS a core-web-vitals problem,
+     * not a separate "theme" one).
+     *
+     * @return array<string, int>
+     */
+    private function computeCategoryScores(Audit $audit): array
+    {
+        $issues = $audit->issues()->get();
+        $appImpacts = $audit->appImpacts()->get();
+
+        $issueDeduction = fn (string $category) => $this->deductionScore(
+            $issues->where('category', $category)->pluck('severity')->all()
+        );
+
+        $cwvMetricScore = $this->average(array_filter([
+            $this->metricScore($audit->lcp !== null ? $audit->lcp * 1000 : null, 2500, 4000),
+            $this->metricScore($audit->inp, 200, 500),
+            $this->metricScore($audit->cls, 0.1, 0.25),
+            $this->metricScore($audit->tbt, 200, 600),
+        ], fn ($v) => $v !== null));
+
+        $clsIssueScore = $issueDeduction('cls');
+        $coreWebVitals = $cwvMetricScore !== null
+            ? (int) round(($cwvMetricScore + $clsIssueScore) / 2)
+            : $clsIssueScore;
+
+        $thirdPartyDeduction = $appImpacts->reduce(function (int $carry, $app) {
+            return $carry + match ($app->impact_level) {
+                'high' => 20,
+                'medium' => 10,
+                default => 4,
+            };
+        }, 0);
+
+        return [
+            'core_web_vitals' => $coreWebVitals,
+            'images' => $issueDeduction('image'),
+            'javascript' => $issueDeduction('js'),
+            'css' => $issueDeduction('css'),
+            'theme' => $issueDeduction('theme'),
+            'third_party' => max(0, 100 - $thirdPartyDeduction),
+        ];
+    }
+
+    /**
+     * @param  array<int, string>  $severities
+     */
+    private function deductionScore(array $severities): int
+    {
+        $weights = ['critical' => 30, 'high' => 18, 'medium' => 9, 'low' => 4];
+        $deduction = array_sum(array_map(fn ($s) => $weights[$s] ?? 9, $severities));
+
+        return max(0, 100 - $deduction);
+    }
+
+    /**
+     * Linear score between Google's CWV "good" and "poor" thresholds - 100
+     * at/under good, 40 at poor, continuing to taper to 0 by 2x poor rather
+     * than clamping at 40 forever, so a truly catastrophic value still reads
+     * as truly catastrophic rather than "just needs improvement."
+     */
+    private function metricScore(?float $value, float $good, float $poor): ?float
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if ($value <= $good) {
+            return 100.0;
+        }
+
+        if ($value <= $poor) {
+            return 100 - (($value - $good) / ($poor - $good)) * 60;
+        }
+
+        if ($value >= $poor * 2) {
+            return 0.0;
+        }
+
+        return 40 - (($value - $poor) / $poor) * 40;
     }
 
     private function impactLevelFor(array $app): string

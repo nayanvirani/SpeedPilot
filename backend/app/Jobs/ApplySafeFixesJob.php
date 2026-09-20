@@ -9,8 +9,10 @@ use App\Services\PlanPolicy;
 use App\Services\Shopify\AssetBackupService;
 use App\Services\Shopify\ImageLazyLoadSweeper;
 use App\Services\Shopify\ShopifyGraphQLClient;
+use App\Models\OptimizedTheme;
 use App\Services\Shopify\ThemeAssetLocatorService;
 use App\Services\Shopify\ThemeAssetService;
+use App\Services\Shopify\ThemeDuplicateService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -62,6 +64,21 @@ class ApplySafeFixesJob implements ShouldQueue
 
         if (! $liveThemeId) {
             return; // no OAuth/theme access yet - nothing to apply against
+        }
+
+        // About to write fresh fixes into the preview duplicate - re-baseline
+        // its divergence checksum against the live theme now, so a settings-
+        // page check later reports drift accumulated *after* this write, not
+        // drift this write is about to fold in anyway.
+        if ($shop->target_theme_mode === 'duplicate') {
+            $optimizedTheme = OptimizedTheme::where('shop_installation_id', $shop->id)
+                ->where('duplicate_theme_id', $writeThemeId)
+                ->first();
+
+            if ($optimizedTheme) {
+                $duplicator = new ThemeDuplicateService(new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token));
+                $duplicator->checkDivergence($optimizedTheme, persist: true);
+            }
         }
 
         $appliedCount = 0;

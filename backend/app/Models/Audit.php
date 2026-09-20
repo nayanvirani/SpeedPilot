@@ -16,6 +16,7 @@ class Audit extends Model
         'shop_installation_id',
         'verifies_audit_id',
         'score',
+        'category_scores',
         'lcp',
         'inp',
         'cls',
@@ -38,6 +39,7 @@ class Audit extends Model
     {
         return [
             'raw_report' => 'array',
+            'category_scores' => 'array',
         ];
     }
 

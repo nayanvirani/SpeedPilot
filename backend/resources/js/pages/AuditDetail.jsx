@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Badge, Banner, BlockStack, Button, Card, InlineStack, Page, SkeletonBodyText, Text } from '@shopify/polaris';
 import { api } from '../api';
+import CategoryScores from '../components/CategoryScores';
 
 const SEVERITY_TONE = { critical: 'critical-strong', high: 'critical', medium: 'warning', low: 'info' };
 const PAGE_TYPE_LABEL = {
@@ -151,6 +152,7 @@ export default function AuditDetail() {
                                 <span className={`sp-score ${scoreClass(audit?.score)}`}>{audit?.score ?? '—'}</span>
                                 <Text as="span" tone="subdued">/ 100</Text>
                             </InlineStack>
+                            <CategoryScores scores={audit?.category_scores} />
                             <PageScoreCards pages={audit?.pages} />
                         </BlockStack>
                     )}

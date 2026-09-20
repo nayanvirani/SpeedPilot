@@ -64,17 +64,24 @@ class ThemeDuplicateService
      * last synced, publishing the refreshed duplicate later would silently
      * revert that work - so we flag divergence instead of refreshing blindly.
      */
-    public function checkDivergence(OptimizedTheme $optimizedTheme): bool
+    public function checkDivergence(OptimizedTheme $optimizedTheme, bool $persist = true): bool
     {
         $liveChecksum = $this->themeSettingsChecksum($optimizedTheme->source_theme_id);
         $knownChecksum = $optimizedTheme->divergence_meta['source_checksum'] ?? null;
 
         $diverged = $knownChecksum !== null && $knownChecksum !== $liveChecksum;
 
-        $optimizedTheme->update([
-            'diverged' => $diverged,
-            'divergence_meta' => ['source_checksum' => $liveChecksum, 'checked_at' => now()->toIso8601String()],
-        ]);
+        // Only re-baseline the "known good" checksum when this check is
+        // gating an actual write (about to refresh the duplicate with new
+        // fixes) - a read-only display check (e.g. a settings-page banner)
+        // must never move the baseline, or drift would never accumulate
+        // long enough to ever be reported.
+        if ($persist) {
+            $optimizedTheme->update([
+                'diverged' => $diverged,
+                'divergence_meta' => ['source_checksum' => $liveChecksum, 'checked_at' => now()->toIso8601String()],
+            ]);
+        }
 
         return $diverged;
     }

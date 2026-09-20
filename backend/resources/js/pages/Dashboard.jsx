@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Badge, Banner, BlockStack, Button, Card, InlineStack, Page, Select, SkeletonBodyText, Text, TextField } from '@shopify/polaris';
 import { api } from '../api';
+import CategoryScores from '../components/CategoryScores';
 
 function statusTone(status) {
     return status === 'complete' ? 'success' : status === 'failed' ? 'critical' : 'attention';
@@ -20,6 +21,28 @@ function CwvStat({ label, value, suffix }) {
             <div className="sp-cwv-label">{label}</div>
             <div className="sp-cwv-val">{value !== null && value !== undefined ? `${value}${suffix}` : '—'}</div>
         </div>
+    );
+}
+
+const SEVERITY_TONE = { critical: 'critical-strong', high: 'critical', medium: 'warning', low: 'info' };
+const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low'];
+
+function IssueSeverityCounts({ issues }) {
+    if (!issues || issues.length === 0) {
+        return null;
+    }
+
+    const counts = issues.reduce((acc, issue) => {
+        acc[issue.severity] = (acc[issue.severity] ?? 0) + 1;
+        return acc;
+    }, {});
+
+    return (
+        <InlineStack gap="200">
+            {SEVERITY_ORDER.filter((s) => counts[s]).map((s) => (
+                <Badge key={s} tone={SEVERITY_TONE[s]}>{`${counts[s]} ${s}`}</Badge>
+            ))}
+        </InlineStack>
     );
 }
 
@@ -119,7 +142,7 @@ function StorefrontPasswordSettings() {
 
 function TargetThemeSettings() {
     const [themes, setThemes] = useState(null);
-    const [current, setCurrent] = useState({ id: null, mode: null });
+    const [current, setCurrent] = useState({ id: null, mode: null, diverged: null });
     const [selectedThemeId, setSelectedThemeId] = useState('');
     const [saving, setSaving] = useState(null);
 
@@ -128,7 +151,7 @@ function TargetThemeSettings() {
             api.get('/settings'),
             api.get('/themes').catch(() => ({ themes: [] })),
         ]);
-        setCurrent({ id: settings.target_theme_id, mode: settings.target_theme_mode });
+        setCurrent({ id: settings.target_theme_id, mode: settings.target_theme_mode, diverged: settings.theme_diverged });
         setThemes(themeList.themes);
         if (!selectedThemeId && themeList.themes[0]) {
             setSelectedThemeId(themeList.themes[0].id);
@@ -182,6 +205,12 @@ function TargetThemeSettings() {
                     <Banner tone="success">
                         Applying to a safe preview theme ("SpeedPilot Optimized") - your live storefront is
                         unaffected until you review and publish it yourself from Shopify's theme editor.
+                    </Banner>
+                )}
+                {current.mode === 'duplicate' && current.diverged && (
+                    <Banner tone="warning" title="Your live theme has changed since this preview was last refreshed">
+                        Edits made directly to your live theme aren't reflected in "SpeedPilot Optimized" yet.
+                        Publishing it now could revert those changes - run a new scan to refresh it first.
                     </Banner>
                 )}
                 {!current.mode && (
@@ -287,13 +316,21 @@ export default function Dashboard() {
                                 <CwvStat label="TBT" value={latestAudit.tbt} suffix="ms" />
                                 <CwvStat label="Speed Index" value={latestAudit.speed_index} suffix="s" />
                             </div>
+                            <CategoryScores scores={latestAudit.category_scores} />
                             {latestAudit.issues && latestAudit.issues.length > 0 && (
-                                <Text as="p">
-                                    {latestAudit.issues.length} issues found,{' '}
-                                    {latestAudit.issues.filter((i) => i.fix_available).length} auto-fixable -
-                                    see "View full report" above for details and AI recommendations.
-                                </Text>
+                                <BlockStack gap="150">
+                                    <IssueSeverityCounts issues={latestAudit.issues} />
+                                    <Text as="p">
+                                        {latestAudit.issues.length} issues found,{' '}
+                                        {latestAudit.issues.filter((i) => i.fix_available).length} auto-fixable -
+                                        see "View full report" above for details and AI recommendations.
+                                    </Text>
+                                </BlockStack>
                             )}
+                            <InlineStack gap="200">
+                                <Button onClick={() => navigate(`/audits/${latestAudit.id}`)}>Fix issues</Button>
+                                <Button onClick={() => navigate('/monitoring')}>View monitoring</Button>
+                            </InlineStack>
                             <PageScoreCards pages={latestAudit.pages} />
                         </BlockStack>
                     )}

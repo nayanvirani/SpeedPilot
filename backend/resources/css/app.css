@@ -71,6 +71,28 @@
   margin-top: 2px;
 }
 
+.sp-subscore-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sp-subscore-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--sp-surface-2);
+  overflow: hidden;
+}
+
+.sp-subscore-bar {
+  height: 100%;
+  border-radius: 3px;
+}
+
+.sp-subscore-bar--good { background: var(--sp-good); }
+.sp-subscore-bar--warn { background: var(--sp-warn); }
+.sp-subscore-bar--critical { background: var(--sp-critical); }
+
 .sp-page-card {
   background: #fff;
   border: 1px solid var(--sp-border);

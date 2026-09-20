@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\OptimizedTheme;
 use App\Models\ShopInstallation;
 use App\Services\Shopify\ShopifyGraphQLClient;
 use App\Services\Shopify\ThemeAssetService;
@@ -17,10 +18,24 @@ class ShopSettingsController extends Controller
         /** @var ShopInstallation $shop */
         $shop = $request->attributes->get('shop');
 
+        $themeDiverged = null;
+
+        if ($shop->target_theme_mode === 'duplicate' && $shop->target_theme_id) {
+            $optimizedTheme = OptimizedTheme::where('shop_installation_id', $shop->id)
+                ->where('duplicate_theme_id', $shop->target_theme_id)
+                ->first();
+
+            if ($optimizedTheme) {
+                $duplicator = new ThemeDuplicateService(new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token));
+                $themeDiverged = $duplicator->checkDivergence($optimizedTheme, persist: false);
+            }
+        }
+
         return response()->json([
             'has_storefront_password' => ! empty($shop->storefront_password),
             'target_theme_id' => $shop->target_theme_id,
             'target_theme_mode' => $shop->target_theme_mode,
+            'theme_diverged' => $themeDiverged,
         ]);
     }
 
