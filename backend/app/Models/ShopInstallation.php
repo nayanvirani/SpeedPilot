@@ -37,8 +37,13 @@ class ShopInstallation extends Model
 
     public function needsFreshAccessToken(): bool
     {
+        // A missing expires_at is never "fine forever" - both token-issuance
+        // paths now always request an expiring token, so a null here means
+        // a stale row from before that fix (a deprecated permanent token),
+        // not a token that legitimately doesn't expire.
         return ! $this->access_token
-            || ($this->access_token_expires_at && $this->access_token_expires_at->isPast());
+            || ! $this->access_token_expires_at
+            || $this->access_token_expires_at->isPast();
     }
 
     public function audits(): HasMany

@@ -61,6 +61,13 @@ class ShopifyOAuthService
                 'client_id' => config('shopify.api_key'),
                 'client_secret' => config('shopify.api_secret'),
                 'code' => $code,
+                // Same requirement as exchangeSessionTokenForOfflineToken -
+                // without this, Shopify issues a deprecated non-expiring
+                // token instead of rejecting the request outright, which is
+                // what let this fallback route slip a permanent token into
+                // shop_installations undetected until Partner Dashboard's
+                // API health flagged it.
+                'expiring' => 1,
             ],
         ]);
 
