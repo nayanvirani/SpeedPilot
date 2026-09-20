@@ -135,4 +135,27 @@ class ThemeAssetService
 
         return $gid ? (string) filter_var($gid, FILTER_SANITIZE_NUMBER_INT) : null;
     }
+
+    /**
+     * @return array<int, array{id: string, name: string, role: string}>
+     */
+    public function listThemes(): array
+    {
+        $data = $this->client->query(<<<'GRAPHQL'
+            query allThemes {
+                themes(first: 20) {
+                    nodes { id name role }
+                }
+            }
+        GRAPHQL);
+
+        return array_map(
+            fn (array $node) => [
+                'id' => (string) filter_var($node['id'], FILTER_SANITIZE_NUMBER_INT),
+                'name' => $node['name'],
+                'role' => strtolower($node['role']),
+            ],
+            $data['themes']['nodes'] ?? [],
+        );
+    }
 }

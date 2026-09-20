@@ -81,17 +81,29 @@ class ScriptImpactActionService
      */
     private function applyEdit(ShopInstallation $shop, AppImpact $impact, string $action, callable $transform): array
     {
+        if (! $shop->target_theme_id) {
+            return [
+                'applied' => false,
+                'message' => 'Pick which theme SpeedPilot should apply changes to first (Dashboard > Target theme).',
+            ];
+        }
+
         if (! $impact->script_url) {
             return ['applied' => false, 'message' => "No script URL was recorded for this app, so it can't be located automatically."];
         }
 
-        $themeId = $this->themeAssets->activeThemeId();
+        // Issues were found scanning the live, rendered storefront, so
+        // locating the flagged script has to happen against the live theme
+        // regardless of where the fix gets written - a fresh preview
+        // duplicate starts identical to it anyway.
+        $liveThemeId = $this->themeAssets->activeThemeId();
+        $writeThemeId = $shop->target_theme_id;
 
-        if (! $themeId) {
+        if (! $liveThemeId) {
             return ['applied' => false, 'message' => 'Could not access your theme right now - try again shortly.'];
         }
 
-        $assetKey = $this->locator->findScriptSource($themeId, $impact->script_url);
+        $assetKey = $this->locator->findScriptSource($liveThemeId, $impact->script_url);
 
         if (! $assetKey) {
             return [
@@ -102,7 +114,7 @@ class ScriptImpactActionService
             ];
         }
 
-        $original = $this->themeAssets->read($themeId, $assetKey);
+        $original = $this->themeAssets->read($liveThemeId, $assetKey);
 
         if ($original === null) {
             return ['applied' => false, 'message' => 'Could not read the theme file.'];
@@ -126,12 +138,12 @@ class ScriptImpactActionService
             // a performance attribute) - always at least medium risk.
             'risk_tier' => 'medium',
             'status' => 'recommended',
-            'theme_id' => $themeId,
+            'theme_id' => $writeThemeId,
             'asset_key' => $assetKey,
         ]);
 
-        $this->backups->backup($optimization, $themeId, $assetKey, $original, $updated);
-        $this->themeAssets->write($themeId, $assetKey, $updated);
+        $this->backups->backup($optimization, $writeThemeId, $assetKey, $original, $updated);
+        $this->themeAssets->write($writeThemeId, $assetKey, $updated);
         $optimization->update(['status' => 'applied', 'applied_at' => now()]);
 
         return ['applied' => true, 'message' => null];

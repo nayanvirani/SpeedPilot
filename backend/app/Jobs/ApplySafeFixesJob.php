@@ -39,15 +39,28 @@ class ApplySafeFixesJob implements ShouldQueue
         $audit = Audit::findOrFail($this->auditId);
         $policy = new PlanPolicy($shop);
 
+        // Nowhere to write until the merchant explicitly picks a target
+        // theme (their live theme, or a SpeedPilot-managed preview
+        // duplicate) - issues stay recommendation-only rather than
+        // defaulting to silently editing whatever Shopify reports as live.
+        if (! $shop->target_theme_id) {
+            return;
+        }
+
         $themeAssets = new ThemeAssetService(
             new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token)
         );
         $locator = new ThemeAssetLocatorService($themeAssets);
         $sweeper = new ImageLazyLoadSweeper($themeAssets);
 
-        $themeId = $themeAssets->activeThemeId();
+        // Issues were found by scanning the live, rendered storefront, so
+        // locating/reading the flagged files has to happen against the live
+        // theme regardless of where the fix is written - a fresh preview
+        // duplicate starts identical to it anyway.
+        $liveThemeId = $themeAssets->activeThemeId();
+        $writeThemeId = $shop->target_theme_id;
 
-        if (! $themeId) {
+        if (! $liveThemeId) {
             return; // no OAuth/theme access yet - nothing to apply against
         }
 
@@ -73,7 +86,7 @@ class ApplySafeFixesJob implements ShouldQueue
             $fixType = $issue->meta['fix_type'] ?? null;
 
             if ($fixType === 'lazy_load_sweep') {
-                $this->applyLazyLoadSweep($shop, $issue, $themeId, $themeAssets, $backups, $sweeper);
+                $this->applyLazyLoadSweep($shop, $issue, $liveThemeId, $writeThemeId, $themeAssets, $backups, $sweeper);
 
                 continue;
             }
@@ -81,7 +94,7 @@ class ApplySafeFixesJob implements ShouldQueue
             $assetKey = $issue->meta['asset_key'] ?? null;
 
             if (! $assetKey && $fixType === 'defer_script' && isset($issue->meta['script_src'])) {
-                $assetKey = $locator->findScriptSource($themeId, $issue->meta['script_src']);
+                $assetKey = $locator->findScriptSource($liveThemeId, $issue->meta['script_src']);
             }
 
             if (! $assetKey) {
@@ -93,11 +106,11 @@ class ApplySafeFixesJob implements ShouldQueue
                 'type' => $fixType ?? $issue->category,
                 'risk_tier' => 'safe',
                 'status' => 'recommended',
-                'theme_id' => $themeId,
+                'theme_id' => $writeThemeId,
                 'asset_key' => $assetKey,
             ]);
 
-            $original = $themeAssets->read($themeId, $assetKey);
+            $original = $themeAssets->read($liveThemeId, $assetKey);
 
             if ($original === null) {
                 continue;
@@ -105,8 +118,8 @@ class ApplySafeFixesJob implements ShouldQueue
 
             $fixed = $this->applyFix($issue->category, $issue->meta ?? [], $original);
 
-            $backups->backup($optimization, $themeId, $assetKey, $original, $fixed);
-            $themeAssets->write($themeId, $assetKey, $fixed);
+            $backups->backup($optimization, $writeThemeId, $assetKey, $original, $fixed);
+            $themeAssets->write($writeThemeId, $assetKey, $fixed);
 
             $optimization->update(['status' => 'applied', 'applied_at' => now()]);
         }
@@ -121,23 +134,24 @@ class ApplySafeFixesJob implements ShouldQueue
     private function applyLazyLoadSweep(
         ShopInstallation $shop,
         AuditIssue $issue,
-        string $themeId,
+        string $liveThemeId,
+        string $writeThemeId,
         ThemeAssetService $themeAssets,
         AssetBackupService $backups,
         ImageLazyLoadSweeper $sweeper,
     ): void {
-        foreach ($sweeper->sweep($themeId) as $filename => $change) {
+        foreach ($sweeper->sweep($liveThemeId) as $filename => $change) {
             $optimization = $shop->optimizations()->create([
                 'audit_issue_id' => $issue->id,
                 'type' => 'lazy_load',
                 'risk_tier' => 'safe',
                 'status' => 'recommended',
-                'theme_id' => $themeId,
+                'theme_id' => $writeThemeId,
                 'asset_key' => $filename,
             ]);
 
-            $backups->backup($optimization, $themeId, $filename, $change['original'], $change['updated']);
-            $themeAssets->write($themeId, $filename, $change['updated']);
+            $backups->backup($optimization, $writeThemeId, $filename, $change['original'], $change['updated']);
+            $themeAssets->write($writeThemeId, $filename, $change['updated']);
             $optimization->update(['status' => 'applied', 'applied_at' => now()]);
         }
     }

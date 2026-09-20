@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Badge, BlockStack, Button, Card, InlineStack, Page, SkeletonBodyText, Text, TextField } from '@shopify/polaris';
+import { Badge, Banner, BlockStack, Button, Card, InlineStack, Page, Select, SkeletonBodyText, Text, TextField } from '@shopify/polaris';
 import { api } from '../api';
 
 function statusTone(status) {
@@ -112,6 +112,98 @@ function StorefrontPasswordSettings() {
     );
 }
 
+function TargetThemeSettings() {
+    const [themes, setThemes] = useState(null);
+    const [current, setCurrent] = useState({ id: null, mode: null });
+    const [selectedThemeId, setSelectedThemeId] = useState('');
+    const [saving, setSaving] = useState(null);
+
+    const load = useCallback(async () => {
+        const [settings, themeList] = await Promise.all([
+            api.get('/settings'),
+            api.get('/themes').catch(() => ({ themes: [] })),
+        ]);
+        setCurrent({ id: settings.target_theme_id, mode: settings.target_theme_mode });
+        setThemes(themeList.themes);
+        if (!selectedThemeId && themeList.themes[0]) {
+            setSelectedThemeId(themeList.themes[0].id);
+        }
+    }, [selectedThemeId]);
+
+    useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    async function useLiveTheme() {
+        setSaving('live');
+        try {
+            const res = await api.put('/settings/target-theme', { mode: 'live', theme_id: selectedThemeId });
+            setCurrent({ id: res.target_theme_id, mode: res.target_theme_mode });
+        } finally {
+            setSaving(null);
+        }
+    }
+
+    async function useDuplicateTheme() {
+        setSaving('duplicate');
+        try {
+            const res = await api.put('/settings/target-theme', { mode: 'duplicate' });
+            setCurrent({ id: res.target_theme_id, mode: res.target_theme_mode });
+        } finally {
+            setSaving(null);
+        }
+    }
+
+    if (themes === null) {
+        return null;
+    }
+
+    const currentThemeName = themes.find((t) => t.id === current.id)?.name;
+
+    return (
+        <Card>
+            <BlockStack gap="300">
+                <Text as="h3" variant="headingSm"><span className="sp-heading">Target theme</span></Text>
+                <Text as="p" tone="subdued">
+                    Choose which theme SpeedPilot applies fixes to. Nothing is auto-fixed or
+                    changed on the App &amp; Script Impact page until you choose one here.
+                </Text>
+
+                {current.mode === 'live' && (
+                    <Banner tone="warning">
+                        Applying directly to <b>{currentThemeName ?? 'your live theme'}</b> - fixes take effect on
+                        your storefront immediately.
+                    </Banner>
+                )}
+                {current.mode === 'duplicate' && (
+                    <Banner tone="success">
+                        Applying to a safe preview theme ("SpeedPilot Optimized") - your live storefront is
+                        unaffected until you review and publish it yourself from Shopify's theme editor.
+                    </Banner>
+                )}
+                {!current.mode && (
+                    <Banner tone="info">No target theme set yet - fixes will stay recommendation-only until you pick one.</Banner>
+                )}
+
+                <InlineStack gap="200" blockAlign="end" wrap>
+                    <div style={{ minWidth: '220px' }}>
+                        <Select
+                            label="Live theme"
+                            options={themes.map((t) => ({ label: `${t.name} (${t.role})`, value: t.id }))}
+                            value={selectedThemeId}
+                            onChange={setSelectedThemeId}
+                        />
+                    </div>
+                    <Button loading={saving === 'live'} onClick={useLiveTheme} disabled={!selectedThemeId}>
+                        Apply to this theme directly
+                    </Button>
+                    <Button loading={saving === 'duplicate'} onClick={useDuplicateTheme} variant="primary">
+                        Use a safe preview theme instead
+                    </Button>
+                </InlineStack>
+            </BlockStack>
+        </Card>
+    );
+}
+
 export default function Dashboard() {
     const navigate = useNavigate();
     const [latestAudit, setLatestAudit] = useState(null);
@@ -199,6 +291,7 @@ export default function Dashboard() {
                         </BlockStack>
                     )}
                 </Card>
+                <TargetThemeSettings />
                 <StorefrontPasswordSettings />
             </BlockStack>
         </Page>

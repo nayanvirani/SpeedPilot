@@ -36,4 +36,6 @@ Route::middleware('shopify.session')->group(function () {
 
     Route::get('/settings', [ShopSettingsController::class, 'show']);
     Route::put('/settings/storefront-password', [ShopSettingsController::class, 'updateStorefrontPassword']);
+    Route::get('/themes', [ShopSettingsController::class, 'listThemes']);
+    Route::put('/settings/target-theme', [ShopSettingsController::class, 'updateTargetTheme']);
 });

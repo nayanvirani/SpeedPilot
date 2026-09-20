@@ -15,6 +15,8 @@ class ShopInstallation extends Model
         'access_token',
         'access_token_expires_at',
         'storefront_password',
+        'target_theme_id',
+        'target_theme_mode',
         'scope',
         'plan',
         'shopify_subscription_id',
