@@ -48,7 +48,7 @@ class AuditController extends Controller
             // into several MB for no reason. The full page data (including
             // screenshot) is what show() below is for.
             'audits' => $shop->audits()
-                ->with(['pages:id,audit_id,page_type,url,score,status,error_message', 'issues'])
+                ->with(['pages:id,audit_id,page_type,url,device,score,status,error_message', 'issues'])
                 ->latest('id')
                 ->limit(20)
                 ->get(),
@@ -60,7 +60,7 @@ class AuditController extends Controller
         $shop = $request->attributes->get('shop');
 
         $audit = Audit::where('shop_installation_id', $shop->id)
-            ->with(['issues', 'appImpacts', 'pages'])
+            ->with(['issues', 'appImpacts', 'pages', 'verifiesAudit:id,score', 'verificationAudit:id,score,verifies_audit_id,status'])
             ->findOrFail($id);
 
         return response()->json(['audit' => $audit]);

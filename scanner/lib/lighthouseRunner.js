@@ -44,8 +44,20 @@ async function unlockStorefrontPassword(browser, origin, password) {
  * pure-Node service run real Lighthouse audits without chrome-launcher
  * managing its own Chrome install.
  */
+const DEVICE_PRESETS = {
+  mobile: {
+    formFactor: 'mobile',
+    screenEmulation: { mobile: true, width: 375, height: 667, deviceScaleFactor: 2 },
+  },
+  desktop: {
+    formFactor: 'desktop',
+    screenEmulation: { mobile: false, width: 1350, height: 940, deviceScaleFactor: 1 },
+  },
+};
+
 async function runLighthouse(url, options = {}) {
-  const { storefrontPassword } = options;
+  const { storefrontPassword, device = 'mobile' } = options;
+  const preset = DEVICE_PRESETS[device] ?? DEVICE_PRESETS.mobile;
   const lighthouse = (await import('lighthouse')).default;
 
   const browser = await chromium.launch({
@@ -77,8 +89,8 @@ async function runLighthouse(url, options = {}) {
       port: 9222,
       output: 'json',
       onlyCategories: ['performance'],
-      formFactor: 'mobile',
-      screenEmulation: { mobile: true, width: 375, height: 667, deviceScaleFactor: 2 },
+      formFactor: preset.formFactor,
+      screenEmulation: preset.screenEmulation,
       extraHeaders: cookieHeader ? { Cookie: cookieHeader } : undefined,
     });
 

@@ -25,6 +25,12 @@ class PageDiscoveryService
             return $pages;
         }
 
+        // Cart and search are universal Shopify storefront routes - no API
+        // lookup needed, unlike product/collection/blog which need a real
+        // handle to point at.
+        $pages[] = ['type' => 'cart', 'url' => "https://{$shop->shop_domain}/cart"];
+        $pages[] = ['type' => 'search', 'url' => "https://{$shop->shop_domain}/search?q=shirt"];
+
         foreach ($this->fetchCandidates($shop) as $candidate) {
             if (count($pages) >= $limit) {
                 break;
@@ -33,7 +39,7 @@ class PageDiscoveryService
             $pages[] = $candidate;
         }
 
-        return $pages;
+        return array_slice($pages, 0, $limit);
     }
 
     /**
@@ -79,6 +85,47 @@ class PageDiscoveryService
             $candidates[] = ['type' => 'collection', 'url' => "https://{$shop->shop_domain}/collections/{$collectionHandle}"];
         }
 
+        if ($blogArticle = $this->fetchLatestArticle($shop)) {
+            $candidates[] = $blogArticle;
+        }
+
         return $candidates;
+    }
+
+    /**
+     * A separate call, not merged into fetchCandidates()'s combined query,
+     * because it needs the read_content scope - a shop that installed
+     * before that scope was added will get ACCESS_DENIED here specifically,
+     * and ShopifyGraphQLClient throws on any GraphQL error even when other
+     * fields in the same request would have succeeded. Isolating it keeps a
+     * missing scope from also losing the product/collection results.
+     *
+     * @return ?array{type: string, url: string}
+     */
+    private function fetchLatestArticle(ShopInstallation $shop): ?array
+    {
+        try {
+            $client = new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token);
+
+            $data = $client->query(<<<'GRAPHQL'
+                query latestArticle {
+                    articles(first: 1, sortKey: UPDATED_AT, reverse: true, query: "published_status:published") {
+                        edges { node { handle blog { handle } } }
+                    }
+                }
+            GRAPHQL);
+        } catch (Throwable $e) {
+            Log::warning('Blog article discovery failed', ['shop' => $shop->shop_domain, 'message' => $e->getMessage()]);
+
+            return null;
+        }
+
+        $article = $data['articles']['edges'][0]['node'] ?? null;
+
+        if (! $article || ! $article['handle'] || ! ($article['blog']['handle'] ?? null)) {
+            return null;
+        }
+
+        return ['type' => 'blog', 'url' => "https://{$shop->shop_domain}/blogs/{$article['blog']['handle']}/{$article['handle']}"];
     }
 }

@@ -23,7 +23,10 @@ function CwvStat({ label, value, suffix }) {
     );
 }
 
-const PAGE_TYPE_LABEL = { home: 'Homepage', product: 'Product page', collection: 'Collection page', custom: 'Custom URL' };
+const PAGE_TYPE_LABEL = {
+    home: 'Homepage', product: 'Product page', collection: 'Collection page',
+    cart: 'Cart', search: 'Search', blog: 'Blog article', custom: 'Custom URL',
+};
 
 function PageScoreCards({ pages }) {
     if (!pages || pages.length === 0) {
@@ -40,7 +43,9 @@ function PageScoreCards({ pages }) {
                     <div key={page.id} className="sp-page-card">
                         {page.screenshot && <img src={page.screenshot} alt={`Screenshot of ${page.url}`} className="sp-page-thumb" />}
                         <InlineStack align="space-between" blockAlign="center">
-                            <Text as="span" fontWeight="medium">{PAGE_TYPE_LABEL[page.page_type] ?? page.page_type}</Text>
+                            <Text as="span" fontWeight="medium">
+                                {PAGE_TYPE_LABEL[page.page_type] ?? page.page_type} · {page.device === 'desktop' ? 'Desktop' : 'Mobile'}
+                            </Text>
                             <Badge tone={statusTone(page.status)}>{page.status}</Badge>
                         </InlineStack>
                         <span className={`sp-score ${scoreClass(page.score)}`} style={{ fontSize: '28px' }}>
@@ -279,6 +284,8 @@ export default function Dashboard() {
                                 <CwvStat label="CLS" value={latestAudit.cls} suffix="" />
                                 <CwvStat label="FCP" value={latestAudit.fcp} suffix="s" />
                                 <CwvStat label="TTFB" value={latestAudit.ttfb} suffix="s" />
+                                <CwvStat label="TBT" value={latestAudit.tbt} suffix="ms" />
+                                <CwvStat label="Speed Index" value={latestAudit.speed_index} suffix="s" />
                             </div>
                             {latestAudit.issues && latestAudit.issues.length > 0 && (
                                 <Text as="p">

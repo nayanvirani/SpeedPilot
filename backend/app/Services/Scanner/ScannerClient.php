@@ -26,13 +26,14 @@ class ScannerClient
     /**
      * @return array<string, mixed> Lighthouse scores, CWV, and resource breakdown.
      */
-    public function scan(string $url, ?string $storefrontPassword = null): array
+    public function scan(string $url, ?string $storefrontPassword = null, string $device = 'mobile'): array
     {
         try {
             $response = $this->http->post('/scan', [
                 'json' => array_filter([
                     'url' => $url,
                     'storefrontPassword' => $storefrontPassword,
+                    'device' => $device,
                 ]),
             ]);
         } catch (RequestException $e) {

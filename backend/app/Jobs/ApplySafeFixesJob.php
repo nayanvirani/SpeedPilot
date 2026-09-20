@@ -64,6 +64,8 @@ class ApplySafeFixesJob implements ShouldQueue
             return; // no OAuth/theme access yet - nothing to apply against
         }
 
+        $appliedCount = 0;
+
         $safeIssues = $audit->issues()
             ->where('risk_tier', 'safe')
             ->where('fix_available', true)
@@ -86,7 +88,7 @@ class ApplySafeFixesJob implements ShouldQueue
             $fixType = $issue->meta['fix_type'] ?? null;
 
             if ($fixType === 'lazy_load_sweep') {
-                $this->applyLazyLoadSweep($shop, $issue, $liveThemeId, $writeThemeId, $themeAssets, $backups, $sweeper);
+                $appliedCount += $this->applyLazyLoadSweep($shop, $issue, $liveThemeId, $writeThemeId, $themeAssets, $backups, $sweeper);
 
                 continue;
             }
@@ -122,6 +124,26 @@ class ApplySafeFixesJob implements ShouldQueue
             $themeAssets->write($writeThemeId, $assetKey, $fixed);
 
             $optimization->update(['status' => 'applied', 'applied_at' => now()]);
+            $appliedCount++;
+        }
+
+        // Safety rule: validate/re-scan after applying changes. Comparable
+        // to the original only when the fix actually landed on the same
+        // thing being scanned - a live-theme fix gets a normal full re-scan,
+        // but a preview-duplicate fix needs Shopify's theme preview URL, or
+        // "verify" would just be re-measuring the untouched live site.
+        if ($appliedCount > 0) {
+            $verifyUrl = $shop->target_theme_mode === 'duplicate'
+                ? "https://{$shop->shop_domain}/?preview_theme_id={$writeThemeId}"
+                : null;
+
+            $verificationAudit = $shop->audits()->create([
+                'verifies_audit_id' => $audit->id,
+                'url' => $verifyUrl,
+                'status' => 'pending',
+            ]);
+
+            RunAuditJob::dispatch($verificationAudit->id);
         }
     }
 
@@ -130,6 +152,8 @@ class ApplySafeFixesJob implements ShouldQueue
      * plain <img> across the theme's sections/snippets, so this applies
      * everywhere at once. One Optimization row per file actually changed,
      * so each stays independently backed-up and rollback-able.
+     *
+     * @return int number of files actually changed
      */
     private function applyLazyLoadSweep(
         ShopInstallation $shop,
@@ -139,7 +163,9 @@ class ApplySafeFixesJob implements ShouldQueue
         ThemeAssetService $themeAssets,
         AssetBackupService $backups,
         ImageLazyLoadSweeper $sweeper,
-    ): void {
+    ): int {
+        $changedCount = 0;
+
         foreach ($sweeper->sweep($liveThemeId) as $filename => $change) {
             $optimization = $shop->optimizations()->create([
                 'audit_issue_id' => $issue->id,
@@ -153,7 +179,10 @@ class ApplySafeFixesJob implements ShouldQueue
             $backups->backup($optimization, $writeThemeId, $filename, $change['original'], $change['updated']);
             $themeAssets->write($writeThemeId, $filename, $change['updated']);
             $optimization->update(['status' => 'applied', 'applied_at' => now()]);
+            $changedCount++;
         }
+
+        return $changedCount;
     }
 
     private function applyFix(string $category, array $meta, string $original): string

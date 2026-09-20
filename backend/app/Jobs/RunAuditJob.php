@@ -22,13 +22,20 @@ use Throwable;
  * so this scans every page PageDiscoveryService picks (plan-limited via
  * PlanPolicy::pagesPerScan) and rolls the results up onto the parent Audit,
  * unless the caller pinned it to one explicit URL (a spot-check, not a
- * full-store scan) by setting Audit.url up front.
+ * full-store scan) by setting Audit.url up front. Every page is scanned on
+ * both mobile and desktop - real user traffic and real diagnosis needs both,
+ * not just one device's numbers.
  */
 class RunAuditJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $timeout = 180;
+    private const DEVICES = ['mobile', 'desktop'];
+
+    // Up to ~6 page types x 2 devices per full-store scan - each Lighthouse
+    // run is real wall-clock time, so this needs real headroom over the
+    // single-page-scan default.
+    public int $timeout = 600;
 
     public function __construct(
         private readonly int $auditId,
@@ -50,23 +57,26 @@ class RunAuditJob implements ShouldQueue
         $thirdPartyByApp = [];
 
         foreach ($pageSpecs as $spec) {
-            $page = $audit->pages()->create([
-                'page_type' => $spec['type'],
-                'url' => $spec['url'],
-                'status' => 'running',
-            ]);
+            foreach (self::DEVICES as $device) {
+                $page = $audit->pages()->create([
+                    'page_type' => $spec['type'],
+                    'url' => $spec['url'],
+                    'device' => $device,
+                    'status' => 'running',
+                ]);
 
-            try {
-                $report = $scanner->scan($spec['url'], $shop->storefront_password);
-                $this->persistPageReport($page, $report);
-                $page->update(['status' => 'complete']);
-                $completedPages[] = $page;
+                try {
+                    $report = $scanner->scan($spec['url'], $shop->storefront_password, $device);
+                    $this->persistPageReport($page, $report);
+                    $page->update(['status' => 'complete']);
+                    $completedPages[] = $page;
 
-                foreach ($report['thirdParty'] ?? [] as $app) {
-                    $this->mergeThirdParty($thirdPartyByApp, $app);
+                    foreach ($report['thirdParty'] ?? [] as $app) {
+                        $this->mergeThirdParty($thirdPartyByApp, $app);
+                    }
+                } catch (Throwable $e) {
+                    $page->update(['status' => 'failed', 'error_message' => $e->getMessage()]);
                 }
-            } catch (Throwable $e) {
-                $page->update(['status' => 'failed', 'error_message' => $e->getMessage()]);
             }
         }
 
@@ -116,11 +126,24 @@ class RunAuditJob implements ShouldQueue
             'cls' => $metrics['cls'] ?? null,
             'fcp' => $metrics['fcp'] ?? null,
             'ttfb' => $metrics['ttfb'] ?? null,
+            'tbt' => $metrics['tbt'] ?? null,
+            'speed_index' => $metrics['speed_index'] ?? null,
             'page_weight_bytes' => $weight['page_bytes'] ?? null,
             'js_weight_bytes' => $weight['js_bytes'] ?? null,
             'css_weight_bytes' => $weight['css_bytes'] ?? null,
+            'image_weight_bytes' => $weight['image_bytes'] ?? null,
+            'request_count' => $weight['request_count'] ?? null,
             'screenshot' => $report['screenshot'] ?? null,
         ]);
+
+        // Only the mobile pass creates audit_issues - the same underlying
+        // theme/app problem shows up on both devices, and deduping by
+        // device here (rather than downstream) keeps ApplySafeFixesJob's
+        // existing asset_key-based dedup from being the only thing standing
+        // between one real issue and two redundant "fixes" for it.
+        if ($page->device !== 'mobile') {
+            return;
+        }
 
         foreach ($report['issues'] ?? [] as $issue) {
             $page->audit->issues()->create([
@@ -163,9 +186,9 @@ class RunAuditJob implements ShouldQueue
     private function aggregateIntoAudit(Audit $audit, array $pages): void
     {
         $avg = fn (string $field) => $this->average(array_map(fn (AuditPage $p) => $p->{$field}, $pages));
-        // score/page_weight_bytes/js_weight_bytes/css_weight_bytes are integer
-        // columns - an averaged float (e.g. 123456.5) is invalid input for
-        // Postgres's bigint/tinyint, so these must round on the way in.
+        // score/*_bytes/request_count/tbt are integer columns - an averaged
+        // float (e.g. 123456.5) is invalid input for Postgres's bigint/
+        // tinyint, so these must round on the way in.
         $avgInt = fn (string $field) => ($v = $avg($field)) !== null ? (int) round($v) : null;
 
         $audit->update([
@@ -175,9 +198,13 @@ class RunAuditJob implements ShouldQueue
             'cls' => $avg('cls'),
             'fcp' => $avg('fcp'),
             'ttfb' => $avg('ttfb'),
+            'tbt' => $avgInt('tbt'),
+            'speed_index' => $avg('speed_index'),
             'page_weight_bytes' => $avgInt('page_weight_bytes'),
             'js_weight_bytes' => $avgInt('js_weight_bytes'),
             'css_weight_bytes' => $avgInt('css_weight_bytes'),
+            'image_weight_bytes' => $avgInt('image_weight_bytes'),
+            'request_count' => $avgInt('request_count'),
         ]);
     }
 

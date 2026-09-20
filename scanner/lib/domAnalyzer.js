@@ -16,6 +16,7 @@ function issuesFromLighthouse(lhr) {
   issues.push(...scriptIssues(audits));
   issues.push(...cssIssues(audits));
   issues.push(...domIssues(audits));
+  issues.push(...clsIssues(audits));
 
   return issues;
 }
@@ -66,6 +67,21 @@ function imageIssues(audits) {
     });
   }
 
+  const responsive = audits['uses-responsive-images'];
+  for (const item of responsive?.details?.items ?? []) {
+    issues.push({
+      category: 'image',
+      severity: (item.wastedBytes ?? 0) > 100_000 ? 'high' : 'medium',
+      title: `Oversized image: ${shortUrl(item.url)}`,
+      description: `Served larger than its displayed size, wasting `
+        + `${Math.round((item.wastedBytes ?? 0) / 1024)}KB. Serve a size closer to `
+        + "how it's actually displayed via Shopify CDN image transforms.",
+      riskTier: 'medium',
+      fixAvailable: false,
+      meta: {},
+    });
+  }
+
   return issues;
 }
 
@@ -76,7 +92,7 @@ function scriptIssues(audits) {
   for (const item of unused?.details?.items ?? []) {
     issues.push({
       category: 'js',
-      severity: (item.wastedBytes ?? 0) > 50_000 ? 'high' : 'medium',
+      severity: severityForBytes(item.wastedBytes, { critical: 150_000, high: 50_000 }),
       title: `Unused JS: ${shortUrl(item.url)}`,
       description: `${Math.round((item.wastedBytes ?? 0) / 1024)}KB unused.`,
       riskTier: 'medium',
@@ -131,7 +147,71 @@ function cssIssues(audits) {
     });
   }
 
+  const renderBlocking = audits['render-blocking-resources'];
+  for (const item of renderBlocking?.details?.items ?? []) {
+    if (!/\.css(\?|$)/.test(item.url ?? '')) continue;
+    issues.push({
+      category: 'css',
+      severity: 'high',
+      title: `Render-blocking stylesheet: ${shortUrl(item.url)}`,
+      description: 'Blocks rendering until it downloads. Making it non-blocking (e.g. '
+        + 'loading it async then swapping the media type) is a theme change worth '
+        + 'reviewing rather than an automatic one, since it can affect how quickly '
+        + "styled content becomes visible.",
+      riskTier: 'medium',
+      fixAvailable: false,
+      meta: {},
+    });
+  }
+
+  const unminified = audits['unminified-css'];
+  for (const item of unminified?.details?.items ?? []) {
+    issues.push({
+      category: 'css',
+      severity: (item.wastedBytes ?? 0) > 30_000 ? 'medium' : 'low',
+      title: `Unminified CSS: ${shortUrl(item.url)}`,
+      description: `${Math.round((item.wastedBytes ?? 0) / 1024)}KB could be saved by minifying this file.`,
+      riskTier: 'medium',
+      fixAvailable: false,
+      meta: {},
+    });
+  }
+
   return issues;
+}
+
+/**
+ * "Show affected element and evidence" (root-cause CLS) - layout-shifts
+ * lists the actual element that moved and Lighthouse's own diagnosed cause
+ * (unsized media, a web font swapping in, an injected iframe, etc.), unlike
+ * cumulative-layout-shift which is just the aggregate score already stored
+ * as audit.cls.
+ */
+function clsIssues(audits) {
+  const shifts = audits['layout-shifts'];
+  const items = shifts?.details?.items ?? [];
+
+  return items.slice(0, 5).map((item) => {
+    const element = item.node?.nodeLabel || item.node?.selector || 'an element on the page';
+    const causes = (item.subItems?.items ?? [])
+      .map((sub) => sub.cause)
+      .filter((cause) => typeof cause === 'string' && cause.length > 0);
+
+    return {
+      // Google's own CLS thresholds: >0.25 is "poor", 0.1-0.25 "needs improvement".
+      category: 'cls',
+      severity: (item.score ?? 0) > 0.25 ? 'critical' : (item.score ?? 0) > 0.1 ? 'high' : 'medium',
+      title: `Layout shift: ${shortText(element)}`,
+      description: causes.length > 0
+        ? `This element shifted during load. Likely cause: ${causes.join(', ')}.`
+        : 'This element shifted position during load, contributing to layout instability.',
+      // Root causes vary too much (fonts, iframes, dynamic content, sliders)
+      // to safely auto-fix any of them the same way - always a recommendation.
+      riskTier: 'high',
+      fixAvailable: false,
+      meta: {},
+    };
+  });
 }
 
 function domIssues(audits) {
@@ -141,7 +221,7 @@ function domIssues(audits) {
   if (domSize && domSize.score !== null && domSize.score < 0.9) {
     issues.push({
       category: 'theme',
-      severity: domSize.score < 0.5 ? 'high' : 'medium',
+      severity: domSize.score < 0.3 ? 'critical' : domSize.score < 0.5 ? 'high' : 'medium',
       title: 'Excessive DOM size',
       description: domSize.displayValue ?? 'DOM is larger than recommended.',
       riskTier: 'high',
@@ -161,6 +241,17 @@ function shortUrl(url) {
   } catch {
     return url;
   }
+}
+
+function shortText(text, maxLength = 60) {
+  return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
+}
+
+function severityForBytes(bytes, { critical, high }) {
+  const b = bytes ?? 0;
+  if (b > critical) return 'critical';
+  if (b > high) return 'high';
+  return 'medium';
 }
 
 module.exports = { issuesFromLighthouse };

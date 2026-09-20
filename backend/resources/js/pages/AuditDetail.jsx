@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Badge, Banner, BlockStack, Button, Card, InlineStack, Page, SkeletonBodyText, Text } from '@shopify/polaris';
 import { api } from '../api';
 
-const SEVERITY_TONE = { high: 'critical', medium: 'warning', low: 'info' };
-const PAGE_TYPE_LABEL = { home: 'Homepage', product: 'Product page', collection: 'Collection page', custom: 'Custom URL' };
+const SEVERITY_TONE = { critical: 'critical-strong', high: 'critical', medium: 'warning', low: 'info' };
+const PAGE_TYPE_LABEL = {
+    home: 'Homepage', product: 'Product page', collection: 'Collection page',
+    cart: 'Cart', search: 'Search', blog: 'Blog article', custom: 'Custom URL',
+};
 
 function scoreClass(score) {
     if (score === null || score === undefined) return '';
@@ -30,7 +33,9 @@ function PageScoreCards({ pages }) {
                     <div key={page.id} className="sp-page-card">
                         {page.screenshot && <img src={page.screenshot} alt={`Screenshot of ${page.url}`} className="sp-page-thumb" />}
                         <InlineStack align="space-between" blockAlign="center">
-                            <Text as="span" fontWeight="medium">{PAGE_TYPE_LABEL[page.page_type] ?? page.page_type}</Text>
+                            <Text as="span" fontWeight="medium">
+                                {PAGE_TYPE_LABEL[page.page_type] ?? page.page_type} · {page.device === 'desktop' ? 'Desktop' : 'Mobile'}
+                            </Text>
                             <Badge tone={statusTone(page.status)}>{page.status}</Badge>
                         </InlineStack>
                         <span className={`sp-score ${scoreClass(page.score)}`} style={{ fontSize: '28px' }}>
@@ -93,6 +98,7 @@ function IssueRow({ issue, page }) {
 }
 
 export default function AuditDetail() {
+    const navigate = useNavigate();
     const { id } = useParams();
     const [audit, setAudit] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -113,6 +119,26 @@ export default function AuditDetail() {
     return (
         <Page title={audit ? `Audit #${audit.id}` : 'Audit'} subtitle={subtitle}>
             <BlockStack gap="400">
+                {audit?.verifies_audit_id && audit?.verifies_audit && (
+                    <Banner tone={audit.score >= audit.verifies_audit.score ? 'success' : 'warning'} title="Automatic verification re-scan">
+                        <Text as="p">
+                            Ran automatically after applying fixes. Score before: {audit.verifies_audit.score ?? '—'} → after: {audit.score ?? '—'}
+                            {audit.score !== null && audit.verifies_audit.score !== null && (
+                                <> ({audit.score - audit.verifies_audit.score >= 0 ? '+' : ''}{audit.score - audit.verifies_audit.score})</>
+                            )}
+                        </Text>
+                    </Banner>
+                )}
+                {audit?.verification_audit && (
+                    <Banner tone="info" title="Fixes were applied and re-verified">
+                        <InlineStack gap="200" align="space-between" blockAlign="center">
+                            <Text as="p">
+                                A follow-up scan checked the actual effect of the fixes applied here.
+                            </Text>
+                            <Button onClick={() => navigate(`/audits/${audit.verification_audit.id}`)}>View verification</Button>
+                        </InlineStack>
+                    </Banner>
+                )}
                 {failedPages.map((page) => (
                     <Banner key={page.id} tone="critical" title={`Couldn't scan ${PAGE_TYPE_LABEL[page.page_type] ?? page.page_type}`}>
                         <Text as="p">{page.error_message}</Text>
