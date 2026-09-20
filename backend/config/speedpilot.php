@@ -11,6 +11,7 @@ return [
     'ai' => [
         'provider' => env('AI_PROVIDER', 'placeholder'),
         'api_key' => env('AI_PROVIDER_API_KEY'),
+        'model' => env('AI_PROVIDER_MODEL', 'claude-opus-5'),
     ],
 
     // Pricing plans live in the `plans` database table (see App\Models\Plan),

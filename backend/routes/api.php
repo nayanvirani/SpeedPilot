@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AiRecommendationController;
 use App\Http\Controllers\Api\AppImpactController;
 use App\Http\Controllers\Api\AuditController;
 use App\Http\Controllers\Api\BillingController;
@@ -19,6 +20,7 @@ Route::middleware('shopify.session')->group(function () {
     Route::post('/audits', [AuditController::class, 'store']);
     Route::get('/audits', [AuditController::class, 'index']);
     Route::get('/audits/{id}', [AuditController::class, 'show']);
+    Route::get('/audit-issues/{id}/recommendation', [AiRecommendationController::class, 'show']);
 
     Route::get('/app-impacts', [AppImpactController::class, 'index']);
     Route::patch('/app-impacts/{id}', [AppImpactController::class, 'updateStatus']);
