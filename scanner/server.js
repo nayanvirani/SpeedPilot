@@ -45,7 +45,9 @@ function buildReport(lhr) {
       cls: audits['cumulative-layout-shift']?.numericValue ?? null,
       fcp: metricValueSeconds(audits['first-contentful-paint']),
       ttfb: metricValueSeconds(audits['server-response-time']),
-      tbt: audits['total-blocking-time']?.numericValue ?? null,
+      tbt: audits['total-blocking-time']?.numericValue != null
+        ? Math.round(audits['total-blocking-time'].numericValue)
+        : null,
       speed_index: metricValueSeconds(audits['speed-index']),
     },
     weight: {
