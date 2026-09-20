@@ -156,12 +156,10 @@ class ApplySafeFixesJob implements ShouldQueue
             return $content;
         }
 
-        // The theme's source may reference this script via a relative path,
-        // an asset_url filter, or a version-stamped query string that won't
-        // match the fully rendered URL Lighthouse reported - matching on the
-        // file's distinctive basename (the same needle used to locate this
-        // file in the first place) is what actually works reliably here.
-        $needle = preg_quote(basename((string) parse_url($meta['script_src'], PHP_URL_PATH)), '/');
+        // Must match ThemeAssetLocatorService::needleFor() exactly - that's
+        // what located this file in the first place, so using a different
+        // needle here risks "found the file but not the tag inside it."
+        $needle = preg_quote(ThemeAssetLocatorService::needleFor($meta['script_src']), '/');
 
         return preg_replace(
             '/<script([^>]*src=["\'][^"\']*'.$needle.'[^"\']*["\'][^>]*)>/i',

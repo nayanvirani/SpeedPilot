@@ -108,7 +108,10 @@ class ScriptImpactActionService
             return ['applied' => false, 'message' => 'Could not read the theme file.'];
         }
 
-        $needle = preg_quote(basename((string) parse_url($impact->script_url, PHP_URL_PATH)), '/');
+        // Must match the needle findScriptSource() used to locate $assetKey
+        // in the first place - a different needle here risks "found the
+        // file but not the tag inside it."
+        $needle = preg_quote(ThemeAssetLocatorService::needleFor($impact->script_url), '/');
         $updated = $transform($original, $needle);
 
         if ($updated === $original) {

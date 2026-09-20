@@ -24,7 +24,7 @@ class ThemeAssetLocatorService
 
     public function findScriptSource(string $themeId, string $scriptSrc): ?string
     {
-        $needle = $this->tailOf($scriptSrc);
+        $needle = self::needleFor($scriptSrc);
 
         if ($needle === '') {
             return null;
@@ -64,15 +64,35 @@ class ThemeAssetLocatorService
     }
 
     /**
+     * The single source of truth for "what substring of this URL would
+     * plausibly appear verbatim in a hardcoded <script src>" - used both to
+     * locate the file here and, by callers that already have a located
+     * asset_key, to build the same regex needle for the actual tag edit.
+     * They must stay identical: a locator/editor needle mismatch means
+     * "found the file but couldn't locate the tag inside it" even when the
+     * file and tag are both right there.
+     *
      * A rendered script tag is usually an absolute URL with a query string
-     * (cache-busting version params etc.) that the theme source won't
-     * contain verbatim - the file path itself is the stable, searchable
-     * part.
+     * (cache-busting version params etc.) the theme source won't contain
+     * verbatim. The path's basename works for a real static asset (a long,
+     * specific filename), but plenty of tracking scripts are dynamic
+     * endpoints with no real filename at all - Google Tag Manager's is
+     * literally just "js" (/gtag/js?id=...), which matched something as
+     * unrelated as class="no-js" in layout/password.liquid before this
+     * existed. The hostname is the one part of the URL a script tag can't
+     * omit and a vendor essentially never changes, so it's the more
+     * reliable anchor whenever the basename isn't specific enough to trust
+     * alone.
      */
-    private function tailOf(string $url): string
+    public static function needleFor(string $url): string
     {
-        $path = parse_url($url, PHP_URL_PATH) ?? $url;
+        $host = parse_url($url, PHP_URL_HOST) ?? '';
+        $basename = basename(parse_url($url, PHP_URL_PATH) ?? '');
 
-        return basename($path);
+        // A real static asset filename (hashed/versioned JS files are
+        // typically 20+ characters) is specific enough to search on alone.
+        // Anything shorter - "js", "hop", "index.js" - is too generic and
+        // falls back to the hostname instead.
+        return strlen($basename) >= 12 ? $basename : $host;
     }
 }
