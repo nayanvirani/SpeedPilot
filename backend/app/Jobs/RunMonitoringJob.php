@@ -34,13 +34,11 @@ class RunMonitoringJob implements ShouldQueue
         $previousScore = $shop->latestAudit()?->score;
         $url = 'https://'.$shop->shop_domain;
 
-        RunAuditJob::dispatchSync($shop->id, $url);
+        $audit = $shop->audits()->create(['url' => $url, 'status' => 'pending']);
 
-        $audit = $shop->audits()->latest()->first();
+        RunAuditJob::dispatchSync($audit->id);
 
-        if (! $audit) {
-            return;
-        }
+        $audit->refresh();
 
         $shop->monitoringRuns()->create([
             'audit_id' => $audit->id,

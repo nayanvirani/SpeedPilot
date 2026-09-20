@@ -30,7 +30,7 @@ class AuditController extends Controller
 
         $audit = $shop->audits()->create(['url' => $url, 'status' => 'pending']);
 
-        RunAuditJob::dispatch($shop->id, $url);
+        RunAuditJob::dispatch($audit->id);
 
         return response()->json(['audit' => $audit], 202);
     }
@@ -40,7 +40,7 @@ class AuditController extends Controller
         $shop = $request->attributes->get('shop');
 
         return response()->json([
-            'audits' => $shop->audits()->latest()->limit(20)->get(),
+            'audits' => $shop->audits()->latest('id')->limit(20)->get(),
         ]);
     }
 

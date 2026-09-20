@@ -21,7 +21,9 @@ class ThemesPublishController extends Controller
         $shop = ShopInstallation::where('shop_domain', $shopDomain)->first();
 
         if ($shop && $shop->isActive()) {
-            RunAuditJob::dispatch($shop->id, "https://{$shop->shop_domain}");
+            $audit = $shop->audits()->create(['url' => "https://{$shop->shop_domain}", 'status' => 'pending']);
+
+            RunAuditJob::dispatch($audit->id);
         }
 
         return response('', 200);

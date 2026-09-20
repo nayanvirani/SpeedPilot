@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Badge, BlockStack, Card, InlineStack, Page, SkeletonBodyText, Text } from '@shopify/polaris';
+import { Badge, BlockStack, Button, Card, InlineStack, Page, SkeletonBodyText, Text, TextField } from '@shopify/polaris';
 import { api } from '../api';
 
 function statusTone(status) {
@@ -19,6 +19,7 @@ export default function Dashboard() {
     const [latestAudit, setLatestAudit] = useState(null);
     const [loading, setLoading] = useState(true);
     const [scanning, setScanning] = useState(false);
+    const [customUrl, setCustomUrl] = useState('');
 
     const load = useCallback(() => {
         setLoading(true);
@@ -29,10 +30,10 @@ export default function Dashboard() {
 
     useEffect(() => { load(); }, [load]);
 
-    async function scanNow() {
+    async function scanNow(url) {
         setScanning(true);
         try {
-            await api.post('/audits');
+            await api.post('/audits', url ? { url } : {});
             await load();
         } finally {
             setScanning(false);
@@ -42,9 +43,37 @@ export default function Dashboard() {
     return (
         <Page
             title="SpeedPilot"
-            primaryAction={{ content: 'Scan My Store', loading: scanning, onAction: scanNow }}
+            primaryAction={{ content: 'Scan My Store', loading: scanning, onAction: () => scanNow() }}
         >
             <BlockStack gap="400">
+                <Card>
+                    <BlockStack gap="200">
+                        <Text as="h3" variant="headingSm">Scan a different URL</Text>
+                        <Text as="p" tone="subdued">
+                            Useful when your store's own domain is password-protected (e.g. a
+                            development store) - point a scan at any public storefront instead.
+                        </Text>
+                        <InlineStack gap="200" blockAlign="end">
+                            <div style={{ flexGrow: 1 }}>
+                                <TextField
+                                    label="URL"
+                                    labelHidden
+                                    placeholder="https://example.com"
+                                    value={customUrl}
+                                    onChange={setCustomUrl}
+                                    autoComplete="off"
+                                />
+                            </div>
+                            <Button
+                                loading={scanning}
+                                disabled={!customUrl}
+                                onClick={() => scanNow(customUrl)}
+                            >
+                                Scan this URL
+                            </Button>
+                        </InlineStack>
+                    </BlockStack>
+                </Card>
                 <Card>
                     {loading ? (
                         <SkeletonBodyText lines={4} />

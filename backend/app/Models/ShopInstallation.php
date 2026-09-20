@@ -83,7 +83,7 @@ class ShopInstallation extends Model
 
     public function latestAudit(): ?Audit
     {
-        return $this->audits()->latest()->first();
+        return $this->audits()->latest('id')->first();
     }
 
     public function isActive(): bool

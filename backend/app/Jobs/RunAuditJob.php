@@ -3,7 +3,6 @@
 namespace App\Jobs;
 
 use App\Models\Audit;
-use App\Models\ShopInstallation;
 use App\Services\PlanPolicy;
 use App\Services\Scanner\PsiClient;
 use App\Services\Scanner\ScannerClient;
@@ -26,26 +25,22 @@ class RunAuditJob implements ShouldQueue
     public int $timeout = 180;
 
     public function __construct(
-        private readonly int $shopInstallationId,
-        private readonly string $url,
+        private readonly int $auditId,
     ) {
     }
 
     public function handle(ScannerClient $scanner, PsiClient $psi): void
     {
-        $shop = ShopInstallation::findOrFail($this->shopInstallationId);
+        $audit = Audit::findOrFail($this->auditId);
+        $shop = $audit->shopInstallation;
 
-        $audit = $shop->audits()->create([
-            'url' => $this->url,
-            'source' => 'lab',
-            'status' => 'running',
-        ]);
+        $audit->update(['source' => 'lab', 'status' => 'running']);
 
         try {
-            $report = $scanner->scan($this->url);
+            $report = $scanner->scan($audit->url);
 
             $psiReport = $psi->underQuota($shop->shop_domain)
-                ? $psi->spotCheck($shop->shop_domain, $this->url)
+                ? $psi->spotCheck($shop->shop_domain, $audit->url)
                 : null;
 
             $this->persistReport($audit, $report, $psiReport);

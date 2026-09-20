@@ -53,12 +53,14 @@ class RunAuditJobTest extends TestCase
         $psi->shouldReceive('underQuota')->andReturn(false);
         $this->app->instance(PsiClient::class, $psi);
 
-        (new RunAuditJob($shop->id, "https://{$shop->shop_domain}"))->handle(
+        $audit = $shop->audits()->create(['url' => "https://{$shop->shop_domain}", 'status' => 'pending']);
+
+        (new RunAuditJob($audit->id))->handle(
             $this->app->make(ScannerClient::class),
             $this->app->make(PsiClient::class),
         );
 
-        $audit = $shop->audits()->latest()->first();
+        $audit->refresh();
 
         $this->assertSame('complete', $audit->status);
         $this->assertSame(87, $audit->score);
@@ -90,7 +92,9 @@ class RunAuditJobTest extends TestCase
         $psi->shouldReceive('underQuota')->andReturn(false);
         $this->app->instance(PsiClient::class, $psi);
 
-        (new RunAuditJob($shop->id, "https://{$shop->shop_domain}"))->handle(
+        $audit = $shop->audits()->create(['url' => "https://{$shop->shop_domain}", 'status' => 'pending']);
+
+        (new RunAuditJob($audit->id))->handle(
             $this->app->make(ScannerClient::class),
             $this->app->make(PsiClient::class),
         );
