@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\BillingController;
 use App\Http\Controllers\Api\MonitoringController;
 use App\Http\Controllers\Api\OptimizationController;
 use App\Http\Controllers\Api\RumEventController;
+use App\Http\Controllers\Api\ShopSettingsController;
 use Illuminate\Support\Facades\Route;
 
 // Public, shop-scoped ingestion from the storefront Theme App Extension -
@@ -32,4 +33,7 @@ Route::middleware('shopify.session')->group(function () {
 
     Route::get('/billing/plans', [BillingController::class, 'plans']);
     Route::get('/billing/current', [BillingController::class, 'current']);
+
+    Route::get('/settings', [ShopSettingsController::class, 'show']);
+    Route::put('/settings/storefront-password', [ShopSettingsController::class, 'updateStorefrontPassword']);
 });

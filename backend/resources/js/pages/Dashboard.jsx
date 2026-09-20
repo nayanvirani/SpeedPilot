@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Badge, BlockStack, Card, InlineStack, Page, SkeletonBodyText, Text } from '@shopify/polaris';
+import { Badge, BlockStack, Button, Card, InlineStack, Page, SkeletonBodyText, Text, TextField } from '@shopify/polaris';
 import { api } from '../api';
 
 function statusTone(status) {
@@ -52,6 +52,62 @@ function PageScoreCards({ pages }) {
                 ))}
             </InlineStack>
         </BlockStack>
+    );
+}
+
+function StorefrontPasswordSettings() {
+    const [hasPassword, setHasPassword] = useState(null);
+    const [value, setValue] = useState('');
+    const [saving, setSaving] = useState(false);
+    const [saved, setSaved] = useState(false);
+
+    useEffect(() => {
+        api.get('/settings').then((res) => setHasPassword(res.has_storefront_password)).catch(() => setHasPassword(false));
+    }, []);
+
+    async function save() {
+        setSaving(true);
+        setSaved(false);
+        try {
+            const res = await api.put('/settings/storefront-password', { password: value });
+            setHasPassword(res.has_storefront_password);
+            setValue('');
+            setSaved(true);
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    if (hasPassword === null) {
+        return null;
+    }
+
+    return (
+        <Card>
+            <BlockStack gap="200">
+                <Text as="h3" variant="headingSm"><span className="sp-heading">Storefront password</span></Text>
+                <Text as="p" tone="subdued">
+                    {hasPassword
+                        ? "A password is saved - SpeedPilot unlocks your store automatically before every scan."
+                        : "If your store has Shopify's storefront password enabled (every dev store does by default), scans can't reach real content without it."}
+                </Text>
+                <InlineStack gap="200" blockAlign="end">
+                    <div style={{ flexGrow: 1, maxWidth: '280px' }}>
+                        <TextField
+                            label="Password"
+                            labelHidden
+                            type="password"
+                            placeholder={hasPassword ? 'Update password' : 'Storefront password'}
+                            value={value}
+                            onChange={(v) => { setValue(v); setSaved(false); }}
+                            autoComplete="off"
+                        />
+                    </div>
+                    <Button loading={saving} disabled={!value} onClick={save}>Save</Button>
+                    {saved && <Text as="span" tone="success">Saved</Text>}
+                </InlineStack>
+            </BlockStack>
+        </Card>
     );
 }
 
@@ -133,6 +189,7 @@ export default function Dashboard() {
                         </BlockStack>
                     )}
                 </Card>
+                <StorefrontPasswordSettings />
             </BlockStack>
         </Page>
     );

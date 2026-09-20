@@ -14,6 +14,7 @@ class ShopInstallation extends Model
         'shop_domain',
         'access_token',
         'access_token_expires_at',
+        'storefront_password',
         'scope',
         'plan',
         'shopify_subscription_id',
@@ -23,12 +24,14 @@ class ShopInstallation extends Model
 
     protected $hidden = [
         'access_token',
+        'storefront_password',
     ];
 
     protected function casts(): array
     {
         return [
             'access_token' => 'encrypted',
+            'storefront_password' => 'encrypted',
             'access_token_expires_at' => 'datetime',
             'installed_at' => 'datetime',
             'uninstalled_at' => 'datetime',

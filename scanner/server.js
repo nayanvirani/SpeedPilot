@@ -13,14 +13,14 @@ const PORT = process.env.PORT || 4000;
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
 app.post('/scan', async (req, res) => {
-  const { url } = req.body || {};
+  const { url, storefrontPassword } = req.body || {};
 
   if (!url || typeof url !== 'string') {
     return res.status(400).json({ error: 'Missing "url" in request body' });
   }
 
   try {
-    const lhr = await runLighthouse(url);
+    const lhr = await runLighthouse(url, { storefrontPassword });
     res.json(buildReport(lhr));
   } catch (err) {
     console.error(`Scan failed for ${url}:`, err);

@@ -57,7 +57,7 @@ class RunAuditJob implements ShouldQueue
             ]);
 
             try {
-                $report = $scanner->scan($spec['url']);
+                $report = $scanner->scan($spec['url'], $shop->storefront_password);
                 $this->persistPageReport($page, $report);
                 $page->update(['status' => 'complete']);
                 $completedPages[] = $page;
