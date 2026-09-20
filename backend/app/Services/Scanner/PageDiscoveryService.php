@@ -52,7 +52,7 @@ class PageDiscoveryService
 
             $data = $client->query(<<<'GRAPHQL'
                 query topStorefrontPages {
-                    products(first: 1, sortKey: UPDATED_AT, reverse: true) {
+                    products(first: 10, sortKey: UPDATED_AT, reverse: true) {
                         edges { node { onlineStoreUrl } }
                     }
                     collections(first: 1, sortKey: UPDATED_AT, reverse: true) {
@@ -70,13 +70,22 @@ class PageDiscoveryService
 
         $candidates = [];
 
-        $productUrl = $data['products']['edges'][0]['node']['onlineStoreUrl'] ?? null;
-        $collectionHandle = $data['collections']['edges'][0]['node']['handle'] ?? null;
-
         // onlineStoreUrl is null for a product not published to the Online
-        // Store sales channel - skip it rather than scan null. Collection
-        // has no onlineStoreUrl field on the Admin API, so its storefront
-        // URL is built from handle instead.
+        // Store sales channel - the single most-recently-updated product is
+        // often not the one that's actually published (e.g. most recently
+        // touched via a POS-only or draft edit), so check several rather
+        // than giving up after the first. Collection has no onlineStoreUrl
+        // field on the Admin API, so its storefront URL is built from
+        // handle instead.
+        $productUrl = null;
+        foreach ($data['products']['edges'] ?? [] as $edge) {
+            if ($edge['node']['onlineStoreUrl'] ?? null) {
+                $productUrl = $edge['node']['onlineStoreUrl'];
+                break;
+            }
+        }
+
+        $collectionHandle = $data['collections']['edges'][0]['node']['handle'] ?? null;
         if ($productUrl) {
             $candidates[] = ['type' => 'product', 'url' => $productUrl];
         }
