@@ -14,6 +14,7 @@ class Optimization extends Model
     protected $fillable = [
         'shop_installation_id',
         'audit_issue_id',
+        'app_impact_id',
         'type',
         'risk_tier',
         'status',
@@ -39,6 +40,11 @@ class Optimization extends Model
     public function auditIssue(): BelongsTo
     {
         return $this->belongsTo(AuditIssue::class);
+    }
+
+    public function appImpact(): BelongsTo
+    {
+        return $this->belongsTo(AppImpact::class);
     }
 
     public function backups(): HasMany
