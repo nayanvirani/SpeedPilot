@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Badge, Box, Button, Card, DataTable, Modal, Page, SkeletonBodyText, Text } from '@shopify/polaris';
+import { Badge, BlockStack, Box, Button, Card, DataTable, Modal, Page, SkeletonBodyText, Text } from '@shopify/polaris';
 import { api } from '../api';
 
 const STATUS_TONE = { applied: 'success', rolled_back: 'new', recommended: 'info' };
@@ -71,6 +71,16 @@ export default function Optimizations() {
             <Card>
                 {loading ? (
                     <SkeletonBodyText lines={4} />
+                ) : optimizations.length === 0 ? (
+                    <BlockStack gap="200">
+                        <Text as="h2" variant="headingMd">Nothing applied yet</Text>
+                        <Text as="p" tone="subdued">
+                            This fills in once a scan finds a "safe" tier issue SpeedPilot can fix on
+                            its own (like a render-blocking script or an unloaded image). Issues found
+                            so far were higher-risk or recommendation-only - check the audit's full
+                            report for those.
+                        </Text>
+                    </BlockStack>
                 ) : (
                     <DataTable
                         columnContentTypes={['text', 'text', 'text', 'text', 'text', 'text']}

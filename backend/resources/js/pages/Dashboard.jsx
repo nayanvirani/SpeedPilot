@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Badge, BlockStack, Button, Card, InlineStack, Page, SkeletonBodyText, Text, TextField } from '@shopify/polaris';
 import { api } from '../api';
 
@@ -112,6 +113,7 @@ function StorefrontPasswordSettings() {
 }
 
 export default function Dashboard() {
+    const navigate = useNavigate();
     const [latestAudit, setLatestAudit] = useState(null);
     const [loading, setLoading] = useState(true);
     const [scanning, setScanning] = useState(false);
@@ -170,7 +172,14 @@ export default function Dashboard() {
                                     <span className={`sp-score ${scoreClass(latestAudit.score)}`}>{latestAudit.score ?? '—'}</span>
                                     <Text as="span" tone="subdued">/ 100</Text>
                                 </InlineStack>
-                                <Badge tone={statusTone(latestAudit.status)}>{latestAudit.status}</Badge>
+                                <InlineStack gap="300" blockAlign="center">
+                                    <Badge tone={statusTone(latestAudit.status)}>{latestAudit.status}</Badge>
+                                    {latestAudit.status === 'complete' && (
+                                        <Button onClick={() => navigate(`/audits/${latestAudit.id}`)}>
+                                            View full report
+                                        </Button>
+                                    )}
+                                </InlineStack>
                             </InlineStack>
                             <div className="sp-cwv-grid">
                                 <CwvStat label="LCP" value={latestAudit.lcp} suffix="s" />
@@ -182,7 +191,8 @@ export default function Dashboard() {
                             {latestAudit.issues && latestAudit.issues.length > 0 && (
                                 <Text as="p">
                                     {latestAudit.issues.length} issues found,{' '}
-                                    {latestAudit.issues.filter((i) => i.fix_available).length} auto-fixable.
+                                    {latestAudit.issues.filter((i) => i.fix_available).length} auto-fixable -
+                                    see "View full report" above for details and AI recommendations.
                                 </Text>
                             )}
                             <PageScoreCards pages={latestAudit.pages} />
