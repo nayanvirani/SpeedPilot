@@ -189,6 +189,43 @@ function IssueRow({ issue, page }) {
     );
 }
 
+function PriorityPlan({ auditId }) {
+    const [plan, setPlan] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+
+    async function load() {
+        setLoading(true);
+        setError(null);
+        try {
+            const res = await api.get(`/audits/${auditId}/priority-plan`);
+            setPlan(res.plan);
+        } catch (e) {
+            setError(e.body?.error || 'Could not build a priority plan right now.');
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    return (
+        <Card>
+            <BlockStack gap="200">
+                <Text as="h3" variant="headingSm"><span className="sp-heading">What to fix first</span></Text>
+                {plan ? (
+                    <div style={{ whiteSpace: 'pre-line' }}>
+                        <Text as="p" tone="subdued">{plan}</Text>
+                    </div>
+                ) : (
+                    <InlineStack gap="200" blockAlign="center">
+                        <Button size="micro" loading={loading} onClick={load}>Get a priority plan</Button>
+                        {error && <Text as="span" tone="critical">{error}</Text>}
+                    </InlineStack>
+                )}
+            </BlockStack>
+        </Card>
+    );
+}
+
 export default function AuditDetail() {
     const navigate = useNavigate();
     const { id } = useParams();
@@ -264,6 +301,7 @@ export default function AuditDetail() {
                         </BlockStack>
                     )}
                 </Card>
+                {!loading && allIssues.length > 0 && <PriorityPlan auditId={audit.id} />}
                 <Card>
                     {loading ? <SkeletonBodyText lines={4} /> : allIssues.length === 0 ? (
                         <Text as="p" tone="subdued">No issues found on this scan.</Text>

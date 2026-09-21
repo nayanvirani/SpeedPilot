@@ -321,13 +321,10 @@
       <div>
         <div class="plan-name">{{ $plan->name }}</div>
         <div class="check-list">
-          <div class="check-item">{!! $checkIcon !!} {{ $plan->pages_per_scan > 1 ? 'Full-store scans (home + product + collection)' : 'Homepage speed scans' }}</div>
+          <div class="check-item">{!! $checkIcon !!} {{ $plan->pages_per_scan > 1 ? 'Full-store scans, mobile + desktop' : 'Homepage speed scans' }}</div>
           <div class="check-item">{!! $checkIcon !!} {{ $plan->auto_fixes ? 'Automatic safe fixes' . ($plan->auto_fix_limit ? " (up to {$plan->auto_fix_limit})" : ' (unlimited)') : 'Speed audit & app impact report' }}</div>
           @if ($plan->medium_risk_fixes)
           <div class="check-item">{!! $checkIcon !!} Medium-risk fixes via preview theme</div>
-          @endif
-          @if ($plan->script_rule_limit !== 0)
-          <div class="check-item">{!! $checkIcon !!} {{ $plan->script_rule_limit ? "Up to {$plan->script_rule_limit} script rules" : 'Unlimited script rules' }}</div>
           @endif
           @if ($plan->high_risk_recommendations)
           <div class="check-item">{!! $checkIcon !!} High-risk recommendations</div>

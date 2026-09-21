@@ -2,6 +2,7 @@
 
 namespace App\Services\Ai;
 
+use App\Models\Audit;
 use App\Models\AuditIssue;
 
 class AiRecommendationService
@@ -13,5 +14,10 @@ class AiRecommendationService
     public function recommend(AuditIssue $issue): string
     {
         return $this->provider->recommend($issue);
+    }
+
+    public function prioritize(Audit $audit): string
+    {
+        return $this->provider->prioritize($audit);
     }
 }
