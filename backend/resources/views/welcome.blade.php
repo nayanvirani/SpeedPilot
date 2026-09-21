@@ -209,14 +209,14 @@
       <div class="card">
         <span class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></span>
         <span class="tag">Audit</span>
-        <h3>Full-store scans, not just the homepage</h3>
-        <p>Checks your homepage, a product page, and a collection page in one run — real slowdowns often hide on the pages a homepage-only score never looks at.</p>
+        <h3>Full-store scans, on mobile and desktop</h3>
+        <p>Checks your homepage, product, collection, cart, search and blog pages — each on both mobile and desktop — because real slowdowns often hide on the templates a homepage-only score never looks at.</p>
       </div>
       <div class="card">
         <span class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l-5-5 5-5M15 6l5 5-5 5"/></svg></span>
-        <span class="tag">Auto-fix</span>
-        <h3>Safe fixes apply themselves</h3>
-        <p>Render-blocking scripts get deferred, images get lazy-loaded — automatically, with every change backed up and reversible in one click.</p>
+        <span class="tag">Fix your way</span>
+        <h3>Auto-fix it, or copy the code yourself</h3>
+        <p>Safe fixes like deferring render-blocking scripts and lazy-loading images can apply automatically with full backup and one-click rollback — or view the exact code change and paste it into your theme yourself, no approval wait required either way.</p>
       </div>
       <div class="card">
         <span class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="4" height="9"/><rect x="10" y="6" width="4" height="14"/><rect x="17" y="3" width="4" height="17"/></svg></span>
@@ -241,6 +241,24 @@
         <span class="tag">Rollback</span>
         <h3>Nothing is ever a one-way door</h3>
         <p>Every automatic fix keeps a full backup of the original file. Undo any single change from the Optimizations screen, any time.</p>
+      </div>
+      <div class="card">
+        <span class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>
+        <span class="tag">Score breakdown</span>
+        <h3>One score, six honest sub-scores</h3>
+        <p>Your overall score breaks down into Core Web Vitals, Images, JavaScript, CSS, Third-party apps and Theme — so you know exactly what's dragging you down, not just that something is.</p>
+      </div>
+      <div class="card">
+        <span class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 100 20 10 10 0 000-20z"/><path d="M12 2a15 15 0 010 20M12 2a15 15 0 000 20M2 12h20"/></svg></span>
+        <span class="tag">Real visitors</span>
+        <h3>Lab data and real-visitor data, together</h3>
+        <p>Lighthouse scans show what's possible; a lightweight on-storefront collector shows what your actual shoppers experience — both Core Web Vitals views, side by side.</p>
+      </div>
+      <div class="card">
+        <span class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9c.14.36.4.66.75.85"/></svg></span>
+        <span class="tag">Your choice</span>
+        <h3>Test on a copy first, or go live directly</h3>
+        <p>Pick your live theme for immediate effect, or point SpeedPilot at a theme you've duplicated yourself in Shopify — fixes land there first so you can review before publishing.</p>
       </div>
     </div>
   </section>

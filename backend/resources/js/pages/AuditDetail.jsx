@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Badge, Banner, BlockStack, Button, Card, InlineStack, Page, SkeletonBodyText, Text } from '@shopify/polaris';
+import { Badge, Banner, BlockStack, Button, Card, InlineStack, Page, Select, SkeletonBodyText, Text } from '@shopify/polaris';
 import { api } from '../api';
 import CategoryScores from '../components/CategoryScores';
 import FixCodeViewer from '../components/FixCodeViewer';
@@ -10,6 +10,8 @@ const PAGE_TYPE_LABEL = {
     home: 'Homepage', product: 'Product page', collection: 'Collection page',
     cart: 'Cart', search: 'Search', blog: 'Blog article', custom: 'Custom URL',
 };
+const ISSUE_CATEGORY_LABEL = { image: 'Images', js: 'JavaScript', css: 'CSS', cls: 'Layout shift (CLS)', theme: 'Theme' };
+const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low'];
 
 function scoreClass(score) {
     if (score === null || score === undefined) return '';
@@ -192,6 +194,8 @@ export default function AuditDetail() {
     const { id } = useParams();
     const [audit, setAudit] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [categoryFilter, setCategoryFilter] = useState('all');
+    const [severityFilter, setSeverityFilter] = useState('all');
 
     useEffect(() => {
         setLoading(true);
@@ -201,8 +205,22 @@ export default function AuditDetail() {
     }, [id]);
 
     const pagesById = Object.fromEntries((audit?.pages ?? []).map((p) => [p.id, p]));
-    const issues = audit?.issues ?? [];
+    const allIssues = audit?.issues ?? [];
+    const issues = allIssues.filter((issue) => (
+        (categoryFilter === 'all' || issue.category === categoryFilter)
+        && (severityFilter === 'all' || issue.severity === severityFilter)
+    ));
     const failedPages = (audit?.pages ?? []).filter((p) => p.status === 'failed' && p.error_message);
+
+    const categoryOptions = [
+        { label: 'All categories', value: 'all' },
+        ...Array.from(new Set(allIssues.map((i) => i.category)))
+            .map((c) => ({ label: ISSUE_CATEGORY_LABEL[c] ?? c, value: c })),
+    ];
+    const severityOptions = [
+        { label: 'All severities', value: 'all' },
+        ...SEVERITY_ORDER.filter((s) => allIssues.some((i) => i.severity === s)).map((s) => ({ label: s, value: s })),
+    ];
 
     const subtitle = audit?.url ?? (audit?.pages?.length > 1 ? `Full store scan (${audit.pages.length} pages)` : undefined);
 
@@ -247,7 +265,7 @@ export default function AuditDetail() {
                     )}
                 </Card>
                 <Card>
-                    {loading ? <SkeletonBodyText lines={4} /> : issues.length === 0 ? (
+                    {loading ? <SkeletonBodyText lines={4} /> : allIssues.length === 0 ? (
                         <Text as="p" tone="subdued">No issues found on this scan.</Text>
                     ) : (
                         <BlockStack gap="400">
@@ -256,7 +274,18 @@ export default function AuditDetail() {
                                 own - check the Optimizations page to see exactly which fixes actually
                                 went through and roll any of them back.
                             </Text>
-                            {issues.map((issue, i) => (
+                            <InlineStack gap="200" wrap>
+                                <div style={{ minWidth: '200px' }}>
+                                    <Select label="Category" labelHidden options={categoryOptions} value={categoryFilter} onChange={setCategoryFilter} />
+                                </div>
+                                <div style={{ minWidth: '160px' }}>
+                                    <Select label="Severity" labelHidden options={severityOptions} value={severityFilter} onChange={setSeverityFilter} />
+                                </div>
+                                <Text as="span" tone="subdued">{issues.length} of {allIssues.length} issues</Text>
+                            </InlineStack>
+                            {issues.length === 0 ? (
+                                <Text as="p" tone="subdued">No issues match this filter.</Text>
+                            ) : issues.map((issue, i) => (
                                 <React.Fragment key={issue.id}>
                                     {i > 0 && <div style={{ borderTop: '1px solid var(--p-color-border-secondary)' }} />}
                                     <IssueRow issue={issue} page={pagesById[issue.audit_page_id]} />
