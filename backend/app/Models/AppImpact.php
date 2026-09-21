@@ -20,7 +20,15 @@ class AppImpact extends Model
         'estimated_blocking_ms',
         'impact_level',
         'status',
+        'is_platform',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'is_platform' => 'boolean',
+        ];
+    }
 
     public function audit(): BelongsTo
     {

@@ -100,6 +100,7 @@ class RunAuditJob implements ShouldQueue
                 'size_bytes' => $app['bytes'] ?? 0,
                 'estimated_blocking_ms' => $app['blockingMs'] ?? null,
                 'impact_level' => $app['impactLevel'] ?? $this->impactLevelFor($app),
+                'is_platform' => $app['isPlatform'] ?? false,
             ]);
         }
 

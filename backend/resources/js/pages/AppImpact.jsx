@@ -13,29 +13,44 @@ const ACTION_CONFIRM = {
 };
 
 function ImpactRow({ impact, pending, onSetStatus }) {
+    // Shopify's own platform scripts (Shop Pay, checkout, core analytics)
+    // are injected by Shopify itself, never present as literal text in the
+    // theme's own files - no app, including this one, can disable, delay,
+    // or show "the code" for something that isn't in the theme to begin
+    // with. Excluding it from the list is still offered.
+    const actions = impact.is_platform ? ['active', 'excluded'] : ['active', 'disabled', 'delayed', 'excluded'];
+
     return (
         <BlockStack gap="200">
             <InlineStack align="space-between" blockAlign="start" wrap>
                 <BlockStack gap="050">
-                    <Text as="span" fontWeight="semibold">{impact.app_name}</Text>
+                    <InlineStack gap="150" blockAlign="center">
+                        <Text as="span" fontWeight="semibold">{impact.app_name}</Text>
+                        {impact.is_platform && <Badge tone="info">Shopify platform</Badge>}
+                    </InlineStack>
                     <InlineStack gap="300">
                         <Text as="span" tone="subdued">{impact.requests} requests</Text>
                         <Text as="span" tone="subdued">{Math.round(impact.size_bytes / 1024)} KB</Text>
                         <Badge tone={IMPACT_TONE[impact.impact_level]}>{impact.impact_level}</Badge>
                         <Badge tone={STATUS_TONE[impact.status] ?? 'success'}>{STATUS_LABEL[impact.status ?? 'active']}</Badge>
                     </InlineStack>
+                    {impact.is_platform && (
+                        <Text as="span" tone="subdued">
+                            Loaded directly by Shopify, not an installed app - can't be disabled, delayed, or edited by any app.
+                        </Text>
+                    )}
                 </BlockStack>
                 <ButtonGroup>
-                    {['active', 'disabled', 'delayed', 'excluded']
+                    {actions
                         .filter((action) => action !== (impact.status ?? 'active'))
                         .map((action) => (
                             <Button key={action} size="micro" loading={pending} onClick={() => onSetStatus(impact, action)}>
-                                {STATUS_LABEL[action]} (auto)
+                                {action === 'excluded' ? 'Excluded' : `${STATUS_LABEL[action]} (auto)`}
                             </Button>
                         ))}
                 </ButtonGroup>
             </InlineStack>
-            {(impact.status ?? 'active') === 'active' && (
+            {!impact.is_platform && (impact.status ?? 'active') === 'active' && (
                 <InlineStack gap="200">
                     <FixCodeViewer key={`disabled-${impact.id}`} fetchPath={`/app-impacts/${impact.id}/fix-code?action=disabled`} />
                     <FixCodeViewer key={`delayed-${impact.id}`} fetchPath={`/app-impacts/${impact.id}/fix-code?action=delayed`} />
@@ -107,7 +122,9 @@ export default function AppImpact() {
                                 only works when SpeedPilot can find the script in your theme's files, and once
                                 Shopify approves this app's theme-editing access. <b>Manual fix</b> shows you the exact
                                 code to paste yourself right now, no approval needed. <b>Excluded</b> just stops it from
-                                being flagged here - it doesn't change your storefront.
+                                being flagged here - it doesn't change your storefront. Rows marked{' '}
+                                <Badge tone="info">Shopify platform</Badge> are loaded by Shopify itself (Shop Pay,
+                                checkout, core analytics), not an installed app - no app can edit these.
                             </Text>
                             {appImpacts.map((impact, i) => (
                                 <React.Fragment key={impact.id}>

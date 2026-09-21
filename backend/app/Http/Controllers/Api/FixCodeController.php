@@ -75,6 +75,13 @@ class FixCodeController extends Controller
         $impact = AppImpact::whereHas('audit', fn ($q) => $q->where('shop_installation_id', $shop->id))
             ->findOrFail($impactId);
 
+        if ($impact->is_platform) {
+            return response()->json([
+                'error' => "This is loaded directly by Shopify's platform, not an installed app - there's ".
+                    'no theme code to show, since it was never in the theme to begin with.',
+            ], 422);
+        }
+
         $client = new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token);
         $themeAssets = new ThemeAssetService($client);
         $locator = new ThemeAssetLocatorService($themeAssets);

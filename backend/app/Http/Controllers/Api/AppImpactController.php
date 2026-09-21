@@ -50,6 +50,21 @@ class AppImpactController extends Controller
             fn ($q) => $q->where('shop_installation_id', $shop->id)
         )->findOrFail($id);
 
+        // Shopify's own platform scripts (Shop Pay, checkout, core
+        // analytics) are injected by Shopify itself, never present as
+        // literal text in the theme's own files - disabling/delaying them
+        // isn't something any app can do, or should offer, so this is
+        // refused upfront rather than always failing after a futile search.
+        if ($impact->is_platform && in_array($data['status'], ['disabled', 'delayed'], true)) {
+            return response()->json([
+                'app_impact' => $impact,
+                'applied' => false,
+                'message' => "This is loaded directly by Shopify's platform, not an installed app - it "
+                    ."can't be disabled or delayed by any app, including this one. Use \"Excluded\" to ".
+                    'hide it from this list instead.',
+            ]);
+        }
+
         $actions = new ScriptImpactActionService(
             $themeAssets = new ThemeAssetService(new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token)),
             new ThemeAssetLocatorService($themeAssets),
