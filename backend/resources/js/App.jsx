@@ -7,6 +7,7 @@ import Optimizations from './pages/Optimizations';
 import Monitoring from './pages/Monitoring';
 import AuditDetail from './pages/AuditDetail';
 import Billing from './pages/Billing';
+import Settings from './pages/Settings';
 import { api } from './api';
 
 const NAV_ITEMS = [
@@ -14,6 +15,7 @@ const NAV_ITEMS = [
     { label: 'App & Script Impact', path: '/impact' },
     { label: 'Optimizations', path: '/optimizations' },
     { label: 'Monitoring', path: '/monitoring' },
+    { label: 'Settings', path: '/settings' },
     { label: 'Billing', path: '/billing' },
 ];
 
@@ -75,6 +77,7 @@ export default function App() {
                 <Route path="/optimizations" element={<Optimizations />} />
                 <Route path="/monitoring" element={<Monitoring />} />
                 <Route path="/audits/:id" element={<AuditDetail />} />
+                <Route path="/settings" element={<Settings />} />
                 <Route path="/billing" element={<Billing />} />
             </Routes>
         </Frame>

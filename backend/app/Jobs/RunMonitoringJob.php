@@ -31,6 +31,17 @@ class RunMonitoringJob implements ShouldQueue
             return;
         }
 
+        // The scheduler ticks daily for every shop regardless of
+        // preference - a "weekly" shop just skips most of those ticks here,
+        // rather than needing its own per-shop cron entry.
+        if ($shop->scan_frequency === 'weekly') {
+            $lastRun = $shop->monitoringRuns()->latest('run_at')->first();
+
+            if ($lastRun && $lastRun->run_at->diffInDays(now()) < 7) {
+                return;
+            }
+        }
+
         $previousScore = $shop->latestAudit()?->score;
 
         // url stays null so this covers every page the plan allows, not

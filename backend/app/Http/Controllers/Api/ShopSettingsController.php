@@ -9,6 +9,7 @@ use App\Services\Shopify\ShopifyGraphQLClient;
 use App\Services\Shopify\ThemeAssetService;
 use App\Services\Shopify\ThemeDuplicateService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class ShopSettingsController extends Controller
 {
@@ -35,6 +36,30 @@ class ShopSettingsController extends Controller
             'target_theme_id' => $shop->target_theme_id,
             'target_theme_mode' => $shop->target_theme_mode,
             'theme_diverged' => $themeDiverged,
+            'scan_frequency' => $shop->scan_frequency,
+            'scan_devices' => $shop->scan_devices,
+        ]);
+    }
+
+    /**
+     * scan_frequency only affects RunMonitoringJob's scheduled re-scans - an
+     * on-demand "Scan My Store" click always runs immediately either way.
+     */
+    public function updateScanPreferences(Request $request)
+    {
+        /** @var ShopInstallation $shop */
+        $shop = $request->attributes->get('shop');
+
+        $data = $request->validate([
+            'scan_frequency' => ['required', Rule::in(['daily', 'weekly'])],
+            'scan_devices' => ['required', Rule::in(['both', 'mobile', 'desktop'])],
+        ]);
+
+        $shop->update($data);
+
+        return response()->json([
+            'scan_frequency' => $shop->scan_frequency,
+            'scan_devices' => $shop->scan_devices,
         ]);
     }
 

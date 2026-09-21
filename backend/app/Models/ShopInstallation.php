@@ -18,6 +18,8 @@ class ShopInstallation extends Model
         'target_theme_id',
         'target_theme_mode',
         'theme_write_blocked_at',
+        'scan_frequency',
+        'scan_devices',
         'scope',
         'plan',
         'shopify_subscription_id',

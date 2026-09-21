@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Audit;
 use App\Models\AuditPage;
+use App\Models\ShopInstallation;
 use App\Services\PlanPolicy;
 use App\Services\Scanner\PageDiscoveryService;
 use App\Services\Scanner\PsiClient;
@@ -23,19 +24,20 @@ use Throwable;
  * PlanPolicy::pagesPerScan) and rolls the results up onto the parent Audit,
  * unless the caller pinned it to one explicit URL (a spot-check, not a
  * full-store scan) by setting Audit.url up front. Every page is scanned on
- * both mobile and desktop - real user traffic and real diagnosis needs both,
- * not just one device's numbers.
+ * both mobile and desktop by default - real user traffic and real diagnosis
+ * needs both, not just one device's numbers - unless the shop has narrowed
+ * that down in Settings.
  */
 class RunAuditJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    private const DEVICES = ['mobile', 'desktop'];
-
     // Up to ~6 page types x 2 devices per full-store scan - each Lighthouse
     // run is real wall-clock time, so this needs real headroom over the
     // single-page-scan default.
     public int $timeout = 600;
+
+    private string $primaryDevice = 'mobile';
 
     public function __construct(
         private readonly int $auditId,
@@ -53,11 +55,14 @@ class RunAuditJob implements ShouldQueue
             ? [['type' => 'custom', 'url' => $audit->url]]
             : $discovery->discover($shop, (new PlanPolicy($shop))->pagesPerScan());
 
+        $devices = $this->devicesFor($shop);
+        $this->primaryDevice = $devices[0];
+
         $completedPages = [];
         $thirdPartyByApp = [];
 
         foreach ($pageSpecs as $spec) {
-            foreach (self::DEVICES as $device) {
+            foreach ($devices as $device) {
                 $page = $audit->pages()->create([
                     'page_type' => $spec['type'],
                     'url' => $spec['url'],
@@ -137,12 +142,14 @@ class RunAuditJob implements ShouldQueue
             'screenshot' => $report['screenshot'] ?? null,
         ]);
 
-        // Only the mobile pass creates audit_issues - the same underlying
-        // theme/app problem shows up on both devices, and deduping by
-        // device here (rather than downstream) keeps ApplySafeFixesJob's
-        // existing asset_key-based dedup from being the only thing standing
-        // between one real issue and two redundant "fixes" for it.
-        if ($page->device !== 'mobile') {
+        // Only the primary device's pass creates audit_issues - the same
+        // underlying theme/app problem shows up on both devices, and
+        // deduping by device here (rather than downstream) keeps
+        // ApplySafeFixesJob's existing asset_key-based dedup from being the
+        // only thing standing between one real issue and two redundant
+        // "fixes" for it. Mobile by default, but a shop scanning desktop
+        // only has no mobile pass to prefer.
+        if ($page->device !== $this->primaryDevice) {
             return;
         }
 
@@ -217,6 +224,18 @@ class RunAuditJob implements ShouldQueue
         $values = array_filter($values, fn ($v) => $v !== null);
 
         return count($values) > 0 ? array_sum($values) / count($values) : null;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function devicesFor(ShopInstallation $shop): array
+    {
+        return match ($shop->scan_devices) {
+            'mobile' => ['mobile'],
+            'desktop' => ['desktop'],
+            default => ['mobile', 'desktop'],
+        };
     }
 
     /**
