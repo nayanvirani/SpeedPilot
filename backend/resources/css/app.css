@@ -103,8 +103,18 @@
   gap: 8px;
 }
 
-.sp-evidence-card :is(span) {
+.sp-evidence-label,
+.sp-evidence-value {
   font-size: 12px;
+  display: block;
+}
+
+.sp-evidence-label {
+  color: var(--sp-text-faint);
+}
+
+.sp-evidence-value {
+  font-weight: 600;
 }
 
 .sp-code-block {

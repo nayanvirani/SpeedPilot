@@ -43,14 +43,36 @@ function lcpIssues(audits) {
     return []; // LCP element isn't an <img> (text, background-image, video) - no image evidence to show
   }
 
+  // Shopify themes almost always render responsive images via srcset, so
+  // the plain `src` is frequently NOT what the browser actually fetched -
+  // check every srcset candidate against what was really downloaded
+  // (network-requests) and prefer whichever one matches, falling back to
+  // `src` only when none of them do.
   const srcMatch = node.snippet.match(/\bsrc=["']([^"']+)["']/i);
-  const url = srcMatch?.[1];
+  const srcsetMatch = node.snippet.match(/\bsrcset=["']([^"']+)["']/i);
+  const candidates = [
+    ...(srcsetMatch ? srcsetMatch[1].split(',').map((entry) => entry.trim().split(/\s+/)[0]) : []),
+    srcMatch?.[1],
+  ].filter(Boolean);
 
-  if (!url) {
+  if (candidates.length === 0) {
     return [];
   }
 
-  const request = findNetworkRequest(audits, url);
+  let url = candidates[0];
+  let request = findNetworkRequest(audits, url);
+
+  if (!request) {
+    for (const candidate of candidates) {
+      const match = findNetworkRequest(audits, candidate);
+      if (match) {
+        url = candidate;
+        request = match;
+        break;
+      }
+    }
+  }
+
   const sizeBytes = request?.transferSize ?? null;
   const format = formatFromMimeType(request?.mimeType) ?? formatFromUrl(url);
   const isModernFormat = ['WebP', 'AVIF'].includes(format);

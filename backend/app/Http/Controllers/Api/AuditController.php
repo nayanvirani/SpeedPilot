@@ -8,6 +8,7 @@ use App\Jobs\RunAuditJob;
 use App\Models\AppSetting;
 use App\Models\Audit;
 use App\Models\ShopInstallation;
+use App\Services\PlanPolicy;
 use Illuminate\Http\Request;
 
 class AuditController extends Controller
@@ -72,12 +73,21 @@ class AuditController extends Controller
      * every scan - a merchant may run this again after re-reading the issue
      * list, or the automatic pass may have found nothing to fix yet if the
      * target theme was only just set. Runs synchronously so the merchant
-     * sees a real result immediately rather than polling.
+     * sees a real result immediately rather than polling; maxIssues bounds
+     * how many fixes one HTTP request can attempt (each is several
+     * sequential Shopify API calls) so it can't run long enough to hit a
+     * gateway timeout - the automatic post-scan dispatch has no such cap.
      */
+    private const MAX_ISSUES_PER_REQUEST = 15;
+
     public function applySafeFixes(Request $request, int $id)
     {
         /** @var ShopInstallation $shop */
         $shop = $request->attributes->get('shop');
+
+        if (! (new PlanPolicy($shop))->canAutoFix()) {
+            return response()->json(['error' => 'Automatic fixes are not available on your plan.'], 403);
+        }
 
         $audit = Audit::where('shop_installation_id', $shop->id)->findOrFail($id);
 
@@ -85,12 +95,12 @@ class AuditController extends Controller
             return response()->json(['error' => 'Choose a target theme in Settings first.'], 422);
         }
 
-        $beforeIds = $shop->optimizations()->pluck('id');
+        $issueIds = $audit->issues()->pluck('id');
 
-        ApplySafeFixesJob::dispatchSync($shop->id, $audit->id);
+        ApplySafeFixesJob::dispatchSync($shop->id, $audit->id, self::MAX_ISSUES_PER_REQUEST);
 
         $applied = $shop->optimizations()
-            ->whereNotIn('id', $beforeIds)
+            ->whereIn('audit_issue_id', $issueIds)
             ->where('status', 'applied')
             ->get(['id', 'type', 'asset_key']);
 

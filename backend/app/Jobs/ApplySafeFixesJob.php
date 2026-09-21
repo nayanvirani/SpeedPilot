@@ -34,6 +34,12 @@ class ApplySafeFixesJob implements ShouldQueue
     public function __construct(
         private readonly int $shopInstallationId,
         private readonly int $auditId,
+        // Extra cap on top of the plan's own autoFixLimit() - used by the
+        // synchronous on-demand endpoint to bound how long one HTTP request
+        // can run (each fix is several sequential Shopify API calls), never
+        // by the automatic post-scan dispatch, which should honor only the
+        // plan's real limit.
+        private readonly ?int $maxIssues = null,
     ) {
     }
 
@@ -103,6 +109,10 @@ class ApplySafeFixesJob implements ShouldQueue
             $safeIssues = $safeIssues->take($limit);
         }
 
+        if ($this->maxIssues !== null) {
+            $safeIssues = $safeIssues->take($this->maxIssues);
+        }
+
         foreach ($safeIssues as $issue) {
             try {
                 $fixType = $issue->meta['fix_type'] ?? null;
@@ -121,6 +131,23 @@ class ApplySafeFixesJob implements ShouldQueue
 
                 if (! $assetKey) {
                     continue; // couldn't resolve a real file to edit - recommendation-only
+                }
+
+                // A re-scan reports the same underlying issue again on a
+                // fresh AuditIssue row - without this, re-running (the
+                // automatic post-scan pass and the on-demand "Fix Safe
+                // Issues" button can both target the same audit) would
+                // rewrite an already-fixed file from the pristine original
+                // every time, silently re-deferring an already-deferred
+                // script on every call.
+                $alreadyApplied = $shop->optimizations()
+                    ->where('asset_key', $assetKey)
+                    ->where('type', $fixType ?? $issue->category)
+                    ->where('status', 'applied')
+                    ->exists();
+
+                if ($alreadyApplied) {
+                    continue;
                 }
 
                 $optimization = $shop->optimizations()->create([

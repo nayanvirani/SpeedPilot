@@ -62,6 +62,13 @@ const FIX_CONFIDENCE = {
 };
 
 function fixConfidence(issue) {
+    // risk_tier alone isn't enough - a "safe" issue with no resolvable fix
+    // (fix_available: false) is still manual-review-only in practice, and
+    // must never show the "applied automatically" framing.
+    if (!issue.fix_available) {
+        return FIX_CONFIDENCE.high;
+    }
+
     return FIX_CONFIDENCE[issue.risk_tier] ?? FIX_CONFIDENCE.high;
 }
 
@@ -99,13 +106,13 @@ function EvidenceCard({ meta }) {
             <InlineStack gap="500" wrap>
                 {rows.map(([label, value]) => (
                     <BlockStack gap="0" key={label}>
-                        <Text as="span" tone="subdued">{label}</Text>
-                        <Text as="span" fontWeight="semibold">{value}</Text>
+                        <span className="sp-evidence-label">{label}</span>
+                        <span className="sp-evidence-value">{value}</span>
                     </BlockStack>
                 ))}
                 {evidence?.estimated_impact && (
                     <BlockStack gap="0">
-                        <Text as="span" tone="subdued">Estimated impact</Text>
+                        <span className="sp-evidence-label">Estimated impact</span>
                         <Badge tone={impactTone}>{evidence.estimated_impact}</Badge>
                     </BlockStack>
                 )}
@@ -186,8 +193,8 @@ function SafeFixControls({ issue }) {
         <BlockStack gap="200">
             <Text as="span" fontWeight="medium">Auto-fix</Text>
             <Text as="p" tone="subdued">
-                SpeedPilot applies this automatically the next time it scans your store, once a target
-                theme is selected on the Dashboard - no action needed here.
+                Included in "Fix Safe Issues" above, or applies automatically on your next
+                scheduled scan once a target theme is selected in Settings.
             </Text>
             <FixCodeViewer fetchPath={`/audit-issues/${issue.id}/fix-code`} />
         </BlockStack>
