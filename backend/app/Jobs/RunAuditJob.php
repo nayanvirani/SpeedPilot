@@ -160,6 +160,7 @@ class RunAuditJob implements ShouldQueue
                 'severity' => $issue['severity'],
                 'title' => $issue['title'],
                 'description' => $issue['description'] ?? null,
+                'why' => $issue['why'] ?? null,
                 'fix_available' => $issue['fixAvailable'] ?? false,
                 'risk_tier' => $issue['riskTier'],
                 'meta' => $issue['meta'] ?? null,

@@ -18,6 +18,7 @@ class AuditIssue extends Model
         'severity',
         'title',
         'description',
+        'why',
         'fix_available',
         'risk_tier',
         'meta',

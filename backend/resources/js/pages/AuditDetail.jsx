@@ -52,14 +52,69 @@ function PageScoreCards({ pages }) {
     );
 }
 
-function fixBadge(issue) {
-    if (issue.risk_tier === 'safe' && issue.fix_available) {
-        return { tone: 'success', label: 'Eligible for auto-fix' };
+// Fix Confidence: reuses the existing risk_tier the backend already computes
+// (safe/medium/high) - this is just giving it the merchant-facing framing
+// spec calls for, not a second classification system to keep in sync.
+const FIX_CONFIDENCE = {
+    safe: { icon: '🟢', label: 'Safe', tone: 'success', blurb: 'Can be applied automatically.' },
+    medium: { icon: '🟡', label: 'Review', tone: 'warning', blurb: 'Requires your confirmation before it changes anything.' },
+    high: { icon: '🔴', label: 'Manual', tone: 'critical', blurb: 'Recommendation only - review and apply yourself.' },
+};
+
+function fixConfidence(issue) {
+    return FIX_CONFIDENCE[issue.risk_tier] ?? FIX_CONFIDENCE.high;
+}
+
+function evidenceRows(evidence) {
+    if (!evidence) return [];
+
+    const rows = [];
+    if (evidence.size_bytes != null) rows.push(['Size', `${Math.round(evidence.size_bytes / 1024)} KB`]);
+    if (evidence.wasted_bytes != null) rows.push(['Wasted', `${Math.round(evidence.wasted_bytes / 1024)} KB`]);
+    if (evidence.displayed_width && evidence.displayed_height) {
+        rows.push(['Displayed size', `${evidence.displayed_width} × ${evidence.displayed_height}px`]);
     }
-    if (issue.risk_tier === 'medium' && issue.fix_available) {
-        return { tone: 'attention', label: 'Fix available - needs your approval' };
+    if (evidence.format) rows.push(['Format', evidence.format]);
+    if (evidence.detected_as) rows.push(['Detected as', evidence.detected_as]);
+    if (evidence.element) rows.push(['Element', evidence.element]);
+    if (evidence.cause) rows.push(['Likely cause', evidence.cause]);
+    if (evidence.shift_score != null) rows.push(['Shift score', evidence.shift_score]);
+    if (evidence.wasted_ms != null) rows.push(['Blocking time', `${Math.round(evidence.wasted_ms)}ms`]);
+
+    return rows;
+}
+
+function EvidenceCard({ meta }) {
+    const evidence = meta?.evidence;
+    const rows = evidenceRows(evidence);
+
+    if (rows.length === 0 && !evidence?.estimated_impact && !meta?.recommendation) {
+        return null;
     }
-    return { tone: 'attention', label: 'Recommendation only' };
+
+    const impactTone = { HIGH: 'critical', MEDIUM: 'warning', LOW: 'info' }[evidence?.estimated_impact];
+
+    return (
+        <div className="sp-evidence-card">
+            <InlineStack gap="500" wrap>
+                {rows.map(([label, value]) => (
+                    <BlockStack gap="0" key={label}>
+                        <Text as="span" tone="subdued">{label}</Text>
+                        <Text as="span" fontWeight="semibold">{value}</Text>
+                    </BlockStack>
+                ))}
+                {evidence?.estimated_impact && (
+                    <BlockStack gap="0">
+                        <Text as="span" tone="subdued">Estimated impact</Text>
+                        <Badge tone={impactTone}>{evidence.estimated_impact}</Badge>
+                    </BlockStack>
+                )}
+            </InlineStack>
+            {meta?.recommendation && (
+                <Text as="p" tone="subdued">Recommendation: {meta.recommendation}</Text>
+            )}
+        </div>
+    );
 }
 
 function MediumFixControls({ issue }) {
@@ -143,7 +198,7 @@ function IssueRow({ issue, page }) {
     const [recommendation, setRecommendation] = useState(null);
     const [loadingRec, setLoadingRec] = useState(false);
     const [recError, setRecError] = useState(null);
-    const badge = fixBadge(issue);
+    const confidence = fixConfidence(issue);
 
     async function getRecommendation() {
         setLoadingRec(true);
@@ -165,12 +220,14 @@ function IssueRow({ issue, page }) {
                     <Badge tone={SEVERITY_TONE[issue.severity]}>{issue.severity}</Badge>
                     <Text as="span" fontWeight="semibold">{issue.title}</Text>
                 </InlineStack>
-                <Badge tone={badge.tone}>{badge.label}</Badge>
+                <Badge tone={confidence.tone}>{`${confidence.icon} ${confidence.label}`}</Badge>
             </InlineStack>
+            {issue.why && <Text as="p">{issue.why}</Text>}
             {issue.description && <Text as="p" tone="subdued">{issue.description}</Text>}
+            <EvidenceCard meta={issue.meta} />
             <InlineStack gap="400">
-                <Text as="span" tone="subdued">Category: {issue.category}</Text>
-                <Text as="span" tone="subdued">Risk tier: {issue.risk_tier}</Text>
+                <Text as="span" tone="subdued">Category: {ISSUE_CATEGORY_LABEL[issue.category] ?? issue.category}</Text>
+                <Text as="span" tone="subdued">{confidence.blurb}</Text>
                 {page && <Text as="span" tone="subdued">Found on: {PAGE_TYPE_LABEL[page.page_type] ?? page.page_type}</Text>}
             </InlineStack>
             {issue.risk_tier === 'medium' && issue.fix_available && <MediumFixControls issue={issue} />}
@@ -220,6 +277,76 @@ function PriorityPlan({ auditId }) {
                         <Button size="micro" loading={loading} onClick={load}>Get a priority plan</Button>
                         {error && <Text as="span" tone="critical">{error}</Text>}
                     </InlineStack>
+                )}
+            </BlockStack>
+        </Card>
+    );
+}
+
+function FixAllSafeIssues({ auditId, issues }) {
+    const [applying, setApplying] = useState(false);
+    const [result, setResult] = useState(null);
+    const [error, setError] = useState(null);
+
+    const counts = { safe: 0, medium: 0, high: 0 };
+    issues.forEach((i) => { counts[i.risk_tier] = (counts[i.risk_tier] ?? 0) + 1; });
+    const safeFixable = issues.filter((i) => i.risk_tier === 'safe' && i.fix_available);
+
+    async function fixAll() {
+        setApplying(true);
+        setError(null);
+        setResult(null);
+        try {
+            const res = await api.post(`/audits/${auditId}/apply-safe-fixes`, {});
+            setResult(res);
+        } catch (e) {
+            setError(e.body?.error || 'Could not apply fixes right now.');
+        } finally {
+            setApplying(false);
+        }
+    }
+
+    if (issues.length === 0) {
+        return null;
+    }
+
+    return (
+        <Card>
+            <BlockStack gap="300">
+                <InlineStack align="space-between" blockAlign="center" wrap>
+                    <Text as="h3" variant="headingSm">
+                        <span className="sp-heading">{issues.length} issue{issues.length === 1 ? '' : 's'} found</span>
+                    </Text>
+                    <InlineStack gap="200">
+                        {counts.safe > 0 && <Badge tone="success">{`🟢 ${counts.safe} safe`}</Badge>}
+                        {counts.medium > 0 && <Badge tone="warning">{`🟡 ${counts.medium} review`}</Badge>}
+                        {counts.high > 0 && <Badge tone="critical">{`🔴 ${counts.high} manual`}</Badge>}
+                    </InlineStack>
+                </InlineStack>
+                {safeFixable.length > 0 && !result && (
+                    <InlineStack gap="200" blockAlign="center">
+                        <Button variant="primary" loading={applying} onClick={fixAll}>
+                            {applying ? 'Creating backup and applying…' : `Fix ${safeFixable.length} Safe Issue${safeFixable.length === 1 ? '' : 's'}`}
+                        </Button>
+                        {error && <Text as="span" tone="critical">{error}</Text>}
+                    </InlineStack>
+                )}
+                {result && (
+                    result.applied_count === 0 ? (
+                        <Text as="p" tone="subdued">
+                            No safe fixes could be applied automatically right now - see each issue's
+                            "Manual fix" option below, or Shopify's theme-write approval may still be pending.
+                        </Text>
+                    ) : (
+                        <BlockStack gap="100">
+                            <Text as="p" tone="success">
+                                ✓ Applied {result.applied_count} fix{result.applied_count === 1 ? '' : 'es'} - running verification now.
+                            </Text>
+                            {result.optimizations.map((o) => (
+                                <Text as="span" key={o.id} tone="subdued">✓ {o.type} ({o.asset_key})</Text>
+                            ))}
+                        </BlockStack>
+                    )
                 )}
             </BlockStack>
         </Card>
@@ -301,6 +428,7 @@ export default function AuditDetail() {
                         </BlockStack>
                     )}
                 </Card>
+                {!loading && allIssues.length > 0 && <FixAllSafeIssues auditId={audit.id} issues={allIssues} />}
                 {!loading && allIssues.length > 0 && <PriorityPlan auditId={audit.id} />}
                 <Card>
                     {loading ? <SkeletonBodyText lines={4} /> : allIssues.length === 0 ? (
@@ -308,9 +436,9 @@ export default function AuditDetail() {
                     ) : (
                         <BlockStack gap="400">
                             <Text as="p" tone="subdued">
-                                "Eligible for auto-fix" means SpeedPilot can apply this safely on its
-                                own - check the Optimizations page to see exactly which fixes actually
-                                went through and roll any of them back.
+                                🟢 Safe can be applied automatically. 🟡 Review needs your confirmation
+                                first. 🔴 Manual is a recommendation only - check the Optimizations page
+                                to see exactly which fixes went through and roll any of them back.
                             </Text>
                             <InlineStack gap="200" wrap>
                                 <div style={{ minWidth: '200px' }}>

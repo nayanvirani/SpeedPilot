@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ApplySafeFixesJob;
 use App\Jobs\RunAuditJob;
 use App\Models\AppSetting;
 use App\Models\Audit;
@@ -64,5 +65,38 @@ class AuditController extends Controller
             ->findOrFail($id);
 
         return response()->json(['audit' => $audit]);
+    }
+
+    /**
+     * On-demand twin of the automatic safe-fix pass that already runs after
+     * every scan - a merchant may run this again after re-reading the issue
+     * list, or the automatic pass may have found nothing to fix yet if the
+     * target theme was only just set. Runs synchronously so the merchant
+     * sees a real result immediately rather than polling.
+     */
+    public function applySafeFixes(Request $request, int $id)
+    {
+        /** @var ShopInstallation $shop */
+        $shop = $request->attributes->get('shop');
+
+        $audit = Audit::where('shop_installation_id', $shop->id)->findOrFail($id);
+
+        if (! $shop->target_theme_id) {
+            return response()->json(['error' => 'Choose a target theme in Settings first.'], 422);
+        }
+
+        $beforeIds = $shop->optimizations()->pluck('id');
+
+        ApplySafeFixesJob::dispatchSync($shop->id, $audit->id);
+
+        $applied = $shop->optimizations()
+            ->whereNotIn('id', $beforeIds)
+            ->where('status', 'applied')
+            ->get(['id', 'type', 'asset_key']);
+
+        return response()->json([
+            'applied_count' => $applied->count(),
+            'optimizations' => $applied,
+        ]);
     }
 }
