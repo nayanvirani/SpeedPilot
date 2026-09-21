@@ -14,6 +14,7 @@ use App\Services\Shopify\ThemeAssetLocatorService;
 use App\Services\Shopify\ThemeAssetService;
 use App\Services\Shopify\ThemeDuplicateService;
 use App\Services\Shopify\ThemeWriteAccessDeniedException;
+use App\Services\SlackNotifier;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -36,7 +37,7 @@ class ApplySafeFixesJob implements ShouldQueue
     ) {
     }
 
-    public function handle(AssetBackupService $backups): void
+    public function handle(AssetBackupService $backups, SlackNotifier $slack): void
     {
         $shop = ShopInstallation::findOrFail($this->shopInstallationId);
         $audit = Audit::findOrFail($this->auditId);
@@ -175,6 +176,13 @@ class ApplySafeFixesJob implements ShouldQueue
             ]);
 
             RunAuditJob::dispatch($verificationAudit->id);
+
+            $slack->send($shop, sprintf(
+                ':white_check_mark: SpeedPilot applied %d safe fix%s to %s automatically. Verifying the result now - check the Optimizations page to review or roll back.',
+                $appliedCount,
+                $appliedCount === 1 ? '' : 'es',
+                $shop->shop_domain,
+            ));
         }
     }
 

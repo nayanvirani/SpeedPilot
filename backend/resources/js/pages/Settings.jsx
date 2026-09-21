@@ -233,6 +233,82 @@ function ScanPreferencesSettings() {
     );
 }
 
+function SlackNotificationSettings() {
+    const [hasWebhook, setHasWebhook] = useState(null);
+    const [value, setValue] = useState('');
+    const [saving, setSaving] = useState(false);
+    const [saved, setSaved] = useState(false);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        api.get('/settings').then((res) => setHasWebhook(res.has_slack_webhook)).catch(() => setHasWebhook(false));
+    }, []);
+
+    async function save() {
+        setSaving(true);
+        setSaved(false);
+        setError(null);
+        try {
+            const res = await api.put('/settings/slack-webhook', { webhook_url: value });
+            setHasWebhook(res.has_slack_webhook);
+            setValue('');
+            setSaved(true);
+        } catch (e) {
+            setError(e.body?.error || 'Could not save that webhook URL.');
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    async function remove() {
+        setSaving(true);
+        try {
+            const res = await api.put('/settings/slack-webhook', { webhook_url: null });
+            setHasWebhook(res.has_slack_webhook);
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    if (hasWebhook === null) {
+        return null;
+    }
+
+    return (
+        <Card>
+            <BlockStack gap="200">
+                <Text as="h3" variant="headingSm"><span className="sp-heading">Slack notifications</span></Text>
+                <Text as="p" tone="subdued">
+                    Get a Slack message when SpeedPilot detects a performance regression (score drops
+                    5+ points) or automatically applies fixes. Create an
+                    incoming webhook in Slack (Apps &gt; Incoming Webhooks) and paste its URL here.
+                </Text>
+                {hasWebhook && (
+                    <InlineStack gap="200" blockAlign="center">
+                        <Text as="span" tone="success">A webhook is connected.</Text>
+                        <Button size="micro" tone="critical" loading={saving} onClick={remove}>Disconnect</Button>
+                    </InlineStack>
+                )}
+                <InlineStack gap="200" blockAlign="end">
+                    <div style={{ flexGrow: 1, maxWidth: '380px' }}>
+                        <TextField
+                            label="Slack webhook URL"
+                            labelHidden
+                            placeholder="https://hooks.slack.com/services/..."
+                            value={value}
+                            onChange={(v) => { setValue(v); setSaved(false); setError(null); }}
+                            autoComplete="off"
+                            error={error}
+                        />
+                    </div>
+                    <Button loading={saving} disabled={!value} onClick={save}>{hasWebhook ? 'Update' : 'Connect'}</Button>
+                    {saved && <Text as="span" tone="success">Saved</Text>}
+                </InlineStack>
+            </BlockStack>
+        </Card>
+    );
+}
+
 export default function Settings() {
     return (
         <Page title="Settings">
@@ -240,6 +316,7 @@ export default function Settings() {
                 <ScanPreferencesSettings />
                 <TargetThemeSettings />
                 <StorefrontPasswordSettings />
+                <SlackNotificationSettings />
             </BlockStack>
         </Page>
     );

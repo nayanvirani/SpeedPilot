@@ -38,6 +38,7 @@ class ShopSettingsController extends Controller
             'theme_diverged' => $themeDiverged,
             'scan_frequency' => $shop->scan_frequency,
             'scan_devices' => $shop->scan_devices,
+            'has_slack_webhook' => ! empty($shop->slack_webhook_url),
         ]);
     }
 
@@ -61,6 +62,25 @@ class ShopSettingsController extends Controller
             'scan_frequency' => $shop->scan_frequency,
             'scan_devices' => $shop->scan_devices,
         ]);
+    }
+
+    /**
+     * Spec 4.20 notifications, Slack-only (Railway can't send outbound
+     * email) - a regression alert or "fixes applied" notice posts here via
+     * SlackNotifier whenever the merchant has set a webhook.
+     */
+    public function updateSlackWebhook(Request $request)
+    {
+        /** @var ShopInstallation $shop */
+        $shop = $request->attributes->get('shop');
+
+        $data = $request->validate([
+            'webhook_url' => 'nullable|url|starts_with:https://hooks.slack.com/',
+        ]);
+
+        $shop->update(['slack_webhook_url' => $data['webhook_url'] ?: null]);
+
+        return response()->json(['has_slack_webhook' => ! empty($shop->slack_webhook_url)]);
     }
 
     public function updateStorefrontPassword(Request $request)

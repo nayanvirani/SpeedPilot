@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\ShopInstallation;
 use App\Services\PlanPolicy;
+use App\Services\SlackNotifier;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -22,7 +23,11 @@ class RunMonitoringJob implements ShouldQueue
     {
     }
 
-    public function handle(): void
+    // A drop this small is normal run-to-run Lighthouse noise, not a real
+    // regression worth interrupting a merchant over.
+    private const REGRESSION_THRESHOLD = -5;
+
+    public function handle(SlackNotifier $slack): void
     {
         $shop = ShopInstallation::findOrFail($this->shopInstallationId);
         $policy = new PlanPolicy($shop);
@@ -52,12 +57,25 @@ class RunMonitoringJob implements ShouldQueue
 
         $audit->refresh();
 
+        $trendDelta = $previousScore !== null && $audit->score !== null
+            ? $audit->score - $previousScore
+            : null;
+
         $shop->monitoringRuns()->create([
             'audit_id' => $audit->id,
             'run_at' => now(),
-            'trend_delta' => $previousScore !== null && $audit->score !== null
-                ? $audit->score - $previousScore
-                : null,
+            'trend_delta' => $trendDelta,
         ]);
+
+        if ($trendDelta !== null && $trendDelta <= self::REGRESSION_THRESHOLD) {
+            $slack->send($shop, sprintf(
+                ':warning: SpeedPilot detected a performance regression on %s: score dropped from %d to %d (%d points). '
+                    .'A new app, theme edit, or third-party script may be the cause - check the Monitoring page.',
+                $shop->shop_domain,
+                $previousScore,
+                $audit->score,
+                $trendDelta,
+            ));
+        }
     }
 }

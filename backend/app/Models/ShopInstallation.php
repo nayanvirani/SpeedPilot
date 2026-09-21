@@ -20,6 +20,7 @@ class ShopInstallation extends Model
         'theme_write_blocked_at',
         'scan_frequency',
         'scan_devices',
+        'slack_webhook_url',
         'scope',
         'plan',
         'shopify_subscription_id',
@@ -30,6 +31,7 @@ class ShopInstallation extends Model
     protected $hidden = [
         'access_token',
         'storefront_password',
+        'slack_webhook_url',
     ];
 
     protected function casts(): array
@@ -37,6 +39,7 @@ class ShopInstallation extends Model
         return [
             'access_token' => 'encrypted',
             'storefront_password' => 'encrypted',
+            'slack_webhook_url' => 'encrypted',
             'access_token_expires_at' => 'datetime',
             'installed_at' => 'datetime',
             'uninstalled_at' => 'datetime',
