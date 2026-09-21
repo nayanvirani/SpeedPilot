@@ -60,7 +60,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/pages', [AdminPageController::class, 'index'])->name('pages.index');
         Route::get('/pages/{page}/edit', [AdminPageController::class, 'edit'])->name('pages.edit');
         Route::put('/pages/{page}', [AdminPageController::class, 'update'])->name('pages.update');
-        Route::resource('faq', AdminFaqController::class)->except('show');
+        Route::resource('faq', AdminFaqController::class)->parameters(['faq' => 'item'])->except('show');
     });
 });
 
