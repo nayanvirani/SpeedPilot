@@ -2,12 +2,16 @@
 
 use App\Http\Controllers\Admin\AuthController as AdminAuthController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Admin\FaqController as AdminFaqController;
+use App\Http\Controllers\Admin\PageController as AdminPageController;
 use App\Http\Controllers\Admin\PlanController as AdminPlanController;
 use App\Http\Controllers\Admin\ProfileController as AdminProfileController;
 use App\Http\Controllers\Admin\SettingsController as AdminSettingsController;
 use App\Http\Controllers\Admin\StoreController as AdminStoreController;
 use App\Http\Controllers\Admin\SubscriptionController as AdminSubscriptionController;
 use App\Http\Controllers\EmbeddedAppController;
+use App\Http\Controllers\FaqController;
+use App\Http\Controllers\PageController;
 use App\Http\Controllers\ShopifyOAuthController;
 use App\Http\Controllers\Webhooks\AppSubscriptionsUpdateController;
 use App\Http\Controllers\Webhooks\AppUninstalledController;
@@ -18,6 +22,11 @@ use Illuminate\Support\Facades\Route;
 // OAuth install/callback - no session token yet, this *establishes* it.
 Route::get('/auth/install', [ShopifyOAuthController::class, 'install']);
 Route::get('/auth/callback', [ShopifyOAuthController::class, 'callback']);
+
+// Public static content, editable from /admin/pages and /admin/faq without
+// a redeploy - must be registered before the embedded-app catch-all below.
+Route::get('/privacy', fn () => app(PageController::class)->show('privacy'))->name('privacy');
+Route::get('/faq', [FaqController::class, 'index'])->name('faq');
 
 // Webhooks - HMAC-verified and deduped by shopify.webhook, never App-Bridge
 // session tokens.
@@ -48,6 +57,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/settings', [AdminSettingsController::class, 'update'])->name('settings.update');
         Route::get('/profile', [AdminProfileController::class, 'edit'])->name('profile.edit');
         Route::post('/profile/password', [AdminProfileController::class, 'updatePassword'])->name('profile.password');
+        Route::get('/pages', [AdminPageController::class, 'index'])->name('pages.index');
+        Route::get('/pages/{page}/edit', [AdminPageController::class, 'edit'])->name('pages.edit');
+        Route::put('/pages/{page}', [AdminPageController::class, 'update'])->name('pages.update');
+        Route::resource('faq', AdminFaqController::class)->except('show');
     });
 });
 

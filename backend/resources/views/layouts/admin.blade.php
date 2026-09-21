@@ -15,6 +15,8 @@
                 <a href="{{ route('admin.stores.index') }}" class="px-5 py-2 hover:bg-slate-800 {{ request()->routeIs('admin.stores.*') ? 'bg-slate-800 text-white' : '' }}">Stores</a>
                 <a href="{{ route('admin.plans.index') }}" class="px-5 py-2 hover:bg-slate-800 {{ request()->routeIs('admin.plans.*') ? 'bg-slate-800 text-white' : '' }}">Plans</a>
                 <a href="{{ route('admin.subscriptions.index') }}" class="px-5 py-2 hover:bg-slate-800 {{ request()->routeIs('admin.subscriptions.*') ? 'bg-slate-800 text-white' : '' }}">Subscriptions</a>
+                <a href="{{ route('admin.pages.index') }}" class="px-5 py-2 hover:bg-slate-800 {{ request()->routeIs('admin.pages.*') ? 'bg-slate-800 text-white' : '' }}">Pages</a>
+                <a href="{{ route('admin.faq.index') }}" class="px-5 py-2 hover:bg-slate-800 {{ request()->routeIs('admin.faq.*') ? 'bg-slate-800 text-white' : '' }}">FAQ</a>
                 <a href="{{ route('admin.settings.edit') }}" class="px-5 py-2 hover:bg-slate-800 {{ request()->routeIs('admin.settings.*') ? 'bg-slate-800 text-white' : '' }}">Settings</a>
                 <a href="{{ route('admin.profile.edit') }}" class="px-5 py-2 hover:bg-slate-800 {{ request()->routeIs('admin.profile.*') ? 'bg-slate-800 text-white' : '' }}">Profile</a>
             </nav>

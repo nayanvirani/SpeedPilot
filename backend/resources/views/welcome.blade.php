@@ -355,7 +355,7 @@
 
   <footer>
     <p>&copy; {{ date('Y') }} SpeedPilot — Shopify storefront performance, audited and fixed.</p>
-    <p>Built for Shopify merchants</p>
+    <p><a href="/faq">FAQ</a> &nbsp;&middot;&nbsp; <a href="/privacy">Privacy</a></p>
   </footer>
 
 </div>
