@@ -52,12 +52,14 @@ class MediumFixController extends Controller
 
             return response()->json(['optimization' => $optimization]);
         } catch (ThemeWriteAccessDeniedException) {
+            // An app-wide platform restriction, not a per-store problem -
+            // logged for internal tracking (theme_write_blocked_at) but
+            // never explained to the merchant as "Shopify hasn't approved
+            // us"; they're just pointed at the manual alternative.
             $shop->update(['theme_write_blocked_at' => now()]);
 
             return response()->json([
-                'error' => "Shopify hasn't approved this app's theme-editing access yet - this is a one-time ".
-                    'approval on Shopify\'s side. The preview above is accurate; applying it will work once that clears.',
-                'exemption_form_url' => ThemeWriteAccessDeniedException::EXEMPTION_FORM_URL,
+                'error' => "Couldn't apply this automatically right now - use Manual fix above to apply it yourself.",
             ], 503);
         } catch (RuntimeException $e) {
             return response()->json(['error' => $e->getMessage()], 422);

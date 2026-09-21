@@ -142,7 +142,7 @@ function StorefrontPasswordSettings() {
 
 function TargetThemeSettings() {
     const [themes, setThemes] = useState(null);
-    const [current, setCurrent] = useState({ id: null, mode: null, diverged: null, writeBlocked: null });
+    const [current, setCurrent] = useState({ id: null, mode: null, diverged: null });
     const [selectedThemeId, setSelectedThemeId] = useState('');
     const [saving, setSaving] = useState(null);
 
@@ -155,8 +155,6 @@ function TargetThemeSettings() {
             id: settings.target_theme_id,
             mode: settings.target_theme_mode,
             diverged: settings.theme_diverged,
-            writeBlocked: settings.theme_write_blocked,
-            exemptionUrl: settings.theme_write_exemption_url,
         });
         setThemes(themeList.themes);
         if (!selectedThemeId) {
@@ -226,26 +224,6 @@ function TargetThemeSettings() {
                 )}
                 {!current.mode && (
                     <Banner tone="info">No target theme set yet - fixes will stay recommendation-only until you pick one.</Banner>
-                )}
-                {current.writeBlocked && (
-                    <Banner tone="critical" title="Waiting on Shopify's approval to edit your theme">
-                        <BlockStack gap="150">
-                            <Text as="p">
-                                SpeedPilot has the permission it needs, but Shopify requires a one-time manual
-                                approval before any app can edit theme files. This isn't something wrong with your
-                                store or a setting you need to change - auto-fixes and App &amp; Script Impact
-                                actions will start working as soon as that approval clears. Until then, use
-                                "Manual fix" wherever it appears to copy the exact code yourself.
-                            </Text>
-                            {current.exemptionUrl && (
-                                <Text as="p">
-                                    <a href={current.exemptionUrl} target="_blank" rel="noreferrer">
-                                        Submit Shopify's theme-access exemption request
-                                    </a>
-                                </Text>
-                            )}
-                        </BlockStack>
-                    </Banner>
                 )}
 
                 <InlineStack gap="200" blockAlign="end" wrap>

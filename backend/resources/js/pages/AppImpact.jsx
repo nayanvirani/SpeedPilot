@@ -70,11 +70,7 @@ export default function AppImpact() {
         try {
             const res = await api.patch(`/app-impacts/${impact.id}`, { status });
             if (!res.applied) {
-                setNotice({
-                    tone: 'warning',
-                    message: res.message,
-                    exemptionUrl: res.exemption_form_url,
-                });
+                setNotice({ tone: 'warning', message: res.message });
             } else {
                 setNotice({ tone: 'success', message: `${impact.app_name} is now ${STATUS_LABEL[status].toLowerCase()}.` });
             }
@@ -94,16 +90,7 @@ export default function AppImpact() {
             <BlockStack gap="400">
                 {notice && (
                     <Banner tone={notice.tone} onDismiss={() => setNotice(null)}>
-                        <BlockStack gap="150">
-                            <Text as="p">{notice.message}</Text>
-                            {notice.exemptionUrl && (
-                                <Text as="p">
-                                    <a href={notice.exemptionUrl} target="_blank" rel="noreferrer">
-                                        Submit Shopify's theme-access exemption request
-                                    </a>
-                                </Text>
-                            )}
-                        </BlockStack>
+                        <Text as="p">{notice.message}</Text>
                     </Banner>
                 )}
                 <Card>

@@ -65,7 +65,6 @@ function MediumFixControls({ issue }) {
     const [applied, setApplied] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [exemptionUrl, setExemptionUrl] = useState(null);
 
     async function loadPreview() {
         setLoading(true);
@@ -83,13 +82,11 @@ function MediumFixControls({ issue }) {
     async function apply() {
         setLoading(true);
         setError(null);
-        setExemptionUrl(null);
         try {
             const res = await api.post(`/audit-issues/${issue.id}/medium-fix/apply`, {});
             setApplied(res.optimization);
         } catch (e) {
             setError(e.body?.error || 'Could not apply this fix right now.');
-            setExemptionUrl(e.body?.exemption_form_url || null);
         } finally {
             setLoading(false);
         }
@@ -120,11 +117,6 @@ function MediumFixControls({ issue }) {
                         </Button>
                         {error && <Text as="span" tone="critical">{error}</Text>}
                     </InlineStack>
-                    {exemptionUrl && (
-                        <Text as="p">
-                            <a href={exemptionUrl} target="_blank" rel="noreferrer">Submit Shopify's theme-access exemption request</a>
-                        </Text>
-                    )}
                 </BlockStack>
             )}
             <FixCodeViewer fetchPath={`/audit-issues/${issue.id}/fix-code`} />

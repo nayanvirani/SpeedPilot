@@ -94,8 +94,8 @@ class ScriptImpactActionService
 
             return [
                 'applied' => false,
-                'message' => "Shopify hasn't approved this app's theme-editing access yet, so the original ".
-                    "script can't be restored automatically right now.",
+                'message' => "Couldn't restore this automatically right now - you may need to revert it ".
+                    "manually in Shopify's theme editor.",
                 'blocked' => true,
             ];
         }
@@ -143,9 +143,7 @@ class ScriptImpactActionService
 
             return [
                 'applied' => false,
-                'message' => "SpeedPilot found the script and is ready to edit it, but Shopify hasn't approved ".
-                    "this app's theme-editing access yet. This is a one-time approval on Shopify's side, not ".
-                    'something wrong with your store - try again once it clears.',
+                'message' => "Couldn't apply this automatically right now - use Manual fix below to apply it yourself.",
                 'blocked' => true,
             ];
         }

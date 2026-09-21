@@ -5,6 +5,17 @@
 @section('content')
     <h1 class="text-2xl font-semibold mb-6">Dashboard</h1>
 
+    @if ($stats['theme_write_blocked_shops'] > 0)
+        <div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-lg p-4 mb-6 text-sm">
+            <strong>{{ $stats['theme_write_blocked_shops'] }} store{{ $stats['theme_write_blocked_shops'] === 1 ? '' : 's' }}</strong>
+            hit Shopify's <code>ACCESS_DENIED</code> on a theme write - the app has <code>write_themes</code> but
+            needs Shopify's protected-scope exemption approved before any auto-fix or App &amp; Script Impact
+            action can actually write to a theme. Submit the exemption request:
+            <a href="{{ $exemptionFormUrl }}" target="_blank" rel="noreferrer" class="underline">exemption request form</a>.
+            This is app-wide, not per-store - merchants never see this.
+        </div>
+    @endif
+
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <div class="bg-white rounded-lg shadow p-5">
             <div class="text-sm text-slate-500">Active stores</div>
