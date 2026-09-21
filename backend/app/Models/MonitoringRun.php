@@ -15,12 +15,16 @@ class MonitoringRun extends Model
         'audit_id',
         'run_at',
         'trend_delta',
+        'is_regression',
+        'diff_summary',
     ];
 
     protected function casts(): array
     {
         return [
             'run_at' => 'datetime',
+            'is_regression' => 'boolean',
+            'diff_summary' => 'array',
         ];
     }
 

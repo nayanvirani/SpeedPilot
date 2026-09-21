@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Badge, Banner, BlockStack, Button, Card, InlineStack, Page, SkeletonBodyText, Text } from '@shopify/polaris';
 import { api } from '../api';
 import CategoryScores from '../components/CategoryScores';
+import PerformanceHealth from '../components/PerformanceHealth';
 
 function statusTone(status) {
     return status === 'complete' ? 'success' : status === 'failed' ? 'critical' : 'attention';
@@ -138,6 +139,7 @@ export default function Dashboard() {
             primaryAction={{ content: 'Scan My Store', loading: scanning, disabled: storefrontLocked, onAction: scanNow }}
         >
             <BlockStack gap="400">
+                <PerformanceHealth />
                 {!loading && storefrontLocked && (
                     <Banner tone="critical" title="Your storefront is password-protected" action={{ content: 'Add storefront password', onAction: () => navigate('/settings') }}>
                         SpeedPilot can't reach your store's real content until it can unlock the password

@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Badge, BlockStack, Card, DataTable, InlineStack, Page, SkeletonBodyText, Text } from '@shopify/polaris';
+import { Badge, BlockStack, Card, DataTable, InlineStack, Page, SkeletonBodyText, Tabs, Text } from '@shopify/polaris';
 import { api } from '../api';
 import TrendChart from '../components/TrendChart';
+
+const PAGE_TYPE_LABEL = {
+    home: 'Homepage', product: 'Product page', collection: 'Collection page',
+    cart: 'Cart', search: 'Search', blog: 'Blog article', custom: 'Custom URL',
+};
 
 // lcp is stored in seconds (matches the lab-metric convention elsewhere in
 // the app), inp in milliseconds, cls unitless - per Google's published CWV
@@ -39,6 +44,120 @@ function RumStat({ metric, label, value }) {
             <div className="sp-cwv-val">{value !== null && value !== undefined ? `${value.toFixed(t.decimals)}${t.suffix}` : '—'}</div>
             {tone && <Badge tone={tone}>{rating}</Badge>}
         </div>
+    );
+}
+
+function PageTypeTrends() {
+    const [series, setSeries] = useState(null);
+    const [selected, setSelected] = useState(0);
+
+    useEffect(() => {
+        api.get('/monitoring/page-trend').then(setSeries).catch(() => setSeries(null));
+    }, []);
+
+    if (!series || series.page_types.length === 0) {
+        return null;
+    }
+
+    const tabs = series.page_types.map((t) => ({ id: t, content: PAGE_TYPE_LABEL[t] ?? t }));
+    const activeType = series.page_types[selected];
+    const points = (series.series[activeType] ?? []).map((p) => ({
+        score: p.score,
+        label: new Date(p.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+    }));
+
+    return (
+        <Card>
+            <BlockStack gap="200">
+                <Text as="h2" variant="headingSm">Score by page type</Text>
+                <Tabs tabs={tabs} selected={selected} onSelect={setSelected} />
+                <TrendChart points={points} />
+            </BlockStack>
+        </Card>
+    );
+}
+
+function WhatChanged({ diff }) {
+    if (!diff) {
+        return null;
+    }
+
+    const newScripts = diff.new_third_party_scripts ?? [];
+    const newIssues = diff.new_issues ?? [];
+    const droppedPages = (diff.page_type_deltas ?? []).filter((p) => p.delta !== null && p.delta < 0);
+    const nothingChanged = newScripts.length === 0 && newIssues.length === 0 && droppedPages.length === 0;
+
+    return (
+        <Card>
+            <BlockStack gap="200">
+                <Text as="h2" variant="headingSm">What changed since the last scan</Text>
+                {nothingChanged && (
+                    <Text as="p" tone="subdued">No new scripts, issues, or page-level drops since the previous scan.</Text>
+                )}
+                {newScripts.length > 0 && (
+                    <Text as="p">
+                        New script(s) detected (a possible contributor, not a confirmed cause): {newScripts.map((s) => s.app_name).join(', ')}
+                    </Text>
+                )}
+                {newIssues.length > 0 && (
+                    <Text as="p">{newIssues.length} new issue(s): {newIssues.map((i) => i.title).join('; ')}</Text>
+                )}
+                {droppedPages.length > 0 && (
+                    <InlineStack gap="200">
+                        {droppedPages.map((p) => (
+                            <Badge key={p.page_type} tone="critical">
+                                {`${PAGE_TYPE_LABEL[p.page_type] ?? p.page_type}: ${p.previous_score} → ${p.current_score}`}
+                            </Badge>
+                        ))}
+                    </InlineStack>
+                )}
+            </BlockStack>
+        </Card>
+    );
+}
+
+function MonthlyReport() {
+    const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+    const [report, setReport] = useState(null);
+
+    useEffect(() => {
+        api.get(`/monitoring/report?month=${month}`).then(setReport).catch(() => setReport(null));
+    }, [month]);
+
+    return (
+        <Card>
+            <BlockStack gap="300">
+                <InlineStack align="space-between" blockAlign="center">
+                    <Text as="h2" variant="headingSm">Monthly report</Text>
+                    <input
+                        type="month"
+                        value={month}
+                        onChange={(e) => setMonth(e.target.value)}
+                        style={{ border: '1px solid var(--p-color-border-secondary)', borderRadius: '6px', padding: '4px 8px' }}
+                    />
+                </InlineStack>
+                {!report ? (
+                    <SkeletonBodyText lines={3} />
+                ) : !report.has_data ? (
+                    <Text as="p" tone="subdued">No completed scans for this month.</Text>
+                ) : (
+                    <BlockStack gap="150">
+                        <Text as="p">
+                            Score: {report.score.before} → {report.score.after}{' '}
+                            ({report.score.delta >= 0 ? `+${report.score.delta}` : report.score.delta})
+                        </Text>
+                        {report.metrics.lcp?.previous !== null && report.metrics.lcp?.current !== null && (
+                            <Text as="p">LCP: {report.metrics.lcp.previous.toFixed(2)}s → {report.metrics.lcp.current.toFixed(2)}s</Text>
+                        )}
+                        {report.metrics.inp?.previous !== null && report.metrics.inp?.current !== null && (
+                            <Text as="p">INP: {Math.round(report.metrics.inp.previous)}ms → {Math.round(report.metrics.inp.current)}ms</Text>
+                        )}
+                        <Text as="p">{report.issues_resolved.length} issue(s) resolved, {report.issues_new.length} new</Text>
+                        <Text as="p">{report.regressions.length} regression(s) detected, {report.optimizations_applied.length} optimization(s) applied</Text>
+                    </BlockStack>
+                )}
+            </BlockStack>
+        </Card>
     );
 }
 
@@ -127,6 +246,9 @@ export default function Monitoring() {
                         />
                     </Card>
                 )}
+                <WhatChanged diff={runs[runs.length - 1]?.diff_summary} />
+                <PageTypeTrends />
+                <MonthlyReport />
                 <RealVisitorData />
             </BlockStack>
         </Page>

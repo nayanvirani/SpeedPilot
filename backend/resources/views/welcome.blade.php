@@ -171,8 +171,8 @@
   <section class="hero" style="border-top:none; padding-top:8px;">
     <div>
       <div class="eyebrow"><span class="eyebrow-dot"></span> Free audit, no card required</div>
-      <h1>Find what's slow. <em>Fix what's safe.</em> Show what's not.</h1>
-      <p>SpeedPilot audits your Shopify storefront's real performance, applies only optimizations proven safe, and shows you exactly which apps and scripts are costing you speed — with backup and rollback on every change.</p>
+      <h1>Find what's slow. <em>Fix what's safe.</em> Keep it that way.</h1>
+      <p>SpeedPilot audits your Shopify storefront's real performance, applies only optimizations proven safe, and shows you exactly which apps and scripts are costing you speed — with backup and rollback on every change. Then it keeps watching: continuous monitoring catches regressions the moment a new app or theme change slows you back down, with an alert and a diagnosis, not just a dashboard you have to remember to check.</p>
       <div class="cta-row">
         <a class="btn btn-primary" href="https://apps.shopify.com">Scan My Store →</a>
         <a class="btn btn-ghost" href="#pricing">View pricing</a>

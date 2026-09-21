@@ -38,6 +38,9 @@ Route::middleware('shopify.session')->group(function () {
     Route::post('/optimizations/{id}/rollback', [OptimizationController::class, 'rollback']);
 
     Route::get('/monitoring/trend', [MonitoringController::class, 'trend']);
+    Route::get('/monitoring/health', [MonitoringController::class, 'health']);
+    Route::get('/monitoring/page-trend', [MonitoringController::class, 'pageTrend']);
+    Route::get('/monitoring/report', [MonitoringController::class, 'report']);
     Route::get('/rum-events/summary', [RumEventController::class, 'summary']);
 
     Route::get('/billing/plans', [BillingController::class, 'plans']);
