@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\OptimizedTheme;
 use App\Models\ShopInstallation;
+use App\Services\Scanner\StorefrontAccessChecker;
 use App\Services\Shopify\ShopifyGraphQLClient;
 use App\Services\Shopify\ThemeAssetService;
 use App\Services\Shopify\ThemeDuplicateService;
@@ -13,12 +14,13 @@ use Illuminate\Validation\Rule;
 
 class ShopSettingsController extends Controller
 {
-    public function show(Request $request)
+    public function show(Request $request, StorefrontAccessChecker $storefrontAccess)
     {
         /** @var ShopInstallation $shop */
         $shop = $request->attributes->get('shop');
 
         $themeDiverged = null;
+        $storefrontLocked = $storefrontAccess->blocksScan($shop);
 
         if ($shop->target_theme_mode === 'duplicate' && $shop->target_theme_id) {
             $optimizedTheme = OptimizedTheme::where('shop_installation_id', $shop->id)
@@ -33,6 +35,7 @@ class ShopSettingsController extends Controller
 
         return response()->json([
             'has_storefront_password' => ! empty($shop->storefront_password),
+            'storefront_locked' => $storefrontLocked,
             'target_theme_id' => $shop->target_theme_id,
             'target_theme_mode' => $shop->target_theme_mode,
             'theme_diverged' => $themeDiverged,

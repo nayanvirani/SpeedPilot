@@ -9,11 +9,12 @@ use App\Models\AppSetting;
 use App\Models\Audit;
 use App\Models\ShopInstallation;
 use App\Services\PlanPolicy;
+use App\Services\Scanner\StorefrontAccessChecker;
 use Illuminate\Http\Request;
 
 class AuditController extends Controller
 {
-    public function store(Request $request)
+    public function store(Request $request, StorefrontAccessChecker $storefrontAccess)
     {
         if (AppSetting::get('maintenance_mode', '0') === '1') {
             return response()->json([
@@ -27,6 +28,18 @@ class AuditController extends Controller
         $data = $request->validate([
             'url' => 'nullable|url',
         ]);
+
+        // Refuse upfront rather than creating an audit that's guaranteed to
+        // fail on every page - the reactive per-page check in the scanner
+        // would produce the same "failed" result, just after wasting a full
+        // scan run and showing the merchant a broken-looking dashboard.
+        if (! $data['url'] && $storefrontAccess->blocksScan($shop)) {
+            return response()->json([
+                'error' => 'Your storefront is password-protected. Add your storefront password in '
+                    .'Settings, then scan again.',
+                'storefront_locked' => true,
+            ], 422);
+        }
 
         // A null url means "full store scan" - RunAuditJob discovers which
         // pages to cover (plan-limited). An explicit url pins it to that one

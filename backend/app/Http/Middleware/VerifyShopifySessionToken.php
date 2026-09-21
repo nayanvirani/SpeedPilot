@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Jobs\RunAuditJob;
 use App\Models\ShopInstallation;
+use App\Services\Scanner\StorefrontAccessChecker;
 use App\Services\Shopify\BillingService;
 use App\Services\Shopify\ShopifyOAuthService;
 use Closure;
@@ -32,6 +33,7 @@ class VerifyShopifySessionToken
     public function __construct(
         private readonly ShopifyOAuthService $oauth,
         private readonly BillingService $billing,
+        private readonly StorefrontAccessChecker $storefrontAccess,
     ) {
     }
 
@@ -114,9 +116,14 @@ class VerifyShopifySessionToken
         // a scan right away instead of leaving the merchant looking at an
         // empty "No scans yet" dashboard until they think to click the
         // button themselves. Non-fatal: a queueing hiccup shouldn't break
-        // auth, and the button is still right there either way.
+        // auth, and the button is still right there either way. Skipped
+        // entirely when the storefront is password-protected with no
+        // password saved yet (impossible to be saved this early anyway) -
+        // dispatching here would only ever produce a doomed "every page
+        // failed" audit with no scores, which is exactly what a real
+        // Shopify app review caught on first install.
         try {
-            if ($shop->audits()->doesntExist()) {
+            if ($shop->audits()->doesntExist() && ! $this->storefrontAccess->blocksScan($shop)) {
                 $audit = $shop->audits()->create(['status' => 'pending']);
                 RunAuditJob::dispatch($audit->id);
             }

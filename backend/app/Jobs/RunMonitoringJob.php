@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\ShopInstallation;
 use App\Services\PlanPolicy;
+use App\Services\Scanner\StorefrontAccessChecker;
 use App\Services\SlackNotifier;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -27,13 +28,17 @@ class RunMonitoringJob implements ShouldQueue
     // regression worth interrupting a merchant over.
     private const REGRESSION_THRESHOLD = -5;
 
-    public function handle(SlackNotifier $slack): void
+    public function handle(SlackNotifier $slack, StorefrontAccessChecker $storefrontAccess): void
     {
         $shop = ShopInstallation::findOrFail($this->shopInstallationId);
         $policy = new PlanPolicy($shop);
 
         if (! $policy->monitoringLevel() || ! $shop->isActive()) {
             return;
+        }
+
+        if ($storefrontAccess->blocksScan($shop)) {
+            return; // same doomed-scan case as the manual/auto-install paths - just skip this cycle
         }
 
         // The scheduler ticks daily for every shop regardless of

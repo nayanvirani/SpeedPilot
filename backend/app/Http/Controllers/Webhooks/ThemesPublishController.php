@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Webhooks;
 use App\Http\Controllers\Controller;
 use App\Jobs\RunAuditJob;
 use App\Models\ShopInstallation;
+use App\Services\Scanner\StorefrontAccessChecker;
 use Illuminate\Http\Request;
 
 /**
@@ -15,12 +16,12 @@ use Illuminate\Http\Request;
  */
 class ThemesPublishController extends Controller
 {
-    public function __invoke(Request $request)
+    public function __invoke(Request $request, StorefrontAccessChecker $storefrontAccess)
     {
         $shopDomain = $request->header('X-Shopify-Shop-Domain');
         $shop = ShopInstallation::where('shop_domain', $shopDomain)->first();
 
-        if ($shop && $shop->isActive()) {
+        if ($shop && $shop->isActive() && ! $storefrontAccess->blocksScan($shop)) {
             // url stays null so RunAuditJob re-audits every page the plan
             // covers, not just the homepage - a theme switch can move fixes
             // out from under any of them, not only the home template.

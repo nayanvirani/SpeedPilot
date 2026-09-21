@@ -89,7 +89,9 @@ export default function Dashboard() {
     const [latestAudit, setLatestAudit] = useState(null);
     const [loading, setLoading] = useState(true);
     const [scanning, setScanning] = useState(false);
+    const [scanError, setScanError] = useState(null);
     const [hasTargetTheme, setHasTargetTheme] = useState(true);
+    const [storefrontLocked, setStorefrontLocked] = useState(false);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -99,9 +101,10 @@ export default function Dashboard() {
             // displays instead of paying for all 20 rows' worth of images.
             const [{ audits }, settings] = await Promise.all([
                 api.get('/audits'),
-                api.get('/settings').catch(() => ({ target_theme_id: null })),
+                api.get('/settings').catch(() => ({ target_theme_id: null, storefront_locked: false })),
             ]);
             setHasTargetTheme(!!settings.target_theme_id);
+            setStorefrontLocked(!!settings.storefront_locked);
             if (!audits[0]) {
                 setLatestAudit(null);
                 return;
@@ -117,9 +120,13 @@ export default function Dashboard() {
 
     async function scanNow() {
         setScanning(true);
+        setScanError(null);
         try {
             await api.post('/audits');
             await load();
+        } catch (e) {
+            setScanError(e.body?.error || 'Could not start a scan right now.');
+            if (e.body?.storefront_locked) setStorefrontLocked(true);
         } finally {
             setScanning(false);
         }
@@ -128,9 +135,18 @@ export default function Dashboard() {
     return (
         <Page
             title="SpeedPilot"
-            primaryAction={{ content: 'Scan My Store', loading: scanning, onAction: scanNow }}
+            primaryAction={{ content: 'Scan My Store', loading: scanning, disabled: storefrontLocked, onAction: scanNow }}
         >
             <BlockStack gap="400">
+                {!loading && storefrontLocked && (
+                    <Banner tone="critical" title="Your storefront is password-protected" action={{ content: 'Add storefront password', onAction: () => navigate('/settings') }}>
+                        SpeedPilot can't reach your store's real content until it can unlock the password
+                        page automatically. Add your storefront password in Settings, then scan.
+                    </Banner>
+                )}
+                {scanError && !storefrontLocked && (
+                    <Banner tone="critical" onDismiss={() => setScanError(null)}>{scanError}</Banner>
+                )}
                 {!loading && !hasTargetTheme && (
                     <Banner tone="info" title="No target theme set" action={{ content: 'Go to Settings', onAction: () => navigate('/settings') }}>
                         Fixes will stay recommendation-only until you choose which theme SpeedPilot applies them to.
@@ -143,9 +159,26 @@ export default function Dashboard() {
                         <BlockStack gap="200">
                             <Text as="h2" variant="headingMd">No scans yet</Text>
                             <Text as="p" tone="subdued">
-                                Run your first free audit to see your store's performance score,
-                                Core Web Vitals, and which apps are slowing you down.
+                                {storefrontLocked
+                                    ? 'Add your storefront password above, then run your first scan.'
+                                    : "Run your first free audit to see your store's performance score, "
+                                        + 'Core Web Vitals, and which apps are slowing you down.'}
                             </Text>
+                        </BlockStack>
+                    ) : latestAudit.status === 'failed' ? (
+                        <BlockStack gap="200">
+                            <InlineStack align="space-between" blockAlign="center">
+                                <Text as="h2" variant="headingMd">Scan couldn't complete</Text>
+                                <Badge tone="critical">failed</Badge>
+                            </InlineStack>
+                            <Text as="p" tone="subdued">
+                                {latestAudit.pages?.find((p) => p.error_message)?.error_message
+                                    ?? 'None of the pages in this scan could be reached. Try again, or check Settings if your store needs a storefront password.'}
+                            </Text>
+                            <InlineStack gap="200">
+                                <Button loading={scanning} onClick={scanNow} disabled={storefrontLocked}>Retry scan</Button>
+                                <Button onClick={() => navigate('/settings')}>Go to Settings</Button>
+                            </InlineStack>
                         </BlockStack>
                     ) : (
                         <BlockStack gap="400">

@@ -18,6 +18,7 @@ class ShopInstallation extends Model
         'target_theme_id',
         'target_theme_mode',
         'theme_write_blocked_at',
+        'storefront_locked_at',
         'scan_frequency',
         'scan_devices',
         'slack_webhook_url',
@@ -44,6 +45,7 @@ class ShopInstallation extends Model
             'installed_at' => 'datetime',
             'uninstalled_at' => 'datetime',
             'theme_write_blocked_at' => 'datetime',
+            'storefront_locked_at' => 'datetime',
         ];
     }
 

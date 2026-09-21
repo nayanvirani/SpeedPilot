@@ -4,13 +4,18 @@ import { api } from '../api';
 
 function StorefrontPasswordSettings() {
     const [hasPassword, setHasPassword] = useState(null);
+    const [locked, setLocked] = useState(false);
     const [value, setValue] = useState('');
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
 
-    useEffect(() => {
-        api.get('/settings').then((res) => setHasPassword(res.has_storefront_password)).catch(() => setHasPassword(false));
+    const load = useCallback(() => {
+        api.get('/settings')
+            .then((res) => { setHasPassword(res.has_storefront_password); setLocked(!!res.storefront_locked); })
+            .catch(() => setHasPassword(false));
     }, []);
+
+    useEffect(() => { load(); }, [load]);
 
     async function save() {
         setSaving(true);
@@ -20,6 +25,7 @@ function StorefrontPasswordSettings() {
             setHasPassword(res.has_storefront_password);
             setValue('');
             setSaved(true);
+            await load(); // re-checks storefront_locked now that a password is saved
         } finally {
             setSaving(false);
         }
@@ -33,6 +39,12 @@ function StorefrontPasswordSettings() {
         <Card>
             <BlockStack gap="200">
                 <Text as="h3" variant="headingSm"><span className="sp-heading">Storefront password</span></Text>
+                {locked && (
+                    <Banner tone="critical">
+                        Your storefront is currently password-protected and no password is saved -
+                        scans can't reach real content until you add it below.
+                    </Banner>
+                )}
                 <Text as="p" tone="subdued">
                     {hasPassword
                         ? "A password is saved - SpeedPilot unlocks your store automatically before every scan."
