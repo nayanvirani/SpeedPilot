@@ -8,7 +8,7 @@
     <p class="text-sm text-slate-500 mb-6">
         Live at <a href="/{{ $page->slug }}" target="_blank" class="underline">/{{ $page->slug }}</a>.
         Content is raw HTML (paragraphs, headings, lists, links) - use
-        <code class="bg-slate-100 px-1 rounded">{{ '{{SUPPORT_EMAIL}}' }}</code> anywhere you want the
+        <code class="bg-slate-100 px-1 rounded">@{{SUPPORT_EMAIL}}</code> anywhere you want the
         support email from Settings inserted automatically.
     </p>
 
