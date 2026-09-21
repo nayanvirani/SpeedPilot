@@ -72,8 +72,15 @@ class AuditDiffService
         // own behavior, not a merchant-installed app - excluded the same way
         // App & Script Impact already excludes them, so they never trigger a
         // false "new third-party script" alert.
-        $prevByKey = $previous->appImpacts->reject(fn ($i) => $i->is_platform)->keyBy($key);
-        $currByKey = $current->appImpacts->reject(fn ($i) => $i->is_platform)->keyBy($key);
+        //
+        // ->toBase() matters here: appImpacts is an Eloquent\Collection, and
+        // Eloquent\Collection::only() has entirely different semantics from
+        // the base Collection's only() - it treats the argument as *model
+        // primary keys*, silently ignoring the custom keyBy($key) below and
+        // breaking this diff. Converting to a plain Support\Collection
+        // before keyBy makes only() work the way this code actually needs.
+        $prevByKey = $previous->appImpacts->reject(fn ($i) => $i->is_platform)->toBase()->keyBy($key);
+        $currByKey = $current->appImpacts->reject(fn ($i) => $i->is_platform)->toBase()->keyBy($key);
 
         $summarize = fn ($impact) => [
             'app_name' => $impact->app_name,
@@ -99,8 +106,10 @@ class AuditDiffService
     {
         $key = fn ($issue) => $issue->category.'|'.$issue->title;
 
-        $prevByKey = $previous->issues->keyBy($key);
-        $currByKey = $current->issues->keyBy($key);
+        // Same ->toBase() reasoning as scriptDiff() above - issues is also
+        // an Eloquent\Collection.
+        $prevByKey = $previous->issues->toBase()->keyBy($key);
+        $currByKey = $current->issues->toBase()->keyBy($key);
 
         $summarize = fn ($issue) => [
             'category' => $issue->category,
