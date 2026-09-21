@@ -33,7 +33,7 @@ class AuditController extends Controller
         // fail on every page - the reactive per-page check in the scanner
         // would produce the same "failed" result, just after wasting a full
         // scan run and showing the merchant a broken-looking dashboard.
-        if (! $data['url'] && $storefrontAccess->blocksScan($shop)) {
+        if (! ($data['url'] ?? null) && $storefrontAccess->blocksScan($shop)) {
             return response()->json([
                 'error' => 'Your storefront is password-protected. Add your storefront password in '
                     .'Settings, then scan again.',

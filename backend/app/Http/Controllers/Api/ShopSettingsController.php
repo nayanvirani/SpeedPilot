@@ -81,7 +81,7 @@ class ShopSettingsController extends Controller
             'webhook_url' => 'nullable|url|starts_with:https://hooks.slack.com/',
         ]);
 
-        $shop->update(['slack_webhook_url' => $data['webhook_url'] ?: null]);
+        $shop->update(['slack_webhook_url' => ($data['webhook_url'] ?? null) ?: null]);
 
         return response()->json(['has_slack_webhook' => ! empty($shop->slack_webhook_url)]);
     }
@@ -94,6 +94,7 @@ class ShopSettingsController extends Controller
         $data = $request->validate([
             'password' => 'nullable|string|max:255',
         ]);
+        $password = $data['password'] ?? null;
 
         // Saving a (new) password is an explicit "try this" signal - clear
         // any existing lock so the next scan actually attempts it, instead
@@ -101,8 +102,8 @@ class ShopSettingsController extends Controller
         // password existed. RunAuditJob re-flags it the moment a real scan
         // proves this password wrong too, so nothing is trusted blindly.
         $shop->update([
-            'storefront_password' => $data['password'] ?: null,
-            'storefront_locked_at' => $data['password'] ? null : $shop->storefront_locked_at,
+            'storefront_password' => $password ?: null,
+            'storefront_locked_at' => $password ? null : $shop->storefront_locked_at,
         ]);
 
         return response()->json(['has_storefront_password' => ! empty($shop->storefront_password)]);
