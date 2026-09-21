@@ -4,6 +4,8 @@
     <meta charset="utf-8">
     <title>SpeedPilot</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     {{-- Shopify App Bridge must load before anything else on the page. --}}
     <meta name="shopify-api-key" content="{{ $apiKey }}">
     <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" data-api-key="{{ $apiKey }}"></script>
