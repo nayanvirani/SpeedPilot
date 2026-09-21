@@ -61,7 +61,7 @@ class RunAuditJob implements ShouldQueue
 
         $completedPages = [];
         $thirdPartyByApp = [];
-        $passwordFailure = false;
+        $anyPasswordFailure = false;
 
         foreach ($pageSpecs as $spec) {
             foreach ($devices as $device) {
@@ -83,25 +83,31 @@ class RunAuditJob implements ShouldQueue
                     }
                 } catch (Throwable $e) {
                     $page->update(['status' => 'failed', 'error_message' => $e->getMessage()]);
-                    $passwordFailure = $passwordFailure || $e instanceof StorefrontPasswordException;
+                    $anyPasswordFailure = $anyPasswordFailure || $e instanceof StorefrontPasswordException;
                 }
             }
         }
 
-        // The scanner is the only thing that actually knows whether a saved
-        // password works - blocksScan() trusts a saved password without
-        // re-checking, so a wrong one would otherwise leave the Dashboard/
-        // Settings banner silently claiming "unlocked" while every scan
-        // keeps failing. This is the one place that can correct it.
-        if ($passwordFailure && ! $shop->storefront_locked_at) {
-            $shop->update(['storefront_locked_at' => now()]);
-        } elseif (! $passwordFailure && ! empty($completedPages) && $shop->storefront_locked_at) {
-            $shop->update(['storefront_locked_at' => null]);
-        }
-
         if (empty($completedPages)) {
+            // Only a *total* failure means the saved password definitively
+            // didn't work - the scanner re-submits it fresh per page/device
+            // (a new browser tab each time), so one page occasionally
+            // failing to unlock while the rest succeed is scanner flakiness,
+            // not a wrong password, and must not re-lock a shop whose
+            // password is fine (that page's own error_message already
+            // surfaces the individual failure).
+            if ($anyPasswordFailure && ! $shop->storefront_locked_at) {
+                $shop->update(['storefront_locked_at' => now()]);
+            }
+
             $audit->update(['status' => 'failed', 'raw_report' => ['error' => 'All page scans failed']]);
             throw new RuntimeException("Every page scan failed for audit {$audit->id}");
+        }
+
+        // At least one page reached real content, proving the storefront is
+        // reachable right now - any earlier lock flag is stale.
+        if ($shop->storefront_locked_at) {
+            $shop->update(['storefront_locked_at' => null]);
         }
 
         $this->aggregateIntoAudit($audit, $completedPages);
