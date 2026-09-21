@@ -24,7 +24,7 @@ app.post('/scan', async (req, res) => {
     res.json(buildReport(lhr));
   } catch (err) {
     console.error(`Scan failed for ${url}:`, err);
-    res.status(502).json({ error: 'Scan failed', message: err.message });
+    res.status(502).json({ error: 'Scan failed', message: err.message, code: err.code || null });
   }
 });
 

@@ -95,7 +95,15 @@ class ShopSettingsController extends Controller
             'password' => 'nullable|string|max:255',
         ]);
 
-        $shop->update(['storefront_password' => $data['password'] ?: null]);
+        // Saving a (new) password is an explicit "try this" signal - clear
+        // any existing lock so the next scan actually attempts it, instead
+        // of blocksScan() staying stuck on a stale lock from before this
+        // password existed. RunAuditJob re-flags it the moment a real scan
+        // proves this password wrong too, so nothing is trusted blindly.
+        $shop->update([
+            'storefront_password' => $data['password'] ?: null,
+            'storefront_locked_at' => $data['password'] ? null : $shop->storefront_locked_at,
+        ]);
 
         return response()->json(['has_storefront_password' => ! empty($shop->storefront_password)]);
     }

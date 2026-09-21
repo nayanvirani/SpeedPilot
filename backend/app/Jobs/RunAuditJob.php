@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Exceptions\StorefrontPasswordException;
 use App\Models\Audit;
 use App\Models\AuditPage;
 use App\Models\ShopInstallation;
@@ -60,6 +61,7 @@ class RunAuditJob implements ShouldQueue
 
         $completedPages = [];
         $thirdPartyByApp = [];
+        $passwordFailure = false;
 
         foreach ($pageSpecs as $spec) {
             foreach ($devices as $device) {
@@ -81,8 +83,20 @@ class RunAuditJob implements ShouldQueue
                     }
                 } catch (Throwable $e) {
                     $page->update(['status' => 'failed', 'error_message' => $e->getMessage()]);
+                    $passwordFailure = $passwordFailure || $e instanceof StorefrontPasswordException;
                 }
             }
+        }
+
+        // The scanner is the only thing that actually knows whether a saved
+        // password works - blocksScan() trusts a saved password without
+        // re-checking, so a wrong one would otherwise leave the Dashboard/
+        // Settings banner silently claiming "unlocked" while every scan
+        // keeps failing. This is the one place that can correct it.
+        if ($passwordFailure && ! $shop->storefront_locked_at) {
+            $shop->update(['storefront_locked_at' => now()]);
+        } elseif (! $passwordFailure && ! empty($completedPages) && $shop->storefront_locked_at) {
+            $shop->update(['storefront_locked_at' => null]);
         }
 
         if (empty($completedPages)) {

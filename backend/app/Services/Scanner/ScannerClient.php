@@ -2,6 +2,7 @@
 
 namespace App\Services\Scanner;
 
+use App\Exceptions\StorefrontPasswordException;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
 use RuntimeException;
@@ -42,8 +43,13 @@ class ScannerClient
             // Guzzle's own exception message just dumps a truncated raw
             // response, which is far less useful surfaced in the UI.
             $body = $e->getResponse() ? json_decode((string) $e->getResponse()->getBody(), true) : null;
+            $message = $body['message'] ?? "Scanner request failed for {$url}: ".$e->getMessage();
 
-            throw new RuntimeException($body['message'] ?? "Scanner request failed for {$url}: ".$e->getMessage(), previous: $e);
+            if (($body['code'] ?? null) === 'PASSWORD_PROTECTED') {
+                throw new StorefrontPasswordException($message, previous: $e);
+            }
+
+            throw new RuntimeException($message, previous: $e);
         }
 
         return json_decode((string) $response->getBody(), true) ?? [];

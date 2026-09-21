@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\SafeEncrypted;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -38,9 +39,9 @@ class ShopInstallation extends Model
     protected function casts(): array
     {
         return [
-            'access_token' => 'encrypted',
-            'storefront_password' => 'encrypted',
-            'slack_webhook_url' => 'encrypted',
+            'access_token' => SafeEncrypted::class,
+            'storefront_password' => SafeEncrypted::class,
+            'slack_webhook_url' => SafeEncrypted::class,
             'access_token_expires_at' => 'datetime',
             'installed_at' => 'datetime',
             'uninstalled_at' => 'datetime',

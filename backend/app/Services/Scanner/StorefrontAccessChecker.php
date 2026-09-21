@@ -43,20 +43,23 @@ class StorefrontAccessChecker
 
     /**
      * The single guard every scan-dispatch site should call first. Only
-     * actually makes the HTTP check when no password is saved yet - a
-     * store with a saved password is trusted (the scanner's own unlock
-     * flow will use it), so this never adds latency to the common case.
-     * Persists storefront_locked_at either way, so the Dashboard reflects
-     * the current state without re-checking on every page load.
+     * makes the live HTTP check when no password is saved yet - a store
+     * with a saved password is trusted on the strength of the *last actual
+     * scan attempt*, not re-verified here on every page load.
+     *
+     * That trust is conditional, though: RunAuditJob sets storefront_locked_at
+     * whenever the scanner itself reports the saved password didn't unlock
+     * the store (wrong password), and only clears it after a scan actually
+     * completes. Until a real scan proves the saved password works, a
+     * previously-flagged lock stays in force here too - otherwise a wrong
+     * password would silently pass this guard, get "trusted", and dispatch
+     * another doomed scan, which is exactly the failure mode that got this
+     * app rejected in the first place.
      */
     public function blocksScan(ShopInstallation $shop): bool
     {
         if ($shop->storefront_password) {
-            if ($shop->storefront_locked_at) {
-                $shop->update(['storefront_locked_at' => null]);
-            }
-
-            return false;
+            return (bool) $shop->storefront_locked_at;
         }
 
         $locked = $this->isPasswordProtected($shop->shop_domain);

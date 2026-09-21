@@ -10,7 +10,7 @@ function StorefrontPasswordSettings() {
     const [saved, setSaved] = useState(false);
 
     const load = useCallback(() => {
-        api.get('/settings')
+        return api.get('/settings')
             .then((res) => { setHasPassword(res.has_storefront_password); setLocked(!!res.storefront_locked); })
             .catch(() => setHasPassword(false));
     }, []);
