@@ -10,6 +10,7 @@ use App\Services\Shopify\ScriptImpactActionService;
 use App\Services\Shopify\ShopifyGraphQLClient;
 use App\Services\Shopify\ThemeAssetLocatorService;
 use App\Services\Shopify\ThemeAssetService;
+use App\Services\Shopify\ThemeWriteAccessDeniedException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -74,6 +75,8 @@ class AppImpactController extends Controller
             'app_impact' => $impact->fresh(),
             'applied' => $result['applied'],
             'message' => $result['message'],
+            'blocked' => $result['blocked'] ?? false,
+            'exemption_form_url' => ($result['blocked'] ?? false) ? ThemeWriteAccessDeniedException::EXEMPTION_FORM_URL : null,
         ]);
     }
 }

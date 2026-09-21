@@ -93,6 +93,18 @@
 .sp-subscore-bar--warn { background: var(--sp-warn); }
 .sp-subscore-bar--critical { background: var(--sp-critical); }
 
+.sp-code-block {
+  background: #1e1e2e;
+  color: #e2e4f0;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  max-height: 280px;
+  overflow: auto;
+  white-space: pre;
+}
+
 .sp-page-card {
   background: #fff;
   border: 1px solid var(--sp-border);

@@ -156,6 +156,7 @@ function TargetThemeSettings() {
             mode: settings.target_theme_mode,
             diverged: settings.theme_diverged,
             writeBlocked: settings.theme_write_blocked,
+            exemptionUrl: settings.theme_write_exemption_url,
         });
         setThemes(themeList.themes);
         if (!selectedThemeId) {
@@ -228,10 +229,22 @@ function TargetThemeSettings() {
                 )}
                 {current.writeBlocked && (
                     <Banner tone="critical" title="Waiting on Shopify's approval to edit your theme">
-                        SpeedPilot has the permission it needs, but Shopify requires a one-time manual approval
-                        before any app can edit theme files. This isn't something wrong with your store or a
-                        setting you need to change - auto-fixes and App &amp; Script Impact actions will start
-                        working as soon as that approval clears.
+                        <BlockStack gap="150">
+                            <Text as="p">
+                                SpeedPilot has the permission it needs, but Shopify requires a one-time manual
+                                approval before any app can edit theme files. This isn't something wrong with your
+                                store or a setting you need to change - auto-fixes and App &amp; Script Impact
+                                actions will start working as soon as that approval clears. Until then, use
+                                "Manual fix" wherever it appears to copy the exact code yourself.
+                            </Text>
+                            {current.exemptionUrl && (
+                                <Text as="p">
+                                    <a href={current.exemptionUrl} target="_blank" rel="noreferrer">
+                                        Submit Shopify's theme-access exemption request
+                                    </a>
+                                </Text>
+                            )}
+                        </BlockStack>
                     </Banner>
                 )}
 

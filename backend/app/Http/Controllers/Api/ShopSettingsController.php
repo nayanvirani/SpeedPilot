@@ -8,6 +8,7 @@ use App\Models\ShopInstallation;
 use App\Services\Shopify\ShopifyGraphQLClient;
 use App\Services\Shopify\ThemeAssetService;
 use App\Services\Shopify\ThemeDuplicateService;
+use App\Services\Shopify\ThemeWriteAccessDeniedException;
 use Illuminate\Http\Request;
 
 class ShopSettingsController extends Controller
@@ -36,6 +37,9 @@ class ShopSettingsController extends Controller
             'target_theme_mode' => $shop->target_theme_mode,
             'theme_diverged' => $themeDiverged,
             'theme_write_blocked' => $shop->theme_write_blocked_at !== null,
+            'theme_write_exemption_url' => $shop->theme_write_blocked_at !== null
+                ? ThemeWriteAccessDeniedException::EXEMPTION_FORM_URL
+                : null,
         ]);
     }
 

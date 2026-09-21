@@ -121,4 +121,22 @@ class ThemeAssetLocatorService
         // falls back to the hostname instead.
         return strlen($basename) >= 12 ? $basename : $host;
     }
+
+    /**
+     * The one place this edit is computed - both ApplySafeFixesJob's
+     * auto-apply path and the read-only "show me the code" fallback call
+     * this, so they can never silently drift apart the way the locate/edit
+     * needle once did.
+     */
+    public static function deferScriptTag(string $content, string $scriptSrc): string
+    {
+        $needle = preg_quote(self::needleFor($scriptSrc), '/');
+
+        return preg_replace(
+            '/<script([^>]*src=["\'][^"\']*'.$needle.'[^"\']*["\'][^>]*)>/i',
+            '<script$1 defer>',
+            $content,
+            1,
+        ) ?? $content;
+    }
 }

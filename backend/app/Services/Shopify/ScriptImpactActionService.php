@@ -28,11 +28,7 @@ class ScriptImpactActionService
      */
     public function disable(ShopInstallation $shop, AppImpact $impact): array
     {
-        return $this->applyEdit($shop, $impact, 'disabled', function (string $content, string $needle) {
-            $pattern = '/<script\b[^>]*src=["\'][^"\']*'.$needle.'[^"\']*["\'][^>]*>.*?<\/script>/is';
-
-            return preg_replace($pattern, '', $content, 1) ?? $content;
-        });
+        return $this->applyEdit($shop, $impact, 'disabled', self::disableTransform(...));
     }
 
     /**
@@ -40,17 +36,41 @@ class ScriptImpactActionService
      */
     public function delay(ShopInstallation $shop, AppImpact $impact): array
     {
-        return $this->applyEdit($shop, $impact, 'delayed', function (string $content, string $needle) {
-            $pattern = '/<script\b[^>]*\bsrc=["\']([^"\']*'.$needle.'[^"\']*)["\'][^>]*>.*?<\/script>/is';
-
-            return preg_replace_callback($pattern, function (array $m) {
-                return $this->delayedLoaderSnippet($m[1]);
-            }, $content, 1) ?? $content;
-        });
+        return $this->applyEdit($shop, $impact, 'delayed', self::delayTransform(...));
     }
 
     /**
-     * @return array{applied: bool, message: ?string}
+     * Read-only twin of disable()/delay() - resolves and computes the exact
+     * same edit but never writes it anywhere, for a "copy this code
+     * yourself" fallback while theme writes are blocked (see
+     * ThemeWriteAccessDeniedException) or for a merchant who'd rather review
+     * before SpeedPilot touches anything.
+     *
+     * @return array{asset_key: ?string, original: ?string, fixed: ?string, error: ?string}
+     */
+    public function preview(ShopInstallation $shop, AppImpact $impact, string $action): array
+    {
+        $transform = $action === 'delayed' ? self::delayTransform(...) : self::disableTransform(...);
+
+        return $this->resolveAndTransform($shop, $impact, $transform);
+    }
+
+    private static function disableTransform(string $content, string $needle): string
+    {
+        $pattern = '/<script\b[^>]*src=["\'][^"\']*'.$needle.'[^"\']*["\'][^>]*>.*?<\/script>/is';
+
+        return preg_replace($pattern, '', $content, 1) ?? $content;
+    }
+
+    private static function delayTransform(string $content, string $needle): string
+    {
+        $pattern = '/<script\b[^>]*\bsrc=["\']([^"\']*'.$needle.'[^"\']*)["\'][^>]*>.*?<\/script>/is';
+
+        return preg_replace_callback($pattern, fn (array $m) => self::delayedLoaderSnippet($m[1]), $content, 1) ?? $content;
+    }
+
+    /**
+     * @return array{applied: bool, message: ?string, blocked: bool}
      */
     public function restore(ShopInstallation $shop, AppImpact $impact): array
     {
@@ -64,7 +84,7 @@ class ScriptImpactActionService
             // Nothing was ever actually applied (e.g. coming back from
             // "excluded", which never touches the theme) - there's nothing
             // to restore, and that's fine.
-            return ['applied' => true, 'message' => null];
+            return ['applied' => true, 'message' => null, 'blocked' => false];
         }
 
         try {
@@ -76,69 +96,31 @@ class ScriptImpactActionService
                 'applied' => false,
                 'message' => "Shopify hasn't approved this app's theme-editing access yet, so the original ".
                     "script can't be restored automatically right now.",
+                'blocked' => true,
             ];
         }
 
         return [
             'applied' => $restored,
             'message' => $restored ? null : 'Could not restore the original script automatically.',
+            'blocked' => false,
         ];
     }
 
     /**
      * @param  callable(string, string): string  $transform
-     * @return array{applied: bool, message: ?string}
+     * @return array{applied: bool, message: ?string, blocked: bool}
      */
     private function applyEdit(ShopInstallation $shop, AppImpact $impact, string $action, callable $transform): array
     {
-        if (! $shop->target_theme_id) {
-            return [
-                'applied' => false,
-                'message' => 'Pick which theme SpeedPilot should apply changes to first (Dashboard > Target theme).',
-            ];
+        ['asset_key' => $assetKey, 'original' => $original, 'fixed' => $updated, 'error' => $error]
+            = $this->resolveAndTransform($shop, $impact, $transform);
+
+        if ($error !== null) {
+            return ['applied' => false, 'message' => $error, 'blocked' => false];
         }
 
-        if (! $impact->script_url) {
-            return ['applied' => false, 'message' => "No script URL was recorded for this app, so it can't be located automatically."];
-        }
-
-        // Issues were found scanning the live, rendered storefront, so
-        // locating the flagged script has to happen against the live theme
-        // regardless of where the fix gets written - a fresh preview
-        // duplicate starts identical to it anyway.
-        $liveThemeId = $this->themeAssets->activeThemeId();
         $writeThemeId = $shop->target_theme_id;
-
-        if (! $liveThemeId) {
-            return ['applied' => false, 'message' => 'Could not access your theme right now - try again shortly.'];
-        }
-
-        $assetKey = $this->locator->findScriptSource($liveThemeId, $impact->script_url);
-
-        if (! $assetKey) {
-            return [
-                'applied' => false,
-                'message' => "Couldn't find this script directly in your theme's files - it's most likely "
-                    ."injected by the app itself (e.g. via Shopify's Script Tag API), which SpeedPilot ".
-                    "can't edit. Try disabling the app from your Shopify admin, or contact the app's support.",
-            ];
-        }
-
-        $original = $this->themeAssets->read($liveThemeId, $assetKey);
-
-        if ($original === null) {
-            return ['applied' => false, 'message' => 'Could not read the theme file.'];
-        }
-
-        // Must match the needle findScriptSource() used to locate $assetKey
-        // in the first place - a different needle here risks "found the
-        // file but not the tag inside it."
-        $needle = preg_quote(ThemeAssetLocatorService::needleFor($impact->script_url), '/');
-        $updated = $transform($original, $needle);
-
-        if ($updated === $original) {
-            return ['applied' => false, 'message' => "Found the file but couldn't locate the exact script tag inside it."];
-        }
 
         $optimization = $shop->optimizations()->create([
             'app_impact_id' => $impact->id,
@@ -164,16 +146,70 @@ class ScriptImpactActionService
                 'message' => "SpeedPilot found the script and is ready to edit it, but Shopify hasn't approved ".
                     "this app's theme-editing access yet. This is a one-time approval on Shopify's side, not ".
                     'something wrong with your store - try again once it clears.',
+                'blocked' => true,
             ];
         }
 
         $shop->update(['theme_write_blocked_at' => null]);
         $optimization->update(['status' => 'applied', 'applied_at' => now()]);
 
-        return ['applied' => true, 'message' => null];
+        return ['applied' => true, 'message' => null, 'blocked' => false];
     }
 
-    private function delayedLoaderSnippet(string $src): string
+    /**
+     * @param  callable(string, string): string  $transform
+     * @return array{asset_key: ?string, original: ?string, fixed: ?string, error: ?string}
+     */
+    private function resolveAndTransform(ShopInstallation $shop, AppImpact $impact, callable $transform): array
+    {
+        $empty = ['asset_key' => null, 'original' => null, 'fixed' => null, 'error' => null];
+
+        if (! $shop->target_theme_id) {
+            return [...$empty, 'error' => 'Pick which theme SpeedPilot should apply changes to first (Dashboard > Target theme).'];
+        }
+
+        if (! $impact->script_url) {
+            return [...$empty, 'error' => "No script URL was recorded for this app, so it can't be located automatically."];
+        }
+
+        // Issues were found scanning the live, rendered storefront, so
+        // locating the flagged script has to happen against the live theme
+        // regardless of where the fix gets written - a fresh preview
+        // duplicate starts identical to it anyway.
+        $liveThemeId = $this->themeAssets->activeThemeId();
+
+        if (! $liveThemeId) {
+            return [...$empty, 'error' => 'Could not access your theme right now - try again shortly.'];
+        }
+
+        $assetKey = $this->locator->findScriptSource($liveThemeId, $impact->script_url);
+
+        if (! $assetKey) {
+            return [...$empty, 'error' => "Couldn't find this script directly in your theme's files - it's most likely "
+                ."injected by the app itself (e.g. via Shopify's Script Tag API), which SpeedPilot ".
+                "can't edit. Try disabling the app from your Shopify admin, or contact the app's support."];
+        }
+
+        $original = $this->themeAssets->read($liveThemeId, $assetKey);
+
+        if ($original === null) {
+            return [...$empty, 'asset_key' => $assetKey, 'error' => 'Could not read the theme file.'];
+        }
+
+        // Must match the needle findScriptSource() used to locate $assetKey
+        // in the first place - a different needle here risks "found the
+        // file but not the tag inside it."
+        $needle = preg_quote(ThemeAssetLocatorService::needleFor($impact->script_url), '/');
+        $updated = $transform($original, $needle);
+
+        if ($updated === $original) {
+            return [...$empty, 'asset_key' => $assetKey, 'error' => "Found the file but couldn't locate the exact script tag inside it."];
+        }
+
+        return ['asset_key' => $assetKey, 'original' => $original, 'fixed' => $updated, 'error' => null];
+    }
+
+    private static function delayedLoaderSnippet(string $src): string
     {
         $jsonSrc = json_encode($src);
 

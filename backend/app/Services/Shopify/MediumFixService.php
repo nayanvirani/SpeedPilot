@@ -24,7 +24,7 @@ class MediumFixService
     }
 
     /**
-     * @return array{asset_key: string, original_bytes: int, minified_bytes: int, savings_bytes: int}
+     * @return array{asset_key: string, original_bytes: int, minified_bytes: int, savings_bytes: int, original_content: string, minified_content: string}
      */
     public function preview(AuditIssue $issue, ShopInstallation $shop): array
     {
@@ -36,6 +36,8 @@ class MediumFixService
             'original_bytes' => strlen($original),
             'minified_bytes' => strlen($minified),
             'savings_bytes' => strlen($original) - strlen($minified),
+            'original_content' => $original,
+            'minified_content' => $minified,
         ];
     }
 

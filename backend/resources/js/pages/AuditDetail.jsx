@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Badge, Banner, BlockStack, Button, Card, InlineStack, Page, SkeletonBodyText, Text } from '@shopify/polaris';
 import { api } from '../api';
 import CategoryScores from '../components/CategoryScores';
+import FixCodeViewer from '../components/FixCodeViewer';
 
 const SEVERITY_TONE = { critical: 'critical-strong', high: 'critical', medium: 'warning', low: 'info' };
 const PAGE_TYPE_LABEL = {
@@ -64,6 +65,7 @@ function MediumFixControls({ issue }) {
     const [applied, setApplied] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [exemptionUrl, setExemptionUrl] = useState(null);
 
     async function loadPreview() {
         setLoading(true);
@@ -81,11 +83,13 @@ function MediumFixControls({ issue }) {
     async function apply() {
         setLoading(true);
         setError(null);
+        setExemptionUrl(null);
         try {
             const res = await api.post(`/audit-issues/${issue.id}/medium-fix/apply`, {});
             setApplied(res.optimization);
         } catch (e) {
             setError(e.body?.error || 'Could not apply this fix right now.');
+            setExemptionUrl(e.body?.exemption_form_url || null);
         } finally {
             setLoading(false);
         }
@@ -96,7 +100,8 @@ function MediumFixControls({ issue }) {
     }
 
     return (
-        <BlockStack gap="150">
+        <BlockStack gap="200">
+            <Text as="span" fontWeight="medium">Auto-fix</Text>
             {!preview ? (
                 <InlineStack gap="200" blockAlign="center">
                     <Button size="micro" loading={loading} onClick={loadPreview}>Preview fix</Button>
@@ -115,8 +120,27 @@ function MediumFixControls({ issue }) {
                         </Button>
                         {error && <Text as="span" tone="critical">{error}</Text>}
                     </InlineStack>
+                    {exemptionUrl && (
+                        <Text as="p">
+                            <a href={exemptionUrl} target="_blank" rel="noreferrer">Submit Shopify's theme-access exemption request</a>
+                        </Text>
+                    )}
                 </BlockStack>
             )}
+            <FixCodeViewer fetchPath={`/audit-issues/${issue.id}/fix-code`} />
+        </BlockStack>
+    );
+}
+
+function SafeFixControls({ issue }) {
+    return (
+        <BlockStack gap="200">
+            <Text as="span" fontWeight="medium">Auto-fix</Text>
+            <Text as="p" tone="subdued">
+                SpeedPilot applies this automatically the next time it scans your store, once a target
+                theme is selected on the Dashboard - no action needed here.
+            </Text>
+            <FixCodeViewer fetchPath={`/audit-issues/${issue.id}/fix-code`} />
         </BlockStack>
     );
 }
@@ -156,6 +180,7 @@ function IssueRow({ issue, page }) {
                 {page && <Text as="span" tone="subdued">Found on: {PAGE_TYPE_LABEL[page.page_type] ?? page.page_type}</Text>}
             </InlineStack>
             {issue.risk_tier === 'medium' && issue.fix_available && <MediumFixControls issue={issue} />}
+            {issue.risk_tier === 'safe' && issue.fix_available && <SafeFixControls issue={issue} />}
             {recommendation ? (
                 <Text as="p">✨ {recommendation}</Text>
             ) : (

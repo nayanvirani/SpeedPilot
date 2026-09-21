@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Badge, Banner, BlockStack, Button, ButtonGroup, Card, DataTable, Page, SkeletonBodyText, Text } from '@shopify/polaris';
+import { Badge, Banner, BlockStack, Button, ButtonGroup, Card, InlineStack, Page, SkeletonBodyText, Text } from '@shopify/polaris';
 import { api } from '../api';
+import FixCodeViewer from '../components/FixCodeViewer';
 
 const IMPACT_TONE = { high: 'critical', medium: 'warning', low: 'success' };
 const STATUS_TONE = { active: 'success', disabled: 'critical', delayed: 'warning', excluded: 'new' };
@@ -10,6 +11,39 @@ const ACTION_CONFIRM = {
     disabled: (name) => `Remove ${name}'s script from your theme? This will stop it from working on your storefront until you re-enable it.`,
     delayed: (name) => `Delay ${name}'s script until the shopper first scrolls, clicks, or after 5 seconds? Some of its functionality (like a chat widget appearing instantly) may be affected.`,
 };
+
+function ImpactRow({ impact, pending, onSetStatus }) {
+    return (
+        <BlockStack gap="200">
+            <InlineStack align="space-between" blockAlign="start" wrap>
+                <BlockStack gap="050">
+                    <Text as="span" fontWeight="semibold">{impact.app_name}</Text>
+                    <InlineStack gap="300">
+                        <Text as="span" tone="subdued">{impact.requests} requests</Text>
+                        <Text as="span" tone="subdued">{Math.round(impact.size_bytes / 1024)} KB</Text>
+                        <Badge tone={IMPACT_TONE[impact.impact_level]}>{impact.impact_level}</Badge>
+                        <Badge tone={STATUS_TONE[impact.status] ?? 'success'}>{STATUS_LABEL[impact.status ?? 'active']}</Badge>
+                    </InlineStack>
+                </BlockStack>
+                <ButtonGroup>
+                    {['active', 'disabled', 'delayed', 'excluded']
+                        .filter((action) => action !== (impact.status ?? 'active'))
+                        .map((action) => (
+                            <Button key={action} size="micro" loading={pending} onClick={() => onSetStatus(impact, action)}>
+                                {STATUS_LABEL[action]} (auto)
+                            </Button>
+                        ))}
+                </ButtonGroup>
+            </InlineStack>
+            {(impact.status ?? 'active') === 'active' && (
+                <InlineStack gap="200">
+                    <FixCodeViewer key={`disabled-${impact.id}`} fetchPath={`/app-impacts/${impact.id}/fix-code?action=disabled`} />
+                    <FixCodeViewer key={`delayed-${impact.id}`} fetchPath={`/app-impacts/${impact.id}/fix-code?action=delayed`} />
+                </InlineStack>
+            )}
+        </BlockStack>
+    );
+}
 
 export default function AppImpact() {
     const [appImpacts, setAppImpacts] = useState([]);
@@ -36,7 +70,11 @@ export default function AppImpact() {
         try {
             const res = await api.patch(`/app-impacts/${impact.id}`, { status });
             if (!res.applied) {
-                setNotice({ tone: 'warning', message: res.message });
+                setNotice({
+                    tone: 'warning',
+                    message: res.message,
+                    exemptionUrl: res.exemption_form_url,
+                });
             } else {
                 setNotice({ tone: 'success', message: `${impact.app_name} is now ${STATUS_LABEL[status].toLowerCase()}.` });
             }
@@ -48,30 +86,6 @@ export default function AppImpact() {
 
     const highImpactCount = appImpacts.filter((a) => a.impact_level === 'high').length;
 
-    const rows = appImpacts.map((impact) => [
-        impact.app_name,
-        impact.requests,
-        `${Math.round(impact.size_bytes / 1024)} KB`,
-        <Badge key={`impact-${impact.id}`} tone={IMPACT_TONE[impact.impact_level]}>{impact.impact_level}</Badge>,
-        <Badge key={`status-${impact.id}`} tone={STATUS_TONE[impact.status] ?? 'success'}>
-            {STATUS_LABEL[impact.status ?? 'active']}
-        </Badge>,
-        <ButtonGroup key={`actions-${impact.id}`}>
-            {['active', 'disabled', 'delayed', 'excluded']
-                .filter((action) => action !== (impact.status ?? 'active'))
-                .map((action) => (
-                    <Button
-                        key={action}
-                        size="micro"
-                        loading={pendingId === impact.id}
-                        onClick={() => setStatus(impact, action)}
-                    >
-                        {STATUS_LABEL[action]}
-                    </Button>
-                ))}
-        </ButtonGroup>,
-    ]);
-
     return (
         <Page
             title="App & Script Impact"
@@ -80,7 +94,16 @@ export default function AppImpact() {
             <BlockStack gap="400">
                 {notice && (
                     <Banner tone={notice.tone} onDismiss={() => setNotice(null)}>
-                        <Text as="p">{notice.message}</Text>
+                        <BlockStack gap="150">
+                            <Text as="p">{notice.message}</Text>
+                            {notice.exemptionUrl && (
+                                <Text as="p">
+                                    <a href={notice.exemptionUrl} target="_blank" rel="noreferrer">
+                                        Submit Shopify's theme-access exemption request
+                                    </a>
+                                </Text>
+                            )}
+                        </BlockStack>
                     </Banner>
                 )}
                 <Card>
@@ -91,19 +114,20 @@ export default function AppImpact() {
                             Run a scan first to see which installed apps and scripts are slowing down your store.
                         </Text>
                     ) : (
-                        <BlockStack gap="300">
+                        <BlockStack gap="400">
                             <Text as="p" tone="subdued">
-                                <b>Disabled</b> removes the script from your theme entirely. <b>Delayed</b> makes it load
-                                only after the shopper scrolls, clicks, or after 5 seconds. <b>Excluded</b> just stops it
-                                from being flagged here - it doesn't change anything on your storefront. Both Disable and
-                                Delay only work when SpeedPilot can find the script directly in your theme's files - some
-                                apps inject scripts a different way that can't be edited this way, and you'll see why if so.
+                                <b>Disabled (auto)</b> and <b>Delayed (auto)</b> have SpeedPilot edit your theme directly -
+                                only works when SpeedPilot can find the script in your theme's files, and once
+                                Shopify approves this app's theme-editing access. <b>Manual fix</b> shows you the exact
+                                code to paste yourself right now, no approval needed. <b>Excluded</b> just stops it from
+                                being flagged here - it doesn't change your storefront.
                             </Text>
-                            <DataTable
-                                columnContentTypes={['text', 'numeric', 'text', 'text', 'text', 'text']}
-                                headings={['App / Script', 'Requests', 'Size', 'Impact', 'Status', 'Action']}
-                                rows={rows}
-                            />
+                            {appImpacts.map((impact, i) => (
+                                <React.Fragment key={impact.id}>
+                                    {i > 0 && <div style={{ borderTop: '1px solid var(--p-color-border-secondary)' }} />}
+                                    <ImpactRow impact={impact} pending={pendingId === impact.id} onSetStatus={setStatus} />
+                                </React.Fragment>
+                            ))}
                         </BlockStack>
                     )}
                 </Card>

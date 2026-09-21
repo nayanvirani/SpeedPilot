@@ -230,16 +230,6 @@ class ApplySafeFixesJob implements ShouldQueue
             return $content;
         }
 
-        // Must match ThemeAssetLocatorService::needleFor() exactly - that's
-        // what located this file in the first place, so using a different
-        // needle here risks "found the file but not the tag inside it."
-        $needle = preg_quote(ThemeAssetLocatorService::needleFor($meta['script_src']), '/');
-
-        return preg_replace(
-            '/<script([^>]*src=["\'][^"\']*'.$needle.'[^"\']*["\'][^>]*)>/i',
-            '<script$1 defer>',
-            $content,
-            1,
-        ) ?? $content;
+        return ThemeAssetLocatorService::deferScriptTag($content, $meta['script_src']);
     }
 }

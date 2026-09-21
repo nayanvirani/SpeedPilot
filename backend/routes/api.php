@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AiRecommendationController;
 use App\Http\Controllers\Api\AppImpactController;
 use App\Http\Controllers\Api\AuditController;
 use App\Http\Controllers\Api\BillingController;
+use App\Http\Controllers\Api\FixCodeController;
 use App\Http\Controllers\Api\MediumFixController;
 use App\Http\Controllers\Api\MonitoringController;
 use App\Http\Controllers\Api\OptimizationController;
@@ -25,9 +26,11 @@ Route::middleware('shopify.session')->group(function () {
     Route::get('/audit-issues/{id}/recommendation', [AiRecommendationController::class, 'show']);
     Route::post('/audit-issues/{id}/medium-fix/preview', [MediumFixController::class, 'preview']);
     Route::post('/audit-issues/{id}/medium-fix/apply', [MediumFixController::class, 'apply']);
+    Route::get('/audit-issues/{id}/fix-code', [FixCodeController::class, 'forIssue']);
 
     Route::get('/app-impacts', [AppImpactController::class, 'index']);
     Route::patch('/app-impacts/{id}', [AppImpactController::class, 'updateStatus']);
+    Route::get('/app-impacts/{id}/fix-code', [FixCodeController::class, 'forAppImpact']);
 
     Route::get('/optimizations', [OptimizationController::class, 'index']);
     Route::post('/optimizations/{id}/rollback', [OptimizationController::class, 'rollback']);

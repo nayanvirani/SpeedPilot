@@ -57,6 +57,7 @@ class MediumFixController extends Controller
             return response()->json([
                 'error' => "Shopify hasn't approved this app's theme-editing access yet - this is a one-time ".
                     'approval on Shopify\'s side. The preview above is accurate; applying it will work once that clears.',
+                'exemption_form_url' => ThemeWriteAccessDeniedException::EXEMPTION_FORM_URL,
             ], 503);
         } catch (RuntimeException $e) {
             return response()->json(['error' => $e->getMessage()], 422);
