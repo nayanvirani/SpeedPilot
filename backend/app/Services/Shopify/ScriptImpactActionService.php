@@ -456,9 +456,12 @@ class ScriptImpactActionService
               try {
                 var PATTERNS = {$json};
                 var released = false, pending = [];
+                console.log('[SpeedPilot] engine active, watching ' + PATTERNS.length + ' pattern(s):', PATTERNS);
                 function matches(url) { return url && PATTERNS.some(function (p) { return url.indexOf(p) !== -1; }); }
                 function releaseStopped() {
-                  document.querySelectorAll('[data-speedpilot-src], [data-speedpilot-href]').forEach(function (node) {
+                  var stopped = document.querySelectorAll('[data-speedpilot-src], [data-speedpilot-href]');
+                  if (stopped.length) console.log('[SpeedPilot] releasing ' + stopped.length + ' server-stopped element(s)');
+                  stopped.forEach(function (node) {
                     if (node.hasAttribute('data-speedpilot-src')) {
                       node.setAttribute('src', node.getAttribute('data-speedpilot-src'));
                       node.removeAttribute('data-speedpilot-src');
@@ -472,9 +475,10 @@ class ScriptImpactActionService
                     if (node.parentNode) node.parentNode.replaceChild(clone, node);
                   });
                 }
-                function release() {
+                function release(reason) {
                   if (released) return;
                   released = true;
+                  console.log('[SpeedPilot] releasing ' + pending.length + ' intercepted script(s), trigger: ' + reason);
                   releaseStopped();
                   pending.forEach(function (node) {
                     if (!node.parentNode) return;
@@ -494,14 +498,16 @@ class ScriptImpactActionService
                   if (pending.indexOf(node) !== -1) return;
                   var url = targetUrl(node);
                   if (matches(url)) {
+                    console.log('[SpeedPilot] intercepted, marked data-speedpilot-delayed:', url);
+                    node.setAttribute('data-speedpilot-delayed', 'true');
                     node.remove();
                     pending.push(node);
                   }
                 }
                 ['mousemove', 'scroll', 'touchstart', 'keydown'].forEach(function (evt) {
-                  window.addEventListener(evt, release, { once: true, passive: true });
+                  window.addEventListener(evt, function () { release(evt); }, { once: true, passive: true });
                 });
-                setTimeout(release, 5000);
+                setTimeout(function () { release('timeout'); }, 5000);
                 new MutationObserver(function (mutations) {
                   if (released) return;
                   mutations.forEach(function (m) {
@@ -518,7 +524,7 @@ class ScriptImpactActionService
                   attributeFilter: ['src', 'href'],
                 });
               } catch (e) {
-                // Never let a bug here take anything else down with it.
+                console.error('[SpeedPilot] engine error (safely caught, rest of the page is unaffected):', e);
               }
             })();
             JS;

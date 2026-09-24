@@ -42,13 +42,16 @@ class InterceptorController extends Controller
         };
 
         if (! $shop || ! $shop->isActive()) {
-            return $this->jsResponse('// SpeedPilot: inactive');
+            // Still logs - a merchant checking "is the tag even loading"
+            // shouldn't see silence just because there's nothing to do
+            // right now (unresolved shop, or an inactive/uninstalled one).
+            return $this->jsResponse("console.log('[SpeedPilot] tag loaded, but shop not found or inactive - no-op');");
         }
 
         $urls = $shop->interceptorDelayTargets()->pluck('script_url')->all();
 
         if (empty($urls)) {
-            return $this->jsResponse('// SpeedPilot: nothing to delay right now');
+            return $this->jsResponse("console.log('[SpeedPilot] tag loaded, shop active, but no apps currently targeted for Advanced Delay - no-op');");
         }
 
         return $this->jsResponse(ScriptImpactActionService::interceptorEngineJs($urls));
