@@ -20,6 +20,7 @@ class AppImpact extends Model
         'estimated_blocking_ms',
         'impact_level',
         'status',
+        'delay_method',
         'is_platform',
     ];
 

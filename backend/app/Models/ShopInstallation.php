@@ -91,6 +91,11 @@ class ShopInstallation extends Model
         return $this->hasMany(ScriptRule::class);
     }
 
+    public function interceptorDelayTargets(): HasMany
+    {
+        return $this->hasMany(InterceptorDelayTarget::class);
+    }
+
     public function subscriptions(): HasMany
     {
         return $this->hasMany(Subscription::class, 'shop_installation_id');

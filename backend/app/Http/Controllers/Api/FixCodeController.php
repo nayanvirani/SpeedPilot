@@ -70,7 +70,10 @@ class FixCodeController extends Controller
         /** @var ShopInstallation $shop */
         $shop = $request->attributes->get('shop');
 
-        $data = $request->validate(['action' => 'required|in:disabled,delayed']);
+        $data = $request->validate([
+            'action' => 'required|in:disabled,delayed',
+            'method' => 'nullable|in:theme_edit,interceptor',
+        ]);
 
         $impact = AppImpact::whereHas('audit', fn ($q) => $q->where('shop_installation_id', $shop->id))
             ->findOrFail($impactId);
@@ -87,7 +90,10 @@ class FixCodeController extends Controller
         $locator = new ThemeAssetLocatorService($themeAssets);
         $service = new ScriptImpactActionService($themeAssets, $locator, new AssetBackupService);
 
-        $result = $service->preview($shop, $impact, $data['action']);
+        $useInterceptor = $data['action'] === 'delayed' && ($data['method'] ?? null) === 'interceptor';
+        $result = $useInterceptor
+            ? $service->previewInterceptor($shop, $impact)
+            : $service->preview($shop, $impact, $data['action']);
 
         if ($result['error'] !== null) {
             return response()->json(['error' => $result['error']], 422);

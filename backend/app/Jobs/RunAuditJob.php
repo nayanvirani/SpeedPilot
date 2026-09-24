@@ -112,15 +112,29 @@ class RunAuditJob implements ShouldQueue
 
         $this->aggregateIntoAudit($audit, $completedPages);
 
+        // app_impacts rows are recreated fresh on every scan, so a shop's
+        // "Advanced delay (experimental)" choice for a script (persisted
+        // separately in interceptor_delay_targets, since it can't be baked
+        // into a theme file the way theme-edit disable/delay can) has to be
+        // re-applied here each time, or it would silently look like it reset
+        // to "Active" on the very next scan despite the interceptor still
+        // running in the theme.
+        $interceptorUrls = $shop->interceptorDelayTargets()->pluck('script_url')->all();
+
         foreach ($thirdPartyByApp as $app) {
+            $url = $app['url'] ?? null;
+            $isInterceptorDelayed = $url !== null && in_array($url, $interceptorUrls, true);
+
             $audit->appImpacts()->create([
                 'app_name' => $app['name'],
-                'script_url' => $app['url'] ?? null,
+                'script_url' => $url,
                 'requests' => $app['requests'] ?? 0,
                 'size_bytes' => $app['bytes'] ?? 0,
                 'estimated_blocking_ms' => $app['blockingMs'] ?? null,
                 'impact_level' => $app['impactLevel'] ?? $this->impactLevelFor($app),
                 'is_platform' => $app['isPlatform'] ?? false,
+                'status' => $isInterceptorDelayed ? 'delayed' : 'active',
+                'delay_method' => $isInterceptorDelayed ? 'interceptor' : null,
             ]);
         }
 

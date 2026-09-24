@@ -43,6 +43,11 @@ class AppImpactController extends Controller
 
         $data = $request->validate([
             'status' => ['required', Rule::in(['active', 'disabled', 'delayed', 'excluded'])],
+            // Explicit 'interceptor' bypasses the theme-file locate attempt
+            // entirely for "Advanced delay (experimental)" - omitted (the
+            // default), 'delayed' keeps today's theme-file-only behavior
+            // unchanged, still failing honestly when the script isn't found.
+            'method' => ['nullable', Rule::in(['theme_edit', 'interceptor'])],
         ]);
 
         $impact = AppImpact::whereHas(
@@ -71,18 +76,24 @@ class AppImpactController extends Controller
             new AssetBackupService,
         );
 
-        $result = match ($data['status']) {
-            'disabled' => $actions->disable($shop, $impact),
-            'delayed' => $actions->delay($shop, $impact),
-            'active' => $actions->restore($shop, $impact),
+        $useInterceptor = ($data['method'] ?? null) === 'interceptor';
+
+        $result = match (true) {
+            $data['status'] === 'disabled' => $actions->disable($shop, $impact),
+            $data['status'] === 'delayed' && $useInterceptor => $actions->interceptorDelay($shop, $impact),
+            $data['status'] === 'delayed' => $actions->delay($shop, $impact),
+            $data['status'] === 'active' => $actions->restore($shop, $impact),
             // "Excluded" is a dismiss-only action - it stops this script
             // from being flagged in the impact report without touching the
             // storefront, unlike disable/delay which edit the live theme.
-            'excluded' => ['applied' => true, 'message' => null],
+            default => ['applied' => true, 'message' => null],
         };
 
         if ($result['applied']) {
-            $impact->update(['status' => $data['status']]);
+            $impact->update([
+                'status' => $data['status'],
+                'delay_method' => $data['status'] === 'delayed' ? ($useInterceptor ? 'interceptor' : 'theme_edit') : null,
+            ]);
         }
 
         return response()->json([
