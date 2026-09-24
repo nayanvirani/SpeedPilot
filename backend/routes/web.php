@@ -36,16 +36,19 @@ Route::get('/faq', [FaqController::class, 'index'])->name('faq');
 Route::get('/storefront/interceptor.js', [InterceptorController::class, 'serve'])
     ->middleware('throttle:interceptor')
     ->name('storefront.interceptor');
-Route::get('/storefront/interceptor-patterns.json', [InterceptorController::class, 'patterns'])
-    ->middleware('throttle:interceptor')
-    ->name('storefront.interceptor-patterns');
 
-// Shopify App Proxy target - https://{shop}/apps/speedpilot/* forwards here,
-// with Shopify appending signed query params (shop, timestamp, signature,
-// ...) AppProxyController verifies via AppProxyVerifier before trusting
-// anything. /proxy/ping stays as a bare, unverified connectivity check.
+// Shopify App Proxy target - https://{shop}/apps/speedpilot/* forwards here
+// (see [app_proxy] in shopify.app.toml), verified via AppProxyVerifier.
+// Deployed and confirmed working (signature algorithm verified byte-for-
+// byte against a real live request) as groundwork for a same-origin
+// Service Worker rewrite layer - that specific use turned out to be a dead
+// end (Shopify strips the Service-Worker-Allowed header on every App Proxy
+// response, so a SW registered this way can never be scoped beyond
+// /apps/speedpilot/ itself, never the real storefront pages). Left in
+// place since App Proxy + verified signatures is genuinely reusable
+// groundwork for some other same-origin storefront need later - just
+// nothing consumes it right now beyond this smoke test.
 Route::get('/proxy/ping', fn () => response()->json(['ok' => true, 'query' => request()->query()]));
-Route::get('/proxy/sw.js', [\App\Http\Controllers\Proxy\AppProxyController::class, 'serviceWorker']);
 
 // Webhooks - HMAC-verified and deduped by shopify.webhook, never App-Bridge
 // session tokens.

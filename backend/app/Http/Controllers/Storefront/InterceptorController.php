@@ -43,31 +43,6 @@ class InterceptorController extends Controller
         return $this->jsResponse(ScriptImpactActionService::interceptorEngineJs($urls));
     }
 
-    /**
-     * Lean JSON twin of serve() - what the Service Worker layer fetches
-     * (a normal cross-origin fetch() from inside an active SW is allowed,
-     * unlike the SW's own registration URL) instead of parsing the full JS
-     * engine string just to get the URL list back out of it. `enabled` is
-     * the kill switch for the Service Worker's HTML-rewrite behavior
-     * specifically - flip a shop inactive/uninstalled and it reads false
-     * immediately, no redeploy, no theme touch.
-     */
-    public function patterns(Request $request)
-    {
-        $token = $request->query('t');
-        $shop = $token ? ShopInstallation::where('interceptor_token', $token)->first() : null;
-
-        if (! $shop || ! $shop->isActive()) {
-            return response()->json(['patterns' => [], 'enabled' => false])
-                ->header('Cache-Control', 'public, max-age=30');
-        }
-
-        return response()->json([
-            'patterns' => $shop->interceptorDelayTargets()->pluck('script_url')->all(),
-            'enabled' => true,
-        ])->header('Cache-Control', 'public, max-age=30');
-    }
-
     private function jsResponse(string $body): Response
     {
         return response($body, 200)
