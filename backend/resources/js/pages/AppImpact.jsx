@@ -52,8 +52,16 @@ function ImpactRow({ impact, pending, onSetStatus }) {
             </InlineStack>
             {!impact.is_platform && (impact.status ?? 'active') === 'active' && (
                 <InlineStack gap="200">
-                    <FixCodeViewer key={`disabled-${impact.id}`} fetchPath={`/app-impacts/${impact.id}/fix-code?action=disabled`} />
-                    <FixCodeViewer key={`delayed-${impact.id}`} fetchPath={`/app-impacts/${impact.id}/fix-code?action=delayed`} />
+                    <FixCodeViewer
+                        key={`disabled-${impact.id}`}
+                        fetchPath={`/app-impacts/${impact.id}/fix-code?action=disabled`}
+                        label="Manual fix - view code to disable"
+                    />
+                    <FixCodeViewer
+                        key={`delayed-${impact.id}`}
+                        fetchPath={`/app-impacts/${impact.id}/fix-code?action=delayed`}
+                        label="Manual fix - view code to delay"
+                    />
                 </InlineStack>
             )}
         </BlockStack>

@@ -49,7 +49,7 @@ function FixFile({ file }) {
  * (audit-issues/{id}/fix-code, app-impacts/{id}/fix-code) don't accept a
  * write action at all.
  */
-export default function FixCodeViewer({ fetchPath }) {
+export default function FixCodeViewer({ fetchPath, label = 'Manual fix - view code' }) {
     const [code, setCode] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -71,7 +71,7 @@ export default function FixCodeViewer({ fetchPath }) {
     }
 
     if (!open) {
-        return <Button size="micro" onClick={load}>Manual fix - view code</Button>;
+        return <Button size="micro" onClick={load}>{label}</Button>;
     }
 
     return (
