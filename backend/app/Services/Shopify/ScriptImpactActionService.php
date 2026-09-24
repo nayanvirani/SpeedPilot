@@ -297,16 +297,34 @@ class ScriptImpactActionService
     /**
      * The actual watcher engine - lives here so InterceptorController can
      * render it per-request with a shop's live delay list, never as a
-     * static file. Best-effort, not guaranteed: catches scripts/stylesheets
-     * *dynamically inserted* into the DOM by other JS after page load (how
-     * most heavy third-party trackers actually load their real payload) via
-     * MutationObserver, and delays them the same way delayedLoaderSnippet()
-     * below does - same trigger set, for a consistent merchant-facing
-     * experience regardless of which mechanism ends up handling a given
-     * script. Cannot intercept a script that's static markup in the initial
-     * HTML response (Shopify's own ScriptTag rendering) - the browser
-     * dispatches that fetch as it parses the tag, before any JS callback
-     * (including this one) gets a chance to run.
+     * static file. Best-effort, not guaranteed: catches scripts/
+     * stylesheets/iframes *dynamically inserted* into the DOM by other JS
+     * after page load (how most heavy third-party trackers actually load
+     * their real payload) via MutationObserver, and delays them the same
+     * way delayedLoaderSnippet() below does - same trigger set, for a
+     * consistent merchant-facing experience regardless of which mechanism
+     * ends up handling a given resource. Cannot intercept a resource that's
+     * static markup in the initial HTML response (Shopify's own ScriptTag
+     * rendering) - the browser dispatches that fetch as it parses the tag,
+     * before any JS callback (including this one) gets a chance to run.
+     *
+     * Watches two distinct patterns real loaders use, not just one:
+     * - src/href already set when the node is inserted (the common case -
+     *   e.g. Google Tag Manager's own snippet sets j.src before
+     *   insertBefore(j, f)) - caught via the childList mutation.
+     * - an empty node inserted first, src/href assigned afterward via
+     *   setAttribute - caught via the attributes mutation on the same
+     *   observer. The fetch may already be in flight by the time that
+     *   attribute change fires (same fundamental timing limit as anything
+     *   client-side), but removing the node before it executes still has
+     *   value even then.
+     * Also matches iframes, not just script/link - several trackers
+     * (Facebook Pixel, TikTok, some ad networks) load via iframe, not a
+     * plain script tag.
+     *
+     * The whole thing is wrapped in try/catch: a bug here, or a DOM shape
+     * this doesn't expect, must never be able to break anything else on the
+     * merchant's storefront.
      *
      * @param  array<int, string>  $urls
      */
@@ -316,37 +334,57 @@ class ScriptImpactActionService
 
         return <<<JS
             (function () {
-              var PATTERNS = {$json};
-              var released = false, pending = [];
-              function matches(url) { return url && PATTERNS.some(function (p) { return url.indexOf(p) !== -1; }); }
-              function release() {
-                if (released) return;
-                released = true;
-                pending.forEach(function (node) {
-                  if (!node.parentNode) return;
-                  var clone = document.createElement(node.tagName);
-                  for (var i = 0; i < node.attributes.length; i++) clone.setAttribute(node.attributes[i].name, node.attributes[i].value);
-                  node.parentNode.replaceChild(clone, node);
+              try {
+                var PATTERNS = {$json};
+                var released = false, pending = [];
+                function matches(url) { return url && PATTERNS.some(function (p) { return url.indexOf(p) !== -1; }); }
+                function release() {
+                  if (released) return;
+                  released = true;
+                  pending.forEach(function (node) {
+                    if (!node.parentNode) return;
+                    var clone = document.createElement(node.tagName);
+                    for (var i = 0; i < node.attributes.length; i++) clone.setAttribute(node.attributes[i].name, node.attributes[i].value);
+                    node.parentNode.replaceChild(clone, node);
+                  });
+                  pending = [];
+                }
+                function targetUrl(node) {
+                  if (node.tagName === 'SCRIPT' || node.tagName === 'IFRAME') return node.src;
+                  if (node.tagName === 'LINK' && node.rel === 'stylesheet') return node.href;
+                  return null;
+                }
+                function handle(node) {
+                  if (released || !node || !node.tagName || !node.parentNode) return;
+                  if (pending.indexOf(node) !== -1) return;
+                  var url = targetUrl(node);
+                  if (matches(url)) {
+                    node.remove();
+                    pending.push(node);
+                  }
+                }
+                ['mousemove', 'scroll', 'touchstart', 'keydown'].forEach(function (evt) {
+                  window.addEventListener(evt, release, { once: true, passive: true });
                 });
-                pending = [];
-              }
-              ['mousemove', 'scroll', 'touchstart', 'keydown'].forEach(function (evt) {
-                window.addEventListener(evt, release, { once: true, passive: true });
-              });
-              setTimeout(release, 5000);
-              new MutationObserver(function (mutations) {
-                if (released) return;
-                mutations.forEach(function (m) {
-                  (m.addedNodes || []).forEach(function (node) {
-                    var isScript = node.tagName === 'SCRIPT' && matches(node.src);
-                    var isStyle = node.tagName === 'LINK' && node.rel === 'stylesheet' && matches(node.href);
-                    if (isScript || isStyle) {
-                      node.remove();
-                      pending.push(node);
+                setTimeout(release, 5000);
+                new MutationObserver(function (mutations) {
+                  if (released) return;
+                  mutations.forEach(function (m) {
+                    if (m.type === 'childList') {
+                      (m.addedNodes || []).forEach(handle);
+                    } else if (m.type === 'attributes') {
+                      handle(m.target);
                     }
                   });
+                }).observe(document.documentElement, {
+                  childList: true,
+                  subtree: true,
+                  attributes: true,
+                  attributeFilter: ['src', 'href'],
                 });
-              }).observe(document.documentElement, { childList: true, subtree: true });
+              } catch (e) {
+                // Never let a bug here take anything else down with it.
+              }
             })();
             JS;
     }
