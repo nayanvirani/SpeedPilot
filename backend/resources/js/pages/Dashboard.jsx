@@ -94,8 +94,9 @@ export default function Dashboard() {
     const [hasTargetTheme, setHasTargetTheme] = useState(true);
     const [storefrontLocked, setStorefrontLocked] = useState(false);
 
-    const load = useCallback(async () => {
-        setLoading(true);
+    const load = useCallback(async (opts = {}) => {
+        const { silent = false } = opts;
+        if (!silent) setLoading(true);
         try {
             // The list endpoint is intentionally lightweight (no screenshots)
             // - fetch full detail for just the one audit this page actually
@@ -113,18 +114,21 @@ export default function Dashboard() {
             const { audit } = await api.get(`/audits/${audits[0].id}`);
             setLatestAudit(audit);
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     }, []);
 
     useEffect(() => { load(); }, [load]);
 
+    // Silent background refresh while a scan is running - updates state
+    // without touching `loading`, so the page doesn't flash back to its
+    // skeleton every poll (only the very first load should show that).
     useEffect(() => {
         if (latestAudit?.status !== 'pending' && latestAudit?.status !== 'running') {
             return undefined;
         }
 
-        const interval = setInterval(load, 10000);
+        const interval = setInterval(() => load({ silent: true }), 10000);
 
         return () => clearInterval(interval);
     }, [latestAudit?.status, load]);
