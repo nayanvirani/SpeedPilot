@@ -134,9 +134,20 @@ class ScriptImpactActionService
             return ['applied' => false, 'message' => 'Pick which theme SpeedPilot should apply changes to first (Dashboard > Target theme).', 'blocked' => false];
         }
 
-        $shop->interceptorDelayTargets()->firstOrCreate(['script_url' => $impact->script_url]);
+        $target = $shop->interceptorDelayTargets()->firstOrCreate(['script_url' => $impact->script_url]);
+        $result = $this->rewriteInterceptorBlock($shop);
 
-        return $this->rewriteInterceptorBlock($shop);
+        // The theme was never actually updated to match - don't leave a
+        // phantom target a future scan would re-apply status=delayed for,
+        // even though nothing in the live theme reflects it. Only rolls
+        // back what THIS call added - if the target already existed (a
+        // retry of an already-active delay that happened to fail this
+        // time), leave it alone rather than second-guess prior state.
+        if (! $result['applied'] && $target->wasRecentlyCreated) {
+            $target->delete();
+        }
+
+        return $result;
     }
 
     /**
