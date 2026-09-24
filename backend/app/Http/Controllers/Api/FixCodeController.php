@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AppImpact;
 use App\Models\AuditIssue;
 use App\Models\ShopInstallation;
+use App\Services\CodeSnippetExtractor;
 use App\Services\Shopify\AssetBackupService;
 use App\Services\Shopify\ImageLazyLoadSweeper;
 use App\Services\Shopify\MediumFixService;
@@ -45,16 +46,16 @@ class FixCodeController extends Controller
                 $service = new MediumFixService($themeAssets, $locator, new AssetBackupService);
                 $preview = $service->preview($issue, $shop);
 
-                return response()->json(['code' => [
+                return response()->json(['code' => self::withSnippets([
                     'fix_type' => 'minify_css',
                     'files' => [['asset_key' => $preview['asset_key'], 'original' => $preview['original_content'], 'fixed' => $preview['minified_content']]],
                     'truncated_count' => 0,
-                ]]);
+                ])]);
             }
 
             $service = new SafeFixCodeService($themeAssets, $locator, new ImageLazyLoadSweeper($themeAssets));
 
-            return response()->json(['code' => $service->code($issue)]);
+            return response()->json(['code' => self::withSnippets($service->code($issue))]);
         } catch (ThemeWriteAccessDeniedException) {
             // code() only reads, never writes - this can't actually happen
             // here, but the theme-read GraphQL calls it shares a client
@@ -106,10 +107,33 @@ class FixCodeController extends Controller
             return response()->json(['error' => $result['error']], 422);
         }
 
-        return response()->json(['code' => [
+        return response()->json(['code' => self::withSnippets([
             'fix_type' => $data['action'],
             'files' => [['asset_key' => $result['asset_key'], 'original' => $result['original'], 'fixed' => $result['fixed']]],
             'truncated_count' => 0,
-        ]]);
+        ])]);
+    }
+
+    /**
+     * Adds a trimmed-to-the-changed-region snippet to every file entry,
+     * alongside (not instead of) the full before/after content - the
+     * snippet is what a merchant should actually paste; the full content
+     * stays available for anyone who wants to review the whole file.
+     *
+     * @param  array{fix_type: string, files: array<int, array{asset_key: ?string, original: ?string, fixed: ?string}>, truncated_count: int}  $code
+     */
+    private static function withSnippets(array $code): array
+    {
+        $code['files'] = array_map(function (array $file) {
+            if ($file['original'] === null || $file['fixed'] === null) {
+                return $file;
+            }
+
+            $file['snippet'] = CodeSnippetExtractor::extract($file['original'], $file['fixed']);
+
+            return $file;
+        }, $code['files']);
+
+        return $code;
     }
 }

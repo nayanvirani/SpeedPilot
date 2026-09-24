@@ -28,16 +28,31 @@ function CodeBlock({ label, content }) {
 }
 
 function FixFile({ file }) {
-    const [showOriginal, setShowOriginal] = useState(false);
+    const [showFullFile, setShowFullFile] = useState(false);
+    const snippet = file.snippet;
+
+    // A snippet only exists when the file actually has both an original and
+    // a fixed version to diff - falls back to the full file otherwise (e.g.
+    // a brand-new file with nothing to compare against).
+    const usingSnippet = snippet && !showFullFile;
+    const pasteContent = usingSnippet ? snippet.after : file.fixed;
+    const referenceContent = usingSnippet ? snippet.before : file.original;
 
     return (
         <BlockStack gap="150">
             <Text as="span" tone="subdued">File: <span className="sp-mono">{file.asset_key}</span></Text>
-            <CodeBlock label="Paste this in" content={file.fixed} />
-            <Button size="micro" variant="tertiary" onClick={() => setShowOriginal((v) => !v)}>
-                {showOriginal ? 'Hide original for reference' : 'Show original for reference'}
-            </Button>
-            {showOriginal && <CodeBlock label="Original (unchanged)" content={file.original} />}
+            {usingSnippet && !snippet.unchanged && (
+                <Text as="span" tone="subdued">
+                    Find this around line {snippet.start_line} of the file{snippet.truncated_before || snippet.truncated_after ? ' (only the changed part is shown below, with a little surrounding text to help you locate it)' : ''}:
+                </Text>
+            )}
+            <CodeBlock label={usingSnippet ? 'Find this...' : 'Original (full file)'} content={referenceContent} />
+            <CodeBlock label={usingSnippet ? '...replace with this' : 'Paste this in (full file)'} content={pasteContent} />
+            {snippet && (
+                <Button size="micro" variant="tertiary" onClick={() => setShowFullFile((v) => !v)}>
+                    {showFullFile ? 'Show just the changed part' : 'Show the whole file instead'}
+                </Button>
+            )}
         </BlockStack>
     );
 }
@@ -86,8 +101,8 @@ export default function FixCodeViewer({ fetchPath, label = 'Manual fix - view co
                 <BlockStack gap="300">
                     <Text as="p" tone="subdued">
                         SpeedPilot never touched your theme to make this - open Shopify admin &gt; Online
-                        Store &gt; Themes &gt; Edit code, find the file below, and replace its contents (or
-                        the matching section) with the code shown.
+                        Store &gt; Themes &gt; Edit code, find the file below, locate the "Find this..." text,
+                        and replace it with the code shown underneath. No need to touch the rest of the file.
                     </Text>
                     {code.files.map((file) => <FixFile key={file.asset_key} file={file} />)}
                     {code.truncated_count > 0 && (

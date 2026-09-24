@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Badge, BlockStack, Box, Button, Card, DataTable, Modal, Page, SkeletonBodyText, Text } from '@shopify/polaris';
+import { Badge, BlockStack, Box, Button, Card, DataTable, InlineStack, Modal, Page, SkeletonBodyText, Text } from '@shopify/polaris';
 import { api } from '../api';
 import ThemeAccessStatus from '../components/ThemeAccessStatus';
 
@@ -23,6 +23,7 @@ export default function Optimizations() {
     const [loading, setLoading] = useState(true);
     const [pendingId, setPendingId] = useState(null);
     const [diffOpt, setDiffOpt] = useState(null);
+    const [showFullDiff, setShowFullDiff] = useState(false);
 
     const load = useCallback(() => {
         setLoading(true);
@@ -54,7 +55,7 @@ export default function Optimizations() {
             opt.applied_at ?? '—',
             <div key={`actions-${opt.id}`} style={{ display: 'flex', gap: '8px' }}>
                 {backup && (
-                    <Button size="micro" onClick={() => setDiffOpt(opt)}>View change</Button>
+                    <Button size="micro" onClick={() => { setShowFullDiff(false); setDiffOpt(opt); }}>View change</Button>
                 )}
                 {opt.status === 'applied' && (
                     <Button size="micro" loading={pendingId === opt.id} onClick={() => rollback(opt.id)}>
@@ -66,6 +67,7 @@ export default function Optimizations() {
     });
 
     const diffBackup = diffOpt?.backups?.[0];
+    const diffSnippet = diffBackup?.snippet;
 
     return (
         <Page title="Optimizations">
@@ -106,9 +108,25 @@ export default function Optimizations() {
                             <Text as="p" tone="subdued">{diffOpt.audit_issue.description}</Text>
                         </Box>
                     )}
+                    {diffSnippet && !showFullDiff && !diffSnippet.unchanged && (
+                        <Box paddingBlockEnd="300">
+                            <Text as="p" tone="subdued">
+                                Around line {diffSnippet.start_line} of the file - only the changed part is shown,
+                                with a little surrounding text to help you locate it.
+                            </Text>
+                        </Box>
+                    )}
                     <div style={{ display: 'flex', gap: '16px' }}>
-                        <CodeBlock label="Original" tone="before" content={diffBackup?.original_content} />
-                        <CodeBlock label="After the fix" tone="after" content={diffBackup?.updated_content} />
+                        <CodeBlock
+                            label="Original"
+                            tone="before"
+                            content={diffSnippet && !showFullDiff ? diffSnippet.before : diffBackup?.original_content}
+                        />
+                        <CodeBlock
+                            label="After the fix"
+                            tone="after"
+                            content={diffSnippet && !showFullDiff ? diffSnippet.after : diffBackup?.updated_content}
+                        />
                     </div>
                     {!diffBackup?.updated_content && (
                         <Box paddingBlockStart="300">
@@ -116,6 +134,15 @@ export default function Optimizations() {
                                 This fix was applied before change logging was added, so only the
                                 original content was saved.
                             </Text>
+                        </Box>
+                    )}
+                    {diffSnippet && !diffSnippet.unchanged && (
+                        <Box paddingBlockStart="300">
+                            <InlineStack align="end">
+                                <Button size="micro" variant="tertiary" onClick={() => setShowFullDiff((v) => !v)}>
+                                    {showFullDiff ? 'Show just the changed part' : 'Show the whole file instead'}
+                                </Button>
+                            </InlineStack>
                         </Box>
                     )}
                 </Modal.Section>
