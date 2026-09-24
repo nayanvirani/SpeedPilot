@@ -42,6 +42,13 @@ class ShopSettingsController extends Controller
             'scan_frequency' => $shop->scan_frequency,
             'scan_devices' => $shop->scan_devices,
             'has_slack_webhook' => ! empty($shop->slack_webhook_url),
+            // Shopify gates actually writing theme files behind a separate,
+            // app-level "protected scope" exemption it grants (or doesn't) -
+            // this is never a per-merchant setting, and no button in this
+            // app can fix it. Surfaced so the merchant (and whoever's
+            // explaining this app to them) can tell "blocked because
+            // Shopify hasn't approved this yet" apart from "broken."
+            'theme_write_blocked_at' => $shop->theme_write_blocked_at,
         ]);
     }
 

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Badge, Banner, BlockStack, Button, ButtonGroup, Card, InlineStack, Page, SkeletonBodyText, Text, Toast } from '@shopify/polaris';
 import { api } from '../api';
 import FixCodeViewer from '../components/FixCodeViewer';
+import ThemeAccessStatus from '../components/ThemeAccessStatus';
 
 const IMPACT_TONE = { high: 'critical', medium: 'warning', low: 'success' };
 const STATUS_TONE = { active: 'success', disabled: 'critical', delayed: 'warning', excluded: 'new' };
@@ -190,6 +191,7 @@ export default function AppImpact() {
                         <Text as="p">{notice.message}</Text>
                     </Banner>
                 )}
+                <ThemeAccessStatus />
                 <AdvancedDelaySummary appImpacts={appImpacts} />
                 <Card>
                     {loading ? (
