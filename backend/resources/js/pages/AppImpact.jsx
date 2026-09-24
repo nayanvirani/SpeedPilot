@@ -42,7 +42,7 @@ function ImpactRow({ impact, pending, onSetStatus }) {
     // with. Excluding it from the list is still offered.
     const actions = impact.is_platform
         ? ['active', 'excluded']
-        : ['active', 'disabled', 'delayed', 'delayed_interceptor', 'excluded'];
+        : ['active', 'disabled', 'delayed', 'excluded', 'delayed_interceptor'];
     const current = currentActionKey(impact);
     const badgeLabel = impact.status === 'delayed' && impact.delay_method === 'interceptor'
         ? 'Delayed (experimental)'

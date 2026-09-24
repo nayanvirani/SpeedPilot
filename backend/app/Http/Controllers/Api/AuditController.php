@@ -41,6 +41,17 @@ class AuditController extends Controller
             ], 422);
         }
 
+        // A shop can only ever have one scan in flight - dispatching a
+        // second one while the first is still running double-scans the same
+        // storefront concurrently, which corrupts both runs' results (see
+        // ShopInstallation::hasAuditInProgress()).
+        if ($shop->hasAuditInProgress()) {
+            return response()->json([
+                'error' => 'A scan is already running - wait for it to finish before starting another.',
+                'scan_in_progress' => true,
+            ], 409);
+        }
+
         // A null url means "full store scan" - RunAuditJob discovers which
         // pages to cover (plan-limited). An explicit url pins it to that one
         // page only, for spot-checking a specific page or a different

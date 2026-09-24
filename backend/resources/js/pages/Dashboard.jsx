@@ -119,6 +119,18 @@ export default function Dashboard() {
 
     useEffect(() => { load(); }, [load]);
 
+    useEffect(() => {
+        if (latestAudit?.status !== 'pending' && latestAudit?.status !== 'running') {
+            return undefined;
+        }
+
+        const interval = setInterval(load, 10000);
+
+        return () => clearInterval(interval);
+    }, [latestAudit?.status, load]);
+
+    const scanInProgress = latestAudit?.status === 'pending' || latestAudit?.status === 'running';
+
     async function scanNow() {
         setScanning(true);
         setScanError(null);
@@ -136,7 +148,12 @@ export default function Dashboard() {
     return (
         <Page
             title="SpeedPilot"
-            primaryAction={{ content: 'Scan My Store', loading: scanning, disabled: storefrontLocked, onAction: scanNow }}
+            primaryAction={{
+                content: scanInProgress ? 'Scan in progress…' : 'Scan My Store',
+                loading: scanning,
+                disabled: storefrontLocked || scanInProgress,
+                onAction: scanNow,
+            }}
         >
             <BlockStack gap="400">
                 <PerformanceHealth />

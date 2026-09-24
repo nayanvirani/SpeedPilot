@@ -53,6 +53,10 @@ class RunMonitoringJob implements ShouldQueue
             return; // same doomed-scan case as the manual/auto-install paths - just skip this cycle
         }
 
+        if ($shop->hasAuditInProgress()) {
+            return; // a manual scan or another trigger is already running - this cycle just skips, tomorrow's tick will catch up
+        }
+
         $lastRun = $shop->monitoringRuns()->latest('run_at')->first();
 
         // The scheduler ticks daily for every shop regardless of

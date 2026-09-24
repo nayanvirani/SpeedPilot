@@ -123,7 +123,7 @@ class VerifyShopifySessionToken
         // failed" audit with no scores, which is exactly what a real
         // Shopify app review caught on first install.
         try {
-            if ($shop->audits()->doesntExist() && ! $this->storefrontAccess->blocksScan($shop)) {
+            if ($shop->audits()->doesntExist() && ! $shop->hasAuditInProgress() && ! $this->storefrontAccess->blocksScan($shop)) {
                 $audit = $shop->audits()->create(['status' => 'pending']);
                 RunAuditJob::dispatch($audit->id);
             }

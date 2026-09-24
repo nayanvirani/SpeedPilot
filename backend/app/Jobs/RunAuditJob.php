@@ -38,6 +38,13 @@ class RunAuditJob implements ShouldQueue
     // single-page-scan default.
     public int $timeout = 600;
 
+    // A failed scan should surface as audit.status='failed' with the
+    // Dashboard's "Retry scan" button, not silently re-run itself - an
+    // automatic retry of a job this expensive (up to ~14 real Lighthouse
+    // runs) compounds whatever caused the failure in the first place
+    // instead of recovering from it.
+    public int $tries = 1;
+
     private string $primaryDevice = 'mobile';
 
     public function __construct(

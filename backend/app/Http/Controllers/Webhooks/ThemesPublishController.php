@@ -21,7 +21,7 @@ class ThemesPublishController extends Controller
         $shopDomain = $request->header('X-Shopify-Shop-Domain');
         $shop = ShopInstallation::where('shop_domain', $shopDomain)->first();
 
-        if ($shop && $shop->isActive() && ! $storefrontAccess->blocksScan($shop)) {
+        if ($shop && $shop->isActive() && ! $shop->hasAuditInProgress() && ! $storefrontAccess->blocksScan($shop)) {
             // url stays null so RunAuditJob re-audits every page the plan
             // covers, not just the homepage - a theme switch can move fixes
             // out from under any of them, not only the home template.

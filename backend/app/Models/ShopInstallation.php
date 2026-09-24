@@ -106,6 +106,20 @@ class ShopInstallation extends Model
         return $this->audits()->latest('id')->first();
     }
 
+    /**
+     * The single guard every scan-dispatch site (manual "Scan My Store",
+     * auto-scan-on-install, the themes/publish webhook, and scheduled
+     * monitoring) should call before creating a new audit - a shop can only
+     * ever have one scan in flight at a time. Without this, an install-time
+     * webhook and the auto-first-scan can race and dispatch two concurrent
+     * RunAuditJob runs for the same shop, each competing for the same
+     * scanner resources and corrupting each other's results.
+     */
+    public function hasAuditInProgress(): bool
+    {
+        return $this->audits()->whereIn('status', ['pending', 'running'])->exists();
+    }
+
     public function isActive(): bool
     {
         return $this->uninstalled_at === null;
