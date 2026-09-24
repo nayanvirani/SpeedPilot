@@ -111,28 +111,32 @@ class ScriptImpactActionService
         ];
     }
 
-    private const MARKER_START = '<!-- SpeedPilot:interceptor:start -->';
-    private const MARKER_END = '<!-- SpeedPilot:interceptor:end -->';
+    // extensions/rum-snippet - same Theme App Extension the RUM web-vitals
+    // snippet uses, just a second app-embed block in it.
+    public const EMBED_UUID = '173eac1f-9228-9b2c-0d6c-90479e7e9644e74d53e7';
+
+    public const EMBED_HANDLE = 'advanced-delay-snippet';
 
     /**
      * The "Advanced delay (experimental)" action - for a script SpeedPilot
      * can't find in theme files at all (Shopify ScriptTag-injected), this
      * doesn't edit the app's own tag (impossible - it isn't theme content).
      *
-     * The engine itself is NOT written into the merchant's theme - only a
-     * single, stable <script src> tag pointing at the public
-     * /storefront/interceptor.js endpoint (InterceptorController), which
-     * generates the actual watcher JS (engine + this shop's current delay
-     * list) fresh on every request. That keeps the real implementation off
-     * every merchant's theme editor, means toggling a delay on/off never
-     * needs another theme write (only the DB row changes - the endpoint
-     * just reads it live), and - the actual point of hosting it, not
-     * secrecy for its own sake - ties the feature to an active
-     * install/subscription: the endpoint checks $shop->isActive() before
-     * returning anything, so uninstalling stops it immediately with no
-     * separate cleanup step. None of this makes the JS un-inspectable to
-     * someone who opens browser DevTools - nothing that runs in a browser
-     * ever is - it just isn't sitting in cleartext in the theme source.
+     * The engine itself is NOT written into the merchant's theme, and
+     * SpeedPilot never edits theme.liquid for this feature at all - the
+     * <script src> tag pointing at /storefront/interceptor.js
+     * (InterceptorController) is delivered by a Theme App Extension app
+     * embed (extensions/rum-snippet/blocks/advanced-delay-snippet.liquid),
+     * the same mechanism the RUM web-vitals snippet already uses. The
+     * merchant switches it on once in Theme Editor > App embeds; Shopify
+     * renders the tag on every storefront page from then on, and removes it
+     * the moment they switch it off - no write_themes access needed for
+     * this feature at all, and no separate cleanup step on uninstall
+     * (Shopify disables an uninstalled app's embeds automatically).
+     *
+     * Toggling a delay on/off here only ever changes the DB row - the
+     * hosted endpoint reads this shop's current delay list live on every
+     * request, so there is nothing else to write anywhere.
      *
      * @return array{applied: bool, message: ?string, blocked: bool}
      */
@@ -142,32 +146,21 @@ class ScriptImpactActionService
             return ['applied' => false, 'message' => "No script URL was recorded for this app, so it can't be targeted.", 'blocked' => false];
         }
 
-        if (! $shop->target_theme_id) {
-            return ['applied' => false, 'message' => 'Pick which theme SpeedPilot should apply changes to first (Dashboard > Target theme).', 'blocked' => false];
-        }
+        $shop->interceptorDelayTargets()->firstOrCreate(['script_url' => $impact->script_url]);
 
-        $target = $shop->interceptorDelayTargets()->firstOrCreate(['script_url' => $impact->script_url]);
-        $result = $this->ensureInterceptorTagInstalled($shop);
-
-        // If the tag was never actually installed (this shop's very first
-        // attempt, and it failed/is blocked), the engine never loads on the
-        // storefront at all - don't leave a target that would show
-        // "Delayed (experimental)" in the UI for something that isn't
-        // happening. Once the tag exists, every later call here is a no-op
-        // success regardless of which app it's for, so this only ever fires
-        // on a shop's genuinely first, failed attempt.
-        if (! $result['applied'] && $target->wasRecentlyCreated) {
-            $target->delete();
-        }
-
-        return $result;
+        return [
+            'applied' => true,
+            'message' => "Make sure the \"SpeedPilot Advanced Delay\" app embed is turned on in Theme Editor > ".
+                'App embeds - the delay only takes effect on your storefront once it is.',
+            'blocked' => false,
+        ];
     }
 
     /**
-     * Just removes this shop's target - the shared theme.liquid tag stays
+     * Just removes this shop's target - the app embed block itself stays
      * (harmless, and the hosted endpoint naturally starts returning a no-op
      * script once a shop has no targets left, so there's nothing to revert
-     * in the theme itself - see the class docblock above).
+     * anywhere else - see the class docblock above).
      *
      * @return array{applied: bool, message: ?string, blocked: bool}
      */
@@ -181,141 +174,15 @@ class ScriptImpactActionService
     }
 
     /**
-     * Read-only twin of interceptorDelay() - previews installing the tag
-     * (a merchant without theme-write access approved yet can paste this
-     * themselves), same contract as preview() above. Shows no diff if the
-     * tag is already installed - nothing left to preview at that point.
-     *
-     * @return array{asset_key: ?string, original: ?string, fixed: ?string, error: ?string}
+     * Deep link straight to this shop's Theme Editor with the "SpeedPilot
+     * Advanced Delay" app embed panel open, so a merchant doesn't have to
+     * hunt for it manually under Online Store > Themes > Customize > App
+     * embeds.
      */
-    public function previewInterceptor(ShopInstallation $shop, AppImpact $impact): array
+    public static function interceptorEmbedDeepLink(ShopInstallation $shop): string
     {
-        $empty = ['asset_key' => null, 'original' => null, 'fixed' => null, 'error' => null];
-
-        if (! $impact->script_url) {
-            return [...$empty, 'error' => "No script URL was recorded for this app, so it can't be targeted."];
-        }
-
-        if (! $shop->target_theme_id) {
-            return [...$empty, 'error' => 'Pick which theme SpeedPilot should apply changes to first (Dashboard > Target theme).'];
-        }
-
-        $assetKey = 'layout/theme.liquid';
-        $original = $this->themeAssets->read($shop->target_theme_id, $assetKey);
-
-        if ($original === null) {
-            return [...$empty, 'asset_key' => $assetKey, 'error' => 'Could not read your theme.liquid file.'];
-        }
-
-        try {
-            $updated = self::insertInstallBlock($original, $shop->interceptorToken());
-        } catch (\RuntimeException $e) {
-            return [...$empty, 'asset_key' => $assetKey, 'error' => $e->getMessage()];
-        }
-
-        return ['asset_key' => $assetKey, 'original' => $original, 'fixed' => $updated, 'error' => null];
-    }
-
-    /**
-     * Idempotent - if the tag is already there, this is a no-op success and
-     * never touches the theme again. Only the very first "Advanced delay"
-     * click for a shop ever writes theme.liquid; every toggle after that
-     * (for this app or any other) is purely a DB change the hosted endpoint
-     * picks up on its own next request.
-     *
-     * @return array{applied: bool, message: ?string, blocked: bool}
-     */
-    private function ensureInterceptorTagInstalled(ShopInstallation $shop): array
-    {
-        $themeId = $shop->target_theme_id;
-        $assetKey = 'layout/theme.liquid';
-
-        $original = $this->themeAssets->read($themeId, $assetKey);
-
-        if ($original === null) {
-            return ['applied' => false, 'message' => 'Could not read your theme.liquid file.', 'blocked' => false];
-        }
-
-        if (str_contains($original, self::MARKER_START)) {
-            return ['applied' => true, 'message' => null, 'blocked' => false];
-        }
-
-        try {
-            $updated = self::insertInstallBlock($original, $shop->interceptorToken());
-        } catch (\RuntimeException $e) {
-            return ['applied' => false, 'message' => $e->getMessage(), 'blocked' => false];
-        }
-
-        // Reuse a still-pending attempt from an earlier blocked try instead
-        // of creating a new one every time - without this, retrying while
-        // theme-write access isn't approved yet (a normal, possibly
-        // repeated state, not a one-off) piled up a fresh "recommended,
-        // never applied" row on the Optimizations page on every click.
-        $optimization = $shop->optimizations()
-            ->where('type', 'interceptor_install')
-            ->where('status', 'recommended')
-            ->first();
-
-        if (! $optimization) {
-            $optimization = $shop->optimizations()->create([
-                'type' => 'interceptor_install',
-                'risk_tier' => 'medium',
-                'status' => 'recommended',
-                'theme_id' => $themeId,
-                'asset_key' => $assetKey,
-            ]);
-
-            $this->backups->backup($optimization, $themeId, $assetKey, $original, $updated);
-        }
-
-        try {
-            $this->themeAssets->write($themeId, $assetKey, $updated);
-        } catch (ThemeWriteAccessDeniedException) {
-            $shop->update(['theme_write_blocked_at' => now()]);
-
-            return [
-                'applied' => false,
-                'message' => "Couldn't update your theme automatically right now - try again once SpeedPilot's theme-editing access is approved.",
-                'blocked' => true,
-            ];
-        }
-
-        $shop->update(['theme_write_blocked_at' => null]);
-        $optimization->update(['status' => 'applied', 'applied_at' => now()]);
-
-        return ['applied' => true, 'message' => null, 'blocked' => false];
-    }
-
-    public static function insertInstallBlock(string $liquidContent, string $token): string
-    {
-        if (str_contains($liquidContent, self::MARKER_START)) {
-            return $liquidContent;
-        }
-
-        // Deliberately NOT async/defer, despite the real cost: this tag has
-        // to finish fetching and running - registering the MutationObserver
-        // - before the browser parser reaches whatever inserted content_for
-        // _header injects, or there's nothing to catch by the time it's
-        // listening. Verified live against a real site with async: every
-        // watched resource fired 2-4s after page load, none of it delayed -
-        // the trackers' own bootstrap scripts were consistently winning the
-        // race to load and insert their dynamic sub-resources before our
-        // script had even finished fetching from our own server. Blocking
-        // here is a real, honest tradeoff (a small network round-trip added
-        // to the critical path) in exchange for the feature doing anything
-        // at all - an async tag that catches nothing is a worse trade.
-        $url = rtrim(config('app.url'), '/').'/storefront/interceptor.js?t='.urlencode($token);
-        $block = self::MARKER_START
-            ."\n<script src=\"".e($url)."\" fetchpriority=\"high\"></script>\n"
-            .self::MARKER_END;
-
-        foreach (['{{- content_for_header -}}', '{{ content_for_header }}', '{{content_for_header}}'] as $needle) {
-            if (str_contains($liquidContent, $needle)) {
-                return str_replace($needle, $block."\n".$needle, $liquidContent);
-            }
-        }
-
-        throw new \RuntimeException("Couldn't find a safe place to add this to your theme.liquid - contact SpeedPilot support.");
+        return 'https://'.$shop->shop_domain.'/admin/themes/current/editor'
+            .'?context=apps&activateAppId='.self::EMBED_UUID.'/'.self::EMBED_HANDLE;
     }
 
     /**

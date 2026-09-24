@@ -85,15 +85,22 @@ class FixCodeController extends Controller
             ], 422);
         }
 
+        $useInterceptor = $data['action'] === 'delayed' && ($data['method'] ?? null) === 'interceptor';
+
+        // "Advanced delay" has no code to paste any more - the tag is
+        // delivered by a Theme App Extension app embed the merchant
+        // switches on in Theme Editor (see ScriptImpactActionService's
+        // interceptorDelay() docblock), not a manual theme.liquid edit.
+        if ($useInterceptor) {
+            return response()->json(['error' => 'Advanced delay is turned on from Theme Editor > App embeds, not pasted code - there is nothing to view here.'], 422);
+        }
+
         $client = new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token);
         $themeAssets = new ThemeAssetService($client);
         $locator = new ThemeAssetLocatorService($themeAssets);
         $service = new ScriptImpactActionService($themeAssets, $locator, new AssetBackupService);
 
-        $useInterceptor = $data['action'] === 'delayed' && ($data['method'] ?? null) === 'interceptor';
-        $result = $useInterceptor
-            ? $service->previewInterceptor($shop, $impact)
-            : $service->preview($shop, $impact, $data['action']);
+        $result = $service->preview($shop, $impact, $data['action']);
 
         if ($result['error'] !== null) {
             return response()->json(['error' => $result['error']], 422);

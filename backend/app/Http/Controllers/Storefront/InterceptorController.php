@@ -9,26 +9,38 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 /**
- * Public, unauthenticated - the one <script src> tag "Advanced delay
- * (experimental)" ever writes into a merchant's theme.liquid points here,
- * and a real storefront visitor's browser fetches it directly, with no App
- * Bridge session to authenticate against. The `t` token identifies the shop
- * (opaque, not the raw domain, so a visitor can't enumerate other shops'
- * delay lists just by guessing).
+ * Public, unauthenticated - the <script src> tag pointing here is only ever
+ * present on a storefront when the merchant has switched on the "SpeedPilot
+ * Advanced Delay" app embed in Theme Editor (extensions/rum-snippet/blocks/
+ * advanced-delay-snippet.liquid), same mechanism as the RUM web-vitals
+ * snippet - never a manual paste into theme.liquid, and never present at
+ * all unless that embed is on. A real storefront visitor's browser fetches
+ * it directly, with no App Bridge session to authenticate against, so the
+ * shop is resolved from the plain `shop` domain the embed passes (public
+ * knowledge - it's the storefront's own URL - same as RumEventController
+ * already trusts). `t` is kept only as a fallback for any tag pasted in
+ * during the earlier theme-write-based version of this feature.
  *
- * This is the entire reason the engine lives here instead of inline in
- * theme.liquid: the response is generated fresh from this shop's current
+ * The response is generated fresh from this shop's current
  * interceptor_delay_targets on every request, so toggling a delay on/off
  * never needs another theme write, and an inactive/uninstalled shop simply
  * gets a no-op script back - the feature turns off the moment the
- * subscription does, with no separate cleanup step anywhere.
+ * subscription does, with no separate cleanup step anywhere. Turning the
+ * app embed off in Theme Editor removes the tag entirely, which is an even
+ * more immediate kill switch than the DB-side check below.
  */
 class InterceptorController extends Controller
 {
     public function serve(Request $request): Response
     {
+        $shopDomain = $request->query('shop');
         $token = $request->query('t');
-        $shop = $token ? ShopInstallation::where('interceptor_token', $token)->first() : null;
+
+        $shop = match (true) {
+            $shopDomain !== null => ShopInstallation::where('shop_domain', $shopDomain)->whereNull('uninstalled_at')->first(),
+            $token !== null => ShopInstallation::where('interceptor_token', $token)->first(),
+            default => null,
+        };
 
         if (! $shop || ! $shop->isActive()) {
             return $this->jsResponse('// SpeedPilot: inactive');

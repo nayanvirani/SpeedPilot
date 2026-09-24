@@ -33,6 +33,7 @@ class AppImpactController extends Controller
 
         return response()->json([
             'app_impacts' => $latestAudit?->appImpacts ?? [],
+            'advanced_delay_embed_url' => ScriptImpactActionService::interceptorEmbedDeepLink($shop),
         ]);
     }
 
@@ -100,6 +101,7 @@ class AppImpactController extends Controller
             'app_impact' => $impact->fresh(),
             'applied' => $result['applied'],
             'message' => $result['message'],
+            'embed_url' => $useInterceptor ? ScriptImpactActionService::interceptorEmbedDeepLink($shop) : null,
         ]);
     }
 }
