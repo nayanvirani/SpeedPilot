@@ -49,8 +49,20 @@ class ImageLazyLoadSweeper
 
     private function addLazyLoading(string $content): string
     {
+        // A plain [^>]* attribute match breaks the moment an attribute
+        // VALUE contains a literal '>' - which Shopify sections do
+        // constantly, e.g. a multi-line srcset built from
+        // {%- if image.width >= 750 -%} conditionals. That '>' inside the
+        // quoted string used to end the match early, splicing
+        // loading="lazy"> into the middle of the Liquid comparison instead
+        // of at the tag's real close (confirmed against a real, live
+        // theme file - this wasn't hypothetical). Treating a quoted string
+        // as one atomic unit, '>' and all, is what a real HTML tokenizer
+        // does; this is the minimal regex equivalent of that.
+        $attr = '(?:"[^"]*"|\'[^\']*\'|[^">])*?';
+
         return preg_replace_callback(
-            '/<img\b(?![^>]*\bloading\s*=)([^>]*?)(\/?)>/i',
+            '/<img\b(?!'.$attr.'\bloading\s*=)('.$attr.')(\/?)>/i',
             fn (array $m) => '<img'.$m[1].' loading="lazy"'.$m[2].'>',
             $content,
         ) ?? $content;
