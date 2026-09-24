@@ -246,15 +246,27 @@ class ScriptImpactActionService
             return ['applied' => false, 'message' => $e->getMessage(), 'blocked' => false];
         }
 
-        $optimization = $shop->optimizations()->create([
-            'type' => 'interceptor_install',
-            'risk_tier' => 'medium',
-            'status' => 'recommended',
-            'theme_id' => $themeId,
-            'asset_key' => $assetKey,
-        ]);
+        // Reuse a still-pending attempt from an earlier blocked try instead
+        // of creating a new one every time - without this, retrying while
+        // theme-write access isn't approved yet (a normal, possibly
+        // repeated state, not a one-off) piled up a fresh "recommended,
+        // never applied" row on the Optimizations page on every click.
+        $optimization = $shop->optimizations()
+            ->where('type', 'interceptor_install')
+            ->where('status', 'recommended')
+            ->first();
 
-        $this->backups->backup($optimization, $themeId, $assetKey, $original, $updated);
+        if (! $optimization) {
+            $optimization = $shop->optimizations()->create([
+                'type' => 'interceptor_install',
+                'risk_tier' => 'medium',
+                'status' => 'recommended',
+                'theme_id' => $themeId,
+                'asset_key' => $assetKey,
+            ]);
+
+            $this->backups->backup($optimization, $themeId, $assetKey, $original, $updated);
+        }
 
         try {
             $this->themeAssets->write($themeId, $assetKey, $updated);

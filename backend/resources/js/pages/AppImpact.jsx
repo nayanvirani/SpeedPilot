@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Badge, Banner, BlockStack, Button, ButtonGroup, Card, InlineStack, Page, SkeletonBodyText, Text } from '@shopify/polaris';
+import { Badge, Banner, BlockStack, Button, ButtonGroup, Card, InlineStack, Page, SkeletonBodyText, Text, Toast } from '@shopify/polaris';
 import { api } from '../api';
 import FixCodeViewer from '../components/FixCodeViewer';
 
@@ -145,6 +145,19 @@ export default function AppImpact() {
             title="App & Script Impact"
             subtitle={highImpactCount > 0 ? `${highImpactCount} apps are costing you significant load time` : undefined}
         >
+            {notice && (
+                // A Toast, not just the Banner below - this list can run to
+                // 15+ rows, and a banner pinned to the top of the page is
+                // easy to miss entirely if the action that triggered it was
+                // on a row further down and nothing visibly changes there.
+                // Toast floats above the page regardless of scroll position.
+                <Toast
+                    content={notice.message}
+                    error={notice.tone === 'warning' || notice.tone === 'critical'}
+                    onDismiss={() => setNotice(null)}
+                    duration={notice.tone === 'success' ? 3000 : 6000}
+                />
+            )}
             <BlockStack gap="400">
                 {notice && (
                     <Banner tone={notice.tone} onDismiss={() => setNotice(null)}>
