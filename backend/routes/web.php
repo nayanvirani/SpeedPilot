@@ -37,6 +37,13 @@ Route::get('/storefront/interceptor.js', [InterceptorController::class, 'serve']
     ->middleware('throttle:interceptor')
     ->name('storefront.interceptor');
 
+// Shopify App Proxy target - https://{shop}/apps/speedpilot/* forwards here.
+// /proxy/ping is a bare connectivity smoke test (no HMAC check) for
+// confirming the proxy config actually resolves for an existing install
+// before anything real is built on top of it. Real proxy routes (sw.js
+// etc.) come later, HMAC-verified via AppProxyVerifier.
+Route::get('/proxy/ping', fn () => response()->json(['ok' => true, 'query' => request()->query()]));
+
 // Webhooks - HMAC-verified and deduped by shopify.webhook, never App-Bridge
 // session tokens.
 Route::middleware('shopify.webhook')->group(function () {

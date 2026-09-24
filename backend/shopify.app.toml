@@ -8,6 +8,15 @@ embedded = true
 [build]
 automatically_update_urls_on_dev = true
 
+# Storefront-facing, same-origin proxy - https://{shop}/apps/speedpilot/* is
+# transparently forwarded here as /proxy/*. Exists specifically so a Service
+# Worker can be registered same-origin with the storefront (a hard browser
+# requirement) even though our app itself is hosted cross-origin on Railway.
+[app_proxy]
+url = "https://speedpilot-production.up.railway.app/proxy"
+prefix = "apps"
+subpath = "speedpilot"
+
 [webhooks]
 api_version = "2026-07"
 
