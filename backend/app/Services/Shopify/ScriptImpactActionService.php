@@ -362,6 +362,16 @@ class ScriptImpactActionService
     }
 
     /**
+     * Chains every `replace` directly onto the `{{ content_for_header }}`
+     * output tag itself - the exact form the proven reference theme uses -
+     * rather than an `{% assign %}` followed by a separate `{{ }}` output.
+     * That two-step version renders identically, but Shopify's theme
+     * validation checks theme.liquid for the literal `{{ content_for_header
+     * }}` output expression specifically; splitting it into an assign tag
+     * doesn't contain that literal pattern, and could get a save rejected
+     * (confirmed as a real concern before this ever reached a live theme,
+     * not just a style preference).
+     *
      * @param  \Illuminate\Support\Collection<int, ContentStopTarget>  $targets
      */
     private function buildContentStopBlock($targets): string
@@ -374,8 +384,7 @@ class ScriptImpactActionService
         })->implode("\n  ");
 
         return self::CONTENT_STOP_START."\n"
-            .'{%- assign speedpilot_header = content_for_header'."\n  ".$filters." -%}\n"
-            .'{{ speedpilot_header }}'."\n"
+            .'{{ content_for_header'."\n  ".$filters.' }}'."\n"
             .self::CONTENT_STOP_END;
     }
 
