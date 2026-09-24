@@ -85,12 +85,29 @@ function stripVolatileParams(url) {
 // Query params/hashes on the flagged URL itself can differ from what's in
 // the markup (stripVolatileParams already strips them off `url`), so this
 // matches on the origin+pathname prefix, not the full string.
+//
+// Scoped to <head>...</head> only, not the whole page - confirmed live
+// against a real store that this matters: `content_for_header` is always
+// rendered inside <head>, but a Theme App Extension "app embed" block with
+// `target: "body"` (how most apps deliver scripts on Online Store 2.0
+// themes - Shopify's own guidance is that the legacy Script Tag API, which
+// is what actually lands in content_for_header, only works reliably on
+// vintage themes now) renders near </body> instead. A whole-page search
+// found PayPal's SDK script as a literal match this way, but it sits deep
+// in <body> - nothing a content_for_header `replace` chain could ever
+// reach, even though the text is genuinely on the page. Scoping to <head>
+// isn't a perfect guarantee (a target:"head" app embed is also in <head>
+// but still outside content_for_header specifically), but it eliminates
+// this confirmed, most severe class of false positive.
 function findStaticMatch(rawHtml, url) {
   if (!rawHtml || !url) return null;
 
+  const headEnd = rawHtml.search(/<\/head\s*>/i);
+  const head = headEnd === -1 ? rawHtml : rawHtml.slice(0, headEnd);
+
   const escaped = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const pattern = new RegExp(`(?:src|href)\\s*=\\s*["'][^"']*${escaped}[^"']*["']`, 'i');
-  const match = rawHtml.match(pattern);
+  const match = head.match(pattern);
 
   return match ? match[0] : null;
 }
