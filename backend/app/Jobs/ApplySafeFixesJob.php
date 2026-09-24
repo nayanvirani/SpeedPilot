@@ -256,18 +256,37 @@ class ApplySafeFixesJob implements ShouldQueue
         $changedCount = 0;
 
         foreach ($sweeper->sweep($liveThemeId) as $filename => $change) {
-            $optimization = $shop->optimizations()->create([
-                'audit_issue_id' => $issue->id,
-                'type' => 'lazy_load',
-                'risk_tier' => 'safe',
-                'status' => 'recommended',
-                'theme_id' => $writeThemeId,
-                'asset_key' => $filename,
-            ]);
+            // Reuse a still-pending attempt from an earlier blocked scan
+            // instead of creating a new one every time - without this, a
+            // scan re-running while write_themes stays unapproved (a
+            // normal, repeated state, not a one-off) piled up a fresh
+            // "recommended, never applied" row per file on every scan, each
+            // showing whatever the fix logic produced *at that time* - so a
+            // merchant reviewing "View change" could be looking at a stale
+            // diff from a since-fixed bug in the fix logic itself instead
+            // of what would actually be applied today.
+            $optimization = $shop->optimizations()
+                ->where('type', 'lazy_load')
+                ->where('asset_key', $filename)
+                ->where('status', 'recommended')
+                ->first();
+
+            if ($optimization) {
+                $optimization->backups()->delete();
+            } else {
+                $optimization = $shop->optimizations()->create([
+                    'audit_issue_id' => $issue->id,
+                    'type' => 'lazy_load',
+                    'risk_tier' => 'safe',
+                    'status' => 'recommended',
+                    'theme_id' => $writeThemeId,
+                    'asset_key' => $filename,
+                ]);
+            }
 
             $backups->backup($optimization, $writeThemeId, $filename, $change['original'], $change['updated']);
             $themeAssets->write($writeThemeId, $filename, $change['updated']);
-            $optimization->update(['status' => 'applied', 'applied_at' => now()]);
+            $optimization->update(['status' => 'applied', 'applied_at' => now(), 'audit_issue_id' => $issue->id]);
             $changedCount++;
         }
 
