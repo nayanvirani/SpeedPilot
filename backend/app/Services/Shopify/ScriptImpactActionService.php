@@ -116,32 +116,28 @@ class ScriptImpactActionService
         ];
     }
 
-    // extensions/rum-snippet - same Theme App Extension the RUM web-vitals
-    // snippet uses, just a second app-embed block in it.
-    public const EMBED_UUID = '173eac1f-9228-9b2c-0d6c-90479e7e9644e74d53e7';
-
-    public const EMBED_HANDLE = 'advanced-delay-snippet';
-
     /**
      * The "Advanced delay (experimental)" action - for a script SpeedPilot
      * can't find in theme files at all (Shopify ScriptTag-injected), this
      * doesn't edit the app's own tag (impossible - it isn't theme content).
      *
-     * The engine itself is NOT written into the merchant's theme, and
-     * SpeedPilot never edits theme.liquid for this feature at all - the
-     * <script src> tag pointing at /storefront/interceptor.js
-     * (InterceptorController) is delivered by a Theme App Extension app
-     * embed (extensions/rum-snippet/blocks/advanced-delay-snippet.liquid),
-     * the same mechanism the RUM web-vitals snippet already uses. The
-     * merchant switches it on once in Theme Editor > App embeds; Shopify
-     * renders the tag on every storefront page from then on, and removes it
-     * the moment they switch it off - no write_themes access needed for
-     * this feature at all, and no separate cleanup step on uninstall
-     * (Shopify disables an uninstalled app's embeds automatically).
+     * The engine itself is NOT written into the merchant's theme - only a
+     * single, stable <script src> tag pointing at the public
+     * /storefront/interceptor.js endpoint (InterceptorController), which
+     * generates the actual watcher JS (engine + this shop's current delay
+     * list) fresh on every request. SpeedPilot never writes that tag into
+     * theme.liquid itself (was tried via a Theme App Extension app embed -
+     * removed again since a merchant pasting one line into their own
+     * theme.liquid directly is simpler to understand/verify than finding
+     * Theme Editor > App embeds, and doesn't need write_themes or an app
+     * embed toggle either way): interceptorManualSnippet() below hands back
+     * the exact tag for a merchant to paste themselves, same "Manual fix"
+     * pattern as every other action in this app.
      *
      * Toggling a delay on/off here only ever changes the DB row - the
      * hosted endpoint reads this shop's current delay list live on every
-     * request, so there is nothing else to write anywhere.
+     * request, so a merchant who's already pasted the tag once never needs
+     * to touch their theme again for any later toggle.
      *
      * @return array{applied: bool, message: ?string, blocked: bool}
      */
@@ -155,17 +151,17 @@ class ScriptImpactActionService
 
         return [
             'applied' => true,
-            'message' => "Make sure the \"SpeedPilot Advanced Delay\" app embed is turned on in Theme Editor > ".
-                'App embeds - the delay only takes effect on your storefront once it is.',
+            'message' => 'Make sure the SpeedPilot Advanced Delay tag is pasted near the top of your theme\'s '
+                .'<head> (see "Manual fix" below) - the delay only takes effect on your storefront once it is.',
             'blocked' => false,
         ];
     }
 
     /**
-     * Just removes this shop's target - the app embed block itself stays
+     * Just removes this shop's target - any manually-pasted tag stays
      * (harmless, and the hosted endpoint naturally starts returning a no-op
      * script once a shop has no targets left, so there's nothing to revert
-     * anywhere else - see the class docblock above).
+     * in the theme itself - see the class docblock above).
      *
      * @return array{applied: bool, message: ?string, blocked: bool}
      */
@@ -179,15 +175,18 @@ class ScriptImpactActionService
     }
 
     /**
-     * Deep link straight to this shop's Theme Editor with the "SpeedPilot
-     * Advanced Delay" app embed panel open, so a merchant doesn't have to
-     * hunt for it manually under Online Store > Themes > Customize > App
-     * embeds.
+     * The exact tag a merchant pastes near the top of their theme's <head>
+     * (e.g. right after the opening `<head>` tag in theme.liquid) to turn
+     * "Advanced delay (experimental)" on. `{{ shop.permanent_domain }}` is
+     * Liquid, not PHP interpolation - it's resolved by Shopify's own
+     * rendering once this is sitting in the merchant's theme, the same way
+     * the old Theme App Extension block did it.
      */
-    public static function interceptorEmbedDeepLink(ShopInstallation $shop): string
+    public static function interceptorManualSnippet(): string
     {
-        return 'https://'.$shop->shop_domain.'/admin/themes/current/editor'
-            .'?context=apps&activateAppId='.self::EMBED_UUID.'/'.self::EMBED_HANDLE;
+        $url = rtrim(config('app.url'), '/').'/storefront/interceptor.js?shop={{ shop.permanent_domain | url_encode }}';
+
+        return '<script src="'.$url.'" fetchpriority="high"></script>';
     }
 
     private const CONTENT_STOP_START = '<!-- SpeedPilot:content-stop:start -->';

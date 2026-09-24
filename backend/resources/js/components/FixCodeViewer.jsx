@@ -31,9 +31,20 @@ function FixFile({ file }) {
     const [showFullFile, setShowFullFile] = useState(false);
     const snippet = file.snippet;
 
+    // No "original" at all means there's nothing to find/replace - this is
+    // a pure addition (e.g. the Advanced Delay tag), just one block to add
+    // near the top of the file, not a find-and-swap.
+    if (file.original === null) {
+        return (
+            <BlockStack gap="150">
+                <Text as="span" tone="subdued">Add this near the top of: <span className="sp-mono">{file.asset_key}</span></Text>
+                <CodeBlock label="Paste this in" content={file.fixed} />
+            </BlockStack>
+        );
+    }
+
     // A snippet only exists when the file actually has both an original and
-    // a fixed version to diff - falls back to the full file otherwise (e.g.
-    // a brand-new file with nothing to compare against).
+    // a fixed version to diff - falls back to the full file otherwise.
     const usingSnippet = snippet && !showFullFile;
     const pasteContent = usingSnippet ? snippet.after : file.fixed;
     const referenceContent = usingSnippet ? snippet.before : file.original;
@@ -101,8 +112,9 @@ export default function FixCodeViewer({ fetchPath, label = 'Manual fix - view co
                 <BlockStack gap="300">
                     <Text as="p" tone="subdued">
                         SpeedPilot never touched your theme to make this - open Shopify admin &gt; Online
-                        Store &gt; Themes &gt; Edit code, find the file below, locate the "Find this..." text,
-                        and replace it with the code shown underneath. No need to touch the rest of the file.
+                        Store &gt; Themes &gt; Edit code, find the file below, then either add the code shown
+                        or replace the "Find this..." text with it, depending on which is shown. No need to
+                        touch the rest of the file.
                     </Text>
                     {code.files.map((file) => <FixFile key={file.asset_key} file={file} />)}
                     {code.truncated_count > 0 && (

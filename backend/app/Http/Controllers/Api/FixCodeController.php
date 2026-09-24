@@ -88,12 +88,15 @@ class FixCodeController extends Controller
 
         $useInterceptor = $data['action'] === 'delayed' && ($data['method'] ?? null) === 'interceptor';
 
-        // "Advanced delay" has no code to paste any more - the tag is
-        // delivered by a Theme App Extension app embed the merchant
-        // switches on in Theme Editor (see ScriptImpactActionService's
-        // interceptorDelay() docblock), not a manual theme.liquid edit.
+        // "Advanced delay" is a single static tag, the same for every shop
+        // - no theme access needed to compute it, unlike every other fix
+        // here (see ScriptImpactActionService::interceptorManualSnippet()).
         if ($useInterceptor) {
-            return response()->json(['error' => 'Advanced delay is turned on from Theme Editor > App embeds, not pasted code - there is nothing to view here.'], 422);
+            return response()->json(['code' => self::withSnippets([
+                'fix_type' => 'delayed_interceptor',
+                'files' => [['asset_key' => 'layout/theme.liquid', 'original' => null, 'fixed' => ScriptImpactActionService::interceptorManualSnippet()]],
+                'truncated_count' => 0,
+            ])]);
         }
 
         $client = new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token);

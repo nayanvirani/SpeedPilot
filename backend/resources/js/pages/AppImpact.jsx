@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Badge, Banner, BlockStack, Button, ButtonGroup, Card, InlineStack, Link, Page, SkeletonBodyText, Text, Toast } from '@shopify/polaris';
+import { Badge, Banner, BlockStack, Button, ButtonGroup, Card, InlineStack, Page, SkeletonBodyText, Text, Toast } from '@shopify/polaris';
 import { api } from '../api';
 import FixCodeViewer from '../components/FixCodeViewer';
 import ThemeAccessStatus from '../components/ThemeAccessStatus';
@@ -28,7 +28,7 @@ const ACTION_CONFIRM = {
     disabled: (name) => `Remove ${name}'s script from your theme? This will stop it from working on your storefront until you re-enable it.`,
     delayed: (name) => `Delay ${name}'s script until the shopper first scrolls, clicks, or after 5 seconds? Some of its functionality (like a chat widget appearing instantly) may be affected.`,
     stopped_content: (name) => `Stop ${name}'s script until the shopper first scrolls, clicks, or after 5 seconds? SpeedPilot verified this scan that ${name}'s script appears as real code in your storefront's page, so this edits your theme to neutralize it server-side, then reloads it on interaction - stronger than "Advanced delay," but still stops working if you ever uninstall SpeedPilot (the release step needs it).`,
-    delayed_interceptor: (name) => `Try advanced delay for ${name}? This works by delaying resources ${name}'s own script loads dynamically after it starts - it can't guarantee delaying ${name}'s very first script tag, since that's loaded directly by Shopify and no app (including this one) can intercept it. Best-effort, not a guarantee like "Delayed (auto)." Some scripts (Shopify's own sandboxed marketing pixels) can't be delayed by any method, including this one. Requires the "SpeedPilot Advanced Delay" app embed to be turned on in Theme Editor.`,
+    delayed_interceptor: (name) => `Try advanced delay for ${name}? This works by delaying resources ${name}'s own script loads dynamically after it starts - it can't guarantee delaying ${name}'s very first script tag, since that's loaded directly by Shopify and no app (including this one) can intercept it. Best-effort, not a guarantee like "Delayed (auto)." Some scripts (Shopify's own sandboxed marketing pixels) can't be delayed by any method, including this one. Requires pasting one tag near the top of your theme's <head> once (see "Manual fix" below).`,
 };
 
 function currentActionKey(impact) {
@@ -50,7 +50,7 @@ function currentActionKey(impact) {
  * state visible in one place instead of merchants having to scan every
  * row's badge to piece it together themselves.
  */
-function AdvancedDelaySummary({ appImpacts, embedUrl }) {
+function AdvancedDelaySummary({ appImpacts }) {
     const delayed = appImpacts.filter((a) => a.status === 'delayed' && a.delay_method === 'interceptor');
 
     if (delayed.length === 0) {
@@ -59,23 +59,17 @@ function AdvancedDelaySummary({ appImpacts, embedUrl }) {
 
     return (
         <Banner tone="info" title={`Advanced delay is active for ${delayed.length} script${delayed.length === 1 ? '' : 's'}`}>
-            <BlockStack gap="200">
-                <Text as="p">
-                    {delayed.map((a) => a.app_name).join(', ')} - all watched and delayed together by the same
-                    script, kept in sync automatically as you turn this on or off per app below. No extra setup
-                    needed per script.
-                </Text>
-                <Text as="p">
-                    This only takes effect once the <b>SpeedPilot Advanced Delay</b> app embed is turned on for
-                    your theme - it's what adds the script tag, not a manual theme edit.{' '}
-                    {embedUrl && <Link url={embedUrl} target="_blank">Open Theme Editor &gt; App embeds</Link>}
-                </Text>
-            </BlockStack>
+            <Text as="p">
+                {delayed.map((a) => a.app_name).join(', ')} - all watched and delayed together by the same
+                script, kept in sync automatically as you turn this on or off per app below. No extra setup
+                needed per script, as long as the tag is pasted once (see "Manual fix" on any row below) - it
+                only needs pasting once total, not once per app.
+            </Text>
         </Banner>
     );
 }
 
-function ImpactRow({ impact, pending, onSetStatus, embedUrl }) {
+function ImpactRow({ impact, pending, onSetStatus }) {
     // Shopify's own platform scripts (Shop Pay, checkout, core analytics)
     // are injected by Shopify itself, never present as literal text in the
     // theme's own files - no app, including this one, can disable, delay,
@@ -137,12 +131,12 @@ function ImpactRow({ impact, pending, onSetStatus, embedUrl }) {
                         fetchPath={`/app-impacts/${impact.id}/fix-code?action=delayed`}
                         label="Manual fix - view code to delay"
                     />
+                    <FixCodeViewer
+                        key={`delayed-interceptor-${impact.id}`}
+                        fetchPath={`/app-impacts/${impact.id}/fix-code?action=delayed&method=interceptor`}
+                        label="Manual fix - view advanced delay code"
+                    />
                 </InlineStack>
-            )}
-            {!impact.is_platform && impact.status === 'delayed' && impact.delay_method === 'interceptor' && embedUrl && (
-                <Text as="p" tone="subdued">
-                    Turned on via <Link url={embedUrl} target="_blank">Theme Editor &gt; App embeds</Link>, not pasted code.
-                </Text>
             )}
         </BlockStack>
     );
@@ -150,7 +144,6 @@ function ImpactRow({ impact, pending, onSetStatus, embedUrl }) {
 
 export default function AppImpact() {
     const [appImpacts, setAppImpacts] = useState([]);
-    const [embedUrl, setEmbedUrl] = useState(null);
     const [loading, setLoading] = useState(true);
     const [pendingId, setPendingId] = useState(null);
     const [notice, setNotice] = useState(null);
@@ -158,10 +151,7 @@ export default function AppImpact() {
     const load = useCallback(() => {
         setLoading(true);
         return api.get('/app-impacts')
-            .then((res) => {
-                setAppImpacts(res.app_impacts);
-                setEmbedUrl(res.advanced_delay_embed_url ?? null);
-            })
+            .then((res) => setAppImpacts(res.app_impacts))
             .finally(() => setLoading(false));
     }, []);
 
@@ -216,7 +206,7 @@ export default function AppImpact() {
                     </Banner>
                 )}
                 <ThemeAccessStatus />
-                <AdvancedDelaySummary appImpacts={appImpacts} embedUrl={embedUrl} />
+                <AdvancedDelaySummary appImpacts={appImpacts} />
                 <Card>
                     {loading ? (
                         <SkeletonBodyText lines={4} />
@@ -238,9 +228,9 @@ export default function AppImpact() {
                                 loading dynamically and delays those, but some scripts (notably Shopify's own sandboxed
                                 marketing pixels - Facebook, TikTok, Klarna, Affirm, and similar) can't be delayed by
                                 any method, including this one, since they never appear as literal code anywhere in the
-                                page to begin with. It only works once the <b>SpeedPilot Advanced Delay</b> app embed is
-                                switched on in Theme Editor - the script tag is added automatically by that toggle,
-                                never by editing theme code. <b>Manual fix</b> shows
+                                page to begin with. It only works once its tag is pasted near the top of your theme's
+                                &lt;head&gt; (see <b>Manual fix</b> on any row below) - one tag total, not per app.{' '}
+                                <b>Manual fix</b> shows
                                 you the exact code to paste yourself right now, no approval needed. <b>Excluded</b> just
                                 stops it from being flagged here - it doesn't change your storefront. Rows marked{' '}
                                 <Badge tone="info">Shopify platform</Badge> are loaded by Shopify itself (Shop Pay,
@@ -249,7 +239,7 @@ export default function AppImpact() {
                             {appImpacts.map((impact, i) => (
                                 <React.Fragment key={impact.id}>
                                     {i > 0 && <div style={{ borderTop: '1px solid var(--p-color-border-secondary)' }} />}
-                                    <ImpactRow impact={impact} pending={pendingId === impact.id} onSetStatus={setStatus} embedUrl={embedUrl} />
+                                    <ImpactRow impact={impact} pending={pendingId === impact.id} onSetStatus={setStatus} />
                                 </React.Fragment>
                             ))}
                         </BlockStack>

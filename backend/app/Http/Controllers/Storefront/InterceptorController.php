@@ -9,25 +9,24 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 /**
- * Public, unauthenticated - the <script src> tag pointing here is only ever
- * present on a storefront when the merchant has switched on the "SpeedPilot
- * Advanced Delay" app embed in Theme Editor (extensions/rum-snippet/blocks/
- * advanced-delay-snippet.liquid), same mechanism as the RUM web-vitals
- * snippet - never a manual paste into theme.liquid, and never present at
- * all unless that embed is on. A real storefront visitor's browser fetches
- * it directly, with no App Bridge session to authenticate against, so the
- * shop is resolved from the plain `shop` domain the embed passes (public
- * knowledge - it's the storefront's own URL - same as RumEventController
- * already trusts). `t` is kept only as a fallback for any tag pasted in
- * during the earlier theme-write-based version of this feature.
+ * Public, unauthenticated - the one <script src> tag "Advanced delay
+ * (experimental)" ever needs points here, and a real storefront visitor's
+ * browser fetches it directly, with no App Bridge session to authenticate
+ * against. SpeedPilot never writes this tag into the merchant's theme
+ * itself (ScriptImpactActionService::interceptorManualSnippet() hands it
+ * back as copy-paste code instead, the same "Manual fix" pattern every
+ * other action in this app uses) - the shop is resolved from the plain
+ * `shop` domain query param the pasted tag's Liquid resolves at render time
+ * (public knowledge - it's the storefront's own URL - same as
+ * RumEventController already trusts). `t` is kept only as a fallback for
+ * any tag pasted in during an earlier version of this feature that used an
+ * opaque token instead.
  *
  * The response is generated fresh from this shop's current
  * interceptor_delay_targets on every request, so toggling a delay on/off
- * never needs another theme write, and an inactive/uninstalled shop simply
- * gets a no-op script back - the feature turns off the moment the
- * subscription does, with no separate cleanup step anywhere. Turning the
- * app embed off in Theme Editor removes the tag entirely, which is an even
- * more immediate kill switch than the DB-side check below.
+ * never needs the merchant to touch their theme again, and an inactive/
+ * uninstalled shop simply gets a no-op script back - the feature turns off
+ * the moment the subscription does, with no separate cleanup step needed.
  */
 class InterceptorController extends Controller
 {
