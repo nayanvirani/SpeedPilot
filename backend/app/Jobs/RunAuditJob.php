@@ -380,4 +380,34 @@ class RunAuditJob implements ShouldQueue
             default => 'low',
         };
     }
+
+    /**
+     * Laravel calls this when the job is definitively done retrying -
+     * including a case handle() never gets a chance to clean up itself: a
+     * worker container killed mid-scan (e.g. a deploy restarting the
+     * service) abandons the job with no graceful shutdown, so with
+     * tries=1 the next worker that notices the expired reservation marks
+     * it failed here, in a fresh process, rather than handle() ever running
+     * again. Without this, the audit (and whichever page was mid-scan when
+     * the worker died) stayed stuck at 'running' forever - no error, no
+     * "Retry scan" button, nothing for the merchant to act on.
+     */
+    public function failed(?Throwable $exception): void
+    {
+        $audit = Audit::find($this->auditId);
+
+        if (! $audit || in_array($audit->status, ['complete', 'failed'], true)) {
+            return;
+        }
+
+        $audit->pages()->where('status', 'running')->update([
+            'status' => 'failed',
+            'error_message' => 'The scan was interrupted before this page finished.',
+        ]);
+
+        $audit->update([
+            'status' => 'failed',
+            'raw_report' => ['error' => 'The scan was interrupted before it could finish - '.($exception?->getMessage() ?? 'unknown reason')],
+        ]);
+    }
 }
