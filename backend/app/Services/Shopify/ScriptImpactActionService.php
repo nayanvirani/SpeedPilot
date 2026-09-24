@@ -146,9 +146,21 @@ class ScriptImpactActionService
             return ['applied' => false, 'message' => 'Pick which theme SpeedPilot should apply changes to first (Dashboard > Target theme).', 'blocked' => false];
         }
 
-        $shop->interceptorDelayTargets()->firstOrCreate(['script_url' => $impact->script_url]);
+        $target = $shop->interceptorDelayTargets()->firstOrCreate(['script_url' => $impact->script_url]);
+        $result = $this->ensureInterceptorTagInstalled($shop);
 
-        return $this->ensureInterceptorTagInstalled($shop);
+        // If the tag was never actually installed (this shop's very first
+        // attempt, and it failed/is blocked), the engine never loads on the
+        // storefront at all - don't leave a target that would show
+        // "Delayed (experimental)" in the UI for something that isn't
+        // happening. Once the tag exists, every later call here is a no-op
+        // success regardless of which app it's for, so this only ever fires
+        // on a shop's genuinely first, failed attempt.
+        if (! $result['applied'] && $target->wasRecentlyCreated) {
+            $target->delete();
+        }
+
+        return $result;
     }
 
     /**
