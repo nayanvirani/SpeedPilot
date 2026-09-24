@@ -34,6 +34,32 @@ function currentActionKey(impact) {
     return impact.delay_method === 'interceptor' ? 'delayed_interceptor' : 'delayed';
 }
 
+/**
+ * Every app with "Advanced delay (experimental)" enabled shares ONE watcher
+ * script and ONE combined list of URLs it watches for - enabling it on a
+ * 2nd, 3rd, 5th app doesn't create separate delays, it just adds that app's
+ * URL to the same shared list automatically. This makes that aggregate
+ * state visible in one place instead of merchants having to scan every
+ * row's badge to piece it together themselves.
+ */
+function AdvancedDelaySummary({ appImpacts }) {
+    const delayed = appImpacts.filter((a) => a.status === 'delayed' && a.delay_method === 'interceptor');
+
+    if (delayed.length === 0) {
+        return null;
+    }
+
+    return (
+        <Banner tone="info" title={`Advanced delay is active for ${delayed.length} script${delayed.length === 1 ? '' : 's'}`}>
+            <Text as="p">
+                {delayed.map((a) => a.app_name).join(', ')} - all watched and delayed together by the same
+                script, kept in sync automatically as you turn this on or off per app below. No extra setup
+                needed per script.
+            </Text>
+        </Banner>
+    );
+}
+
 function ImpactRow({ impact, pending, onSetStatus }) {
     // Shopify's own platform scripts (Shop Pay, checkout, core analytics)
     // are injected by Shopify itself, never present as literal text in the
@@ -164,6 +190,7 @@ export default function AppImpact() {
                         <Text as="p">{notice.message}</Text>
                     </Banner>
                 )}
+                <AdvancedDelaySummary appImpacts={appImpacts} />
                 <Card>
                     {loading ? (
                         <SkeletonBodyText lines={4} />
