@@ -305,7 +305,7 @@ class ScriptImpactActionService
      */
     private static function interceptorSnippet(array $urls): string
     {
-        $json = json_encode(array_values($urls));
+        $json = json_encode(array_values($urls), JSON_UNESCAPED_SLASHES);
 
         return <<<HTML
             <script>
