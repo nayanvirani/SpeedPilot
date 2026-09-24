@@ -240,12 +240,23 @@ class ScriptImpactActionService
             return ['applied' => false, 'message' => 'Pick which theme SpeedPilot should apply changes to first (Dashboard > Target theme).', 'blocked' => false];
         }
 
-        $shop->contentStopTargets()->updateOrCreate(
+        $target = $shop->contentStopTargets()->updateOrCreate(
             ['script_url' => $impact->script_url],
             ['source_snippet' => $impact->content_for_header_match],
         );
 
-        return $this->rewriteContentForHeaderBlock($shop);
+        $result = $this->rewriteContentForHeaderBlock($shop);
+
+        // If the write never actually landed (most likely write_themes
+        // isn't approved yet for this shop), don't leave a target row
+        // behind - the next scan would otherwise report this app as
+        // "delayed" purely because the row exists, even though
+        // theme.liquid was never touched.
+        if (! $result['applied'] && $target->wasRecentlyCreated) {
+            $target->delete();
+        }
+
+        return $result;
     }
 
     /**
