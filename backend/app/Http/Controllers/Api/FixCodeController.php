@@ -73,7 +73,6 @@ class FixCodeController extends Controller
 
         $data = $request->validate([
             'action' => 'required|in:disabled,delayed',
-            'method' => 'nullable|in:theme_edit,interceptor',
         ]);
 
         $impact = AppImpact::whereHas('audit', fn ($q) => $q->where('shop_installation_id', $shop->id))
@@ -84,19 +83,6 @@ class FixCodeController extends Controller
                 'error' => "This is loaded directly by Shopify's platform, not an installed app - there's ".
                     'no theme code to show, since it was never in the theme to begin with.',
             ], 422);
-        }
-
-        $useInterceptor = $data['action'] === 'delayed' && ($data['method'] ?? null) === 'interceptor';
-
-        // "Advanced delay" is a single static tag, the same for every shop
-        // - no theme access needed to compute it, unlike every other fix
-        // here (see ScriptImpactActionService::interceptorManualSnippet()).
-        if ($useInterceptor) {
-            return response()->json(['code' => self::withSnippets([
-                'fix_type' => 'delayed_interceptor',
-                'files' => [['asset_key' => 'layout/theme.liquid', 'original' => null, 'fixed' => ScriptImpactActionService::interceptorManualSnippet()]],
-                'truncated_count' => 0,
-            ])]);
         }
 
         $client = new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token);
@@ -113,6 +99,22 @@ class FixCodeController extends Controller
         return response()->json(['code' => self::withSnippets([
             'fix_type' => $data['action'],
             'files' => [['asset_key' => $result['asset_key'], 'original' => $result['original'], 'fixed' => $result['fixed']]],
+            'truncated_count' => 0,
+        ])]);
+    }
+
+    /**
+     * "Advanced delay (experimental)" is one static tag shared by every app
+     * on this shop - not per-app code, so this deliberately takes no ID and
+     * needs no theme access to compute (see
+     * ScriptImpactActionService::interceptorManualSnippet()). Shown once,
+     * globally, rather than repeated identically on every app's row.
+     */
+    public function forAdvancedDelay()
+    {
+        return response()->json(['code' => self::withSnippets([
+            'fix_type' => 'delayed_interceptor',
+            'files' => [['asset_key' => 'layout/theme.liquid', 'original' => null, 'fixed' => ScriptImpactActionService::interceptorManualSnippet()]],
             'truncated_count' => 0,
         ])]);
     }

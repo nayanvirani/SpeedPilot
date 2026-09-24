@@ -33,6 +33,9 @@ Route::middleware('shopify.session')->group(function () {
     Route::get('/app-impacts', [AppImpactController::class, 'index']);
     Route::patch('/app-impacts/{id}', [AppImpactController::class, 'updateStatus']);
     Route::get('/app-impacts/{id}/fix-code', [FixCodeController::class, 'forAppImpact']);
+    // One global tag shared by every app, not per-app code - no impact ID
+    // needed, unlike forAppImpact above.
+    Route::get('/advanced-delay/fix-code', [FixCodeController::class, 'forAdvancedDelay']);
 
     Route::get('/optimizations', [OptimizationController::class, 'index']);
     Route::post('/optimizations/{id}/rollback', [OptimizationController::class, 'rollback']);
