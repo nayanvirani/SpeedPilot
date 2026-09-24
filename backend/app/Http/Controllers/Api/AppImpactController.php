@@ -44,11 +44,13 @@ class AppImpactController extends Controller
 
         $data = $request->validate([
             'status' => ['required', Rule::in(['active', 'disabled', 'delayed', 'excluded'])],
-            // Explicit 'interceptor' bypasses the theme-file locate attempt
-            // entirely for "Advanced delay (experimental)" - omitted (the
-            // default), 'delayed' keeps today's theme-file-only behavior
-            // unchanged, still failing honestly when the script isn't found.
-            'method' => ['nullable', Rule::in(['theme_edit', 'interceptor'])],
+            // Explicit 'interceptor'/'content_replace' bypass the theme-file
+            // locate attempt entirely - omitted (the default), 'delayed'
+            // keeps today's theme-file-only behavior unchanged, still
+            // failing honestly when the script isn't found. 'content_replace'
+            // ("Stop (verified)") only succeeds when this scan actually
+            // observed the script as literal text in content_for_header.
+            'method' => ['nullable', Rule::in(['theme_edit', 'interceptor', 'content_replace'])],
         ]);
 
         $impact = AppImpact::whereHas(
@@ -78,10 +80,12 @@ class AppImpactController extends Controller
         );
 
         $useInterceptor = ($data['method'] ?? null) === 'interceptor';
+        $useContentReplace = ($data['method'] ?? null) === 'content_replace';
 
         $result = match (true) {
             $data['status'] === 'disabled' => $actions->disable($shop, $impact),
             $data['status'] === 'delayed' && $useInterceptor => $actions->interceptorDelay($shop, $impact),
+            $data['status'] === 'delayed' && $useContentReplace => $actions->stopContentMatch($shop, $impact),
             $data['status'] === 'delayed' => $actions->delay($shop, $impact),
             $data['status'] === 'active' => $actions->restore($shop, $impact),
             // "Excluded" is a dismiss-only action - it stops this script
@@ -93,7 +97,9 @@ class AppImpactController extends Controller
         if ($result['applied']) {
             $impact->update([
                 'status' => $data['status'],
-                'delay_method' => $data['status'] === 'delayed' ? ($useInterceptor ? 'interceptor' : 'theme_edit') : null,
+                'delay_method' => $data['status'] === 'delayed'
+                    ? ($useInterceptor ? 'interceptor' : ($useContentReplace ? 'content_replace' : 'theme_edit'))
+                    : null,
             ]);
         }
 

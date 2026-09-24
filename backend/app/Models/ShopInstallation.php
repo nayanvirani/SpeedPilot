@@ -98,6 +98,11 @@ class ShopInstallation extends Model
         return $this->hasMany(InterceptorDelayTarget::class);
     }
 
+    public function contentStopTargets(): HasMany
+    {
+        return $this->hasMany(ContentStopTarget::class);
+    }
+
     public function subscriptions(): HasMany
     {
         return $this->hasMany(Subscription::class, 'shop_installation_id');

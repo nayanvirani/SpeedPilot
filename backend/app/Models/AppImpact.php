@@ -22,6 +22,7 @@ class AppImpact extends Model
         'status',
         'delay_method',
         'is_platform',
+        'content_for_header_match',
     ];
 
     protected function casts(): array

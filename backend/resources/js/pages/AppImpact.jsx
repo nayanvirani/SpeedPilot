@@ -8,15 +8,18 @@ const IMPACT_TONE = { high: 'critical', medium: 'warning', low: 'success' };
 const STATUS_TONE = { active: 'success', disabled: 'critical', delayed: 'warning', excluded: 'new' };
 const STATUS_LABEL = { active: 'Active', disabled: 'Disabled', delayed: 'Delayed', excluded: 'Excluded' };
 
-// Two of these ('delayed' and 'delayed_interceptor') both resolve to
-// status=delayed on the server, distinguished by delay_method - 'theme_edit'
-// (guaranteed, but only works when the script is found in theme files) vs
-// 'interceptor' (best-effort client-side delay for everything else, see the
-// confirm copy below for exactly what that does and doesn't guarantee).
+// Three of these ('delayed', 'delayed_interceptor', 'stopped_content') all
+// resolve to status=delayed on the server, distinguished by delay_method -
+// 'theme_edit' (guaranteed, but only works when the script is found in
+// theme files), 'content_replace' (guaranteed too, once SpeedPilot has
+// actually observed the script as literal text in content_for_header - see
+// confirm copy below), and 'interceptor' (best-effort client-side delay for
+// everything else, weakest of the three).
 const ACTION_META = {
     active: { label: 'Active', status: 'active' },
     disabled: { label: 'Disabled (auto)', status: 'disabled' },
     delayed: { label: 'Delayed (auto)', status: 'delayed' },
+    stopped_content: { label: 'Stop (verified)', status: 'delayed', method: 'content_replace' },
     delayed_interceptor: { label: 'Advanced delay (experimental)', status: 'delayed', method: 'interceptor' },
     excluded: { label: 'Excluded', status: 'excluded' },
 };
@@ -24,7 +27,8 @@ const ACTION_META = {
 const ACTION_CONFIRM = {
     disabled: (name) => `Remove ${name}'s script from your theme? This will stop it from working on your storefront until you re-enable it.`,
     delayed: (name) => `Delay ${name}'s script until the shopper first scrolls, clicks, or after 5 seconds? Some of its functionality (like a chat widget appearing instantly) may be affected.`,
-    delayed_interceptor: (name) => `Try advanced delay for ${name}? This works by delaying resources ${name}'s own script loads dynamically after it starts - it can't guarantee delaying ${name}'s very first script tag, since that's loaded directly by Shopify and no app (including this one) can intercept it. Best-effort, not a guarantee like "Delayed (auto)." Requires the "SpeedPilot Advanced Delay" app embed to be turned on in Theme Editor.`,
+    stopped_content: (name) => `Stop ${name}'s script until the shopper first scrolls, clicks, or after 5 seconds? SpeedPilot verified this scan that ${name}'s script appears as real code in your storefront's page, so this edits your theme to neutralize it server-side, then reloads it on interaction - stronger than "Advanced delay," but still stops working if you ever uninstall SpeedPilot (the release step needs it).`,
+    delayed_interceptor: (name) => `Try advanced delay for ${name}? This works by delaying resources ${name}'s own script loads dynamically after it starts - it can't guarantee delaying ${name}'s very first script tag, since that's loaded directly by Shopify and no app (including this one) can intercept it. Best-effort, not a guarantee like "Delayed (auto)." Some scripts (Shopify's own sandboxed marketing pixels) can't be delayed by any method, including this one. Requires the "SpeedPilot Advanced Delay" app embed to be turned on in Theme Editor.`,
 };
 
 function currentActionKey(impact) {
@@ -32,7 +36,10 @@ function currentActionKey(impact) {
         return impact.status ?? 'active';
     }
 
-    return impact.delay_method === 'interceptor' ? 'delayed_interceptor' : 'delayed';
+    if (impact.delay_method === 'interceptor') return 'delayed_interceptor';
+    if (impact.delay_method === 'content_replace') return 'stopped_content';
+
+    return 'delayed';
 }
 
 /**
@@ -76,11 +83,17 @@ function ImpactRow({ impact, pending, onSetStatus, embedUrl }) {
     // with. Excluding it from the list is still offered.
     const actions = impact.is_platform
         ? ['active', 'excluded']
-        : ['active', 'disabled', 'delayed', 'excluded', 'delayed_interceptor'];
+        : [
+            'active', 'disabled', 'delayed', 'excluded',
+            ...(impact.content_for_header_match ? ['stopped_content'] : []),
+            'delayed_interceptor',
+        ];
     const current = currentActionKey(impact);
     const badgeLabel = impact.status === 'delayed' && impact.delay_method === 'interceptor'
         ? 'Delayed (experimental)'
-        : STATUS_LABEL[impact.status ?? 'active'];
+        : impact.status === 'delayed' && impact.delay_method === 'content_replace'
+            ? 'Stopped (verified)'
+            : STATUS_LABEL[impact.status ?? 'active'];
 
     return (
         <BlockStack gap="200">
@@ -216,13 +229,18 @@ export default function AppImpact() {
                             <Text as="p" tone="subdued">
                                 <b>Disabled (auto)</b> and <b>Delayed (auto)</b> have SpeedPilot edit your theme directly -
                                 only works when SpeedPilot can find the script in your theme's files, and once
-                                Shopify approves this app's theme-editing access. <b>Advanced delay (experimental)</b> is
-                                for scripts Shopify injects itself (no theme file to edit) - it watches for that app's
-                                own resources loading dynamically and delays those, but can't guarantee delaying the
-                                app's very first script tag, so treat it as best-effort, not a guarantee. It only works
-                                once the <b>SpeedPilot Advanced Delay</b> app embed is switched on in Theme Editor - the
-                                script tag is added automatically by that toggle, never by editing theme code.{' '}
-                                <b>Manual fix</b> shows
+                                Shopify approves this app's theme-editing access. <b>Stop (verified)</b> is for scripts
+                                injected by another app (no theme file to edit) that SpeedPilot has actually confirmed,
+                                this scan, appear as real code in your storefront's rendered page - it edits your theme
+                                to neutralize that exact code server-side, then reloads it on interaction, and only
+                                appears as an option once that's been confirmed. <b>Advanced delay (experimental)</b> is
+                                the best-effort fallback for everything else - it watches for that app's own resources
+                                loading dynamically and delays those, but some scripts (notably Shopify's own sandboxed
+                                marketing pixels - Facebook, TikTok, Klarna, Affirm, and similar) can't be delayed by
+                                any method, including this one, since they never appear as literal code anywhere in the
+                                page to begin with. It only works once the <b>SpeedPilot Advanced Delay</b> app embed is
+                                switched on in Theme Editor - the script tag is added automatically by that toggle,
+                                never by editing theme code. <b>Manual fix</b> shows
                                 you the exact code to paste yourself right now, no approval needed. <b>Excluded</b> just
                                 stops it from being flagged here - it doesn't change your storefront. Rows marked{' '}
                                 <Badge tone="info">Shopify platform</Badge> are loaded by Shopify itself (Shop Pay,

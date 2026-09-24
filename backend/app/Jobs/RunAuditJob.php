@@ -120,17 +120,28 @@ class RunAuditJob implements ShouldQueue
         $this->aggregateIntoAudit($audit, $completedPages);
 
         // app_impacts rows are recreated fresh on every scan, so a shop's
-        // "Advanced delay (experimental)" choice for a script (persisted
-        // separately in interceptor_delay_targets, since it can't be baked
-        // into a theme file the way theme-edit disable/delay can) has to be
-        // re-applied here each time, or it would silently look like it reset
-        // to "Active" on the very next scan despite the interceptor still
-        // running in the theme.
+        // "Advanced delay (experimental)" / "Stop (verified)" choice for a
+        // script (persisted separately in interceptor_delay_targets /
+        // content_stop_targets, since neither can be baked into a theme
+        // file the way theme-edit disable/delay can) has to be re-applied
+        // here each time, or it would silently look like it reset to
+        // "Active" on the very next scan despite still being in effect.
         $interceptorUrls = $shop->interceptorDelayTargets()->pluck('script_url')->all();
+        $contentStopTargets = $shop->contentStopTargets()->get()->keyBy('script_url');
 
         foreach ($thirdPartyByApp as $app) {
             $url = $app['url'] ?? null;
             $isInterceptorDelayed = $url !== null && in_array($url, $interceptorUrls, true);
+            $stopTarget = $url !== null ? $contentStopTargets->get($url) : null;
+
+            // Hashed asset filenames rotate between scans (observed live
+            // this session) - refresh the stored search text whenever this
+            // scan sees a different but still-present match, or the Liquid
+            // `replace` this target drives would quietly stop matching
+            // anything without ever surfacing an error.
+            if ($stopTarget && ! empty($app['staticMatch']) && $app['staticMatch'] !== $stopTarget->source_snippet) {
+                $stopTarget->update(['source_snippet' => $app['staticMatch']]);
+            }
 
             $audit->appImpacts()->create([
                 'app_name' => $app['name'],
@@ -140,8 +151,17 @@ class RunAuditJob implements ShouldQueue
                 'estimated_blocking_ms' => $app['blockingMs'] ?? null,
                 'impact_level' => $app['impactLevel'] ?? $this->impactLevelFor($app),
                 'is_platform' => $app['isPlatform'] ?? false,
-                'status' => $isInterceptorDelayed ? 'delayed' : 'active',
-                'delay_method' => $isInterceptorDelayed ? 'interceptor' : null,
+                'content_for_header_match' => $app['staticMatch'] ?? null,
+                'status' => match (true) {
+                    $stopTarget !== null => 'delayed',
+                    $isInterceptorDelayed => 'delayed',
+                    default => 'active',
+                },
+                'delay_method' => match (true) {
+                    $stopTarget !== null => 'content_replace',
+                    $isInterceptorDelayed => 'interceptor',
+                    default => null,
+                },
             ]);
         }
 
@@ -228,7 +248,14 @@ class RunAuditJob implements ShouldQueue
         // occurrence rather than summing, which would inflate its apparent
         // weight the more pages it happens to appear on.
         $existing = $mergeInto[$key];
-        $mergeInto[$key] = ($app['bytes'] ?? 0) > ($existing['bytes'] ?? 0) ? $app : $existing;
+        $winner = ($app['bytes'] ?? 0) > ($existing['bytes'] ?? 0) ? $app : $existing;
+
+        // A literal content_for_header match on any scanned page is real
+        // evidence, regardless of which page "won" on byte weight - a miss
+        // on the winning page shouldn't hide a hit found on another one.
+        $winner['staticMatch'] = $app['staticMatch'] ?? $existing['staticMatch'] ?? null;
+
+        $mergeInto[$key] = $winner;
     }
 
     /**

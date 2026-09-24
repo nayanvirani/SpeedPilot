@@ -3,6 +3,7 @@
 namespace App\Services\Shopify;
 
 use App\Models\AppImpact;
+use App\Models\ContentStopTarget;
 use App\Models\ShopInstallation;
 
 /**
@@ -76,6 +77,10 @@ class ScriptImpactActionService
     {
         if ($impact->delay_method === 'interceptor') {
             return $this->restoreInterceptor($shop, $impact);
+        }
+
+        if ($impact->delay_method === 'content_replace') {
+            return $this->restoreContentMatch($shop, $impact);
         }
 
         $optimization = $shop->optimizations()
@@ -185,6 +190,198 @@ class ScriptImpactActionService
             .'?context=apps&activateAppId='.self::EMBED_UUID.'/'.self::EMBED_HANDLE;
     }
 
+    private const CONTENT_STOP_START = '<!-- SpeedPilot:content-stop:start -->';
+
+    private const CONTENT_STOP_END = '<!-- SpeedPilot:content-stop:end -->';
+
+    private const CONTENT_FOR_HEADER_NEEDLES = ['{{- content_for_header -}}', '{{ content_for_header }}', '{{content_for_header}}'];
+
+    /**
+     * "Stop (verified)" - for an app whose script SpeedPilot has actually
+     * observed, this scan, as literal text in this shop's rendered
+     * content_for_header (AppImpact::content_for_header_match, set by the
+     * scanner's own real HTTP fetch of the storefront - never assumed from
+     * the URL alone). Renames the matched src/href attribute to an inert
+     * one via a Liquid `replace` chain applied directly to content_for
+     * _header in theme.liquid, the same real technique a working reference
+     * theme uses for its own (different) apps - server-side, before
+     * Shopify ever sends HTML to the browser, so there's no race with the
+     * browser's own parser the way the client-side interceptor has.
+     *
+     * Deliberately NOT offered when content_for_header_match is null - most
+     * visibly, Shopify's own six built-in marketing pixels (Facebook, GTM,
+     * Affirm, Klarna, TikTok, shop.app/pay) are loaded through Shopify's
+     * sandboxed Web Pixels Manager, never present as literal text anywhere
+     * in the page, confirmed by fetching a real storefront's HTML directly
+     * this session - no `replace` filter, Service Worker, or client JS can
+     * ever touch those, so this refuses honestly instead of writing a
+     * `replace` pair that would silently never match anything.
+     *
+     * @return array{applied: bool, message: ?string, blocked: bool}
+     */
+    public function stopContentMatch(ShopInstallation $shop, AppImpact $impact): array
+    {
+        if (! $impact->script_url) {
+            return ['applied' => false, 'message' => "No script URL was recorded for this app, so it can't be targeted.", 'blocked' => false];
+        }
+
+        if (! $impact->content_for_header_match) {
+            return [
+                'applied' => false,
+                'message' => "SpeedPilot couldn't find this script as literal code in your storefront's rendered "
+                    .'page during the last scan - it may be loaded through Shopify\'s own sandboxed Web Pixels '
+                    ."system, which no app (including this one) can intercept. Run a fresh scan if this app's ".
+                    'script delivery has changed.',
+                'blocked' => false,
+            ];
+        }
+
+        if (! $shop->target_theme_id) {
+            return ['applied' => false, 'message' => 'Pick which theme SpeedPilot should apply changes to first (Dashboard > Target theme).', 'blocked' => false];
+        }
+
+        $shop->contentStopTargets()->updateOrCreate(
+            ['script_url' => $impact->script_url],
+            ['source_snippet' => $impact->content_for_header_match],
+        );
+
+        return $this->rewriteContentForHeaderBlock($shop);
+    }
+
+    /**
+     * @return array{applied: bool, message: ?string, blocked: bool}
+     */
+    public function restoreContentMatch(ShopInstallation $shop, AppImpact $impact): array
+    {
+        if ($impact->script_url) {
+            $shop->contentStopTargets()->where('script_url', $impact->script_url)->delete();
+        }
+
+        return $this->rewriteContentForHeaderBlock($shop);
+    }
+
+    /**
+     * Rebuilds the ENTIRE content-stop block from every current
+     * content_stop_targets row for this shop and writes it in one shot -
+     * not an incremental patch, same idempotent-block approach the old
+     * interceptor tag installer used. Removes the block entirely (falling
+     * back to plain content_for_header) once no targets remain, rather than
+     * leaving a no-op replace chain sitting in the theme.
+     *
+     * @return array{applied: bool, message: ?string, blocked: bool}
+     */
+    private function rewriteContentForHeaderBlock(ShopInstallation $shop): array
+    {
+        $themeId = $shop->target_theme_id;
+        $assetKey = 'layout/theme.liquid';
+
+        $original = $this->themeAssets->read($themeId, $assetKey);
+
+        if ($original === null) {
+            return ['applied' => false, 'message' => 'Could not read your theme.liquid file.', 'blocked' => false];
+        }
+
+        // Strip out any existing block first (and the needle it wraps),
+        // leaving a clean insertion point behind - every rewrite starts
+        // from the same known-good baseline instead of patching whatever
+        // is currently there.
+        $needle = self::CONTENT_FOR_HEADER_NEEDLES[1];
+        $blockPattern = '/'.preg_quote(self::CONTENT_STOP_START, '/').'.*?'.preg_quote(self::CONTENT_STOP_END, '/').'/s';
+        $base = preg_replace($blockPattern, $needle, $original) ?? $original;
+
+        $targets = $shop->contentStopTargets()->get();
+
+        if ($targets->isEmpty()) {
+            $updated = $base;
+        } else {
+            $foundNeedle = null;
+
+            foreach (self::CONTENT_FOR_HEADER_NEEDLES as $candidate) {
+                if (str_contains($base, $candidate)) {
+                    $foundNeedle = $candidate;
+                    break;
+                }
+            }
+
+            if ($foundNeedle === null) {
+                return ['applied' => false, 'message' => "Couldn't find a safe place to add this to your theme.liquid - contact SpeedPilot support.", 'blocked' => false];
+            }
+
+            $block = $this->buildContentStopBlock($targets);
+            $updated = str_replace($foundNeedle, $block, $base);
+        }
+
+        if ($updated === $original) {
+            return ['applied' => true, 'message' => null, 'blocked' => false];
+        }
+
+        $optimization = $shop->optimizations()
+            ->where('type', 'content_stop')
+            ->where('status', 'recommended')
+            ->first();
+
+        if (! $optimization) {
+            $optimization = $shop->optimizations()->create([
+                'type' => 'content_stop',
+                'risk_tier' => 'medium',
+                'status' => 'recommended',
+                'theme_id' => $themeId,
+                'asset_key' => $assetKey,
+            ]);
+        }
+
+        $this->backups->backup($optimization, $themeId, $assetKey, $original, $updated);
+
+        try {
+            $this->themeAssets->write($themeId, $assetKey, $updated);
+        } catch (ThemeWriteAccessDeniedException) {
+            $shop->update(['theme_write_blocked_at' => now()]);
+
+            return [
+                'applied' => false,
+                'message' => "Couldn't update your theme automatically right now - try again once SpeedPilot's theme-editing access is approved.",
+                'blocked' => true,
+            ];
+        }
+
+        $shop->update(['theme_write_blocked_at' => null]);
+        $optimization->update(['status' => 'applied', 'applied_at' => now()]);
+
+        return ['applied' => true, 'message' => null, 'blocked' => false];
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, ContentStopTarget>  $targets
+     */
+    private function buildContentStopBlock($targets): string
+    {
+        $filters = $targets->map(function (ContentStopTarget $target) {
+            $search = $target->source_snippet;
+            $replace = preg_replace('/^(src|href)(\s*=)/i', 'data-speedpilot-$1$2', $search, 1) ?? $search;
+
+            return '| replace: '.self::liquidStringLiteral($search).', '.self::liquidStringLiteral($replace);
+        })->implode("\n  ");
+
+        return self::CONTENT_STOP_START."\n"
+            .'{%- assign speedpilot_header = content_for_header'."\n  ".$filters." -%}\n"
+            .'{{ speedpilot_header }}'."\n"
+            .self::CONTENT_STOP_END;
+    }
+
+    /**
+     * Liquid string literals don't support escaping an embedded quote, so
+     * wrap in whichever quote character doesn't appear in the value - safe
+     * here because every value is an HTML attribute snippet (src="..." or
+     * src='...'), which by construction contains exactly one quote style,
+     * never both.
+     */
+    private static function liquidStringLiteral(string $value): string
+    {
+        $quote = str_contains($value, '"') ? "'" : '"';
+
+        return $quote.$value.$quote;
+    }
+
     /**
      * The actual watcher engine - lives here so InterceptorController can
      * render it per-request with a shop's live delay list, never as a
@@ -217,6 +414,18 @@ class ScriptImpactActionService
      * this doesn't expect, must never be able to break anything else on the
      * merchant's storefront.
      *
+     * Also releases anything the "Stop (verified)" content_for_header
+     * `replace` mechanism neutralized server-side - those elements already
+     * sit in the initial DOM with a `data-speedpilot-src`/`-href` attribute
+     * instead of `src`/`href` (never fetched by the browser at all, unlike
+     * the MutationObserver case above), so releasing them is just restoring
+     * that attribute name on the SAME trigger set, no pattern matching
+     * needed. This is deliberately the only place that release ever
+     * happens - the stop itself is static theme code that survives an
+     * uninstall, but since this script goes no-op the moment a shop is
+     * inactive, an uninstalled shop's previously-stopped scripts stay
+     * stopped rather than silently resuming, exactly as intended.
+     *
      * @param  array<int, string>  $urls
      */
     public static function interceptorEngineJs(array $urls): string
@@ -229,9 +438,25 @@ class ScriptImpactActionService
                 var PATTERNS = {$json};
                 var released = false, pending = [];
                 function matches(url) { return url && PATTERNS.some(function (p) { return url.indexOf(p) !== -1; }); }
+                function releaseStopped() {
+                  document.querySelectorAll('[data-speedpilot-src], [data-speedpilot-href]').forEach(function (node) {
+                    if (node.hasAttribute('data-speedpilot-src')) {
+                      node.setAttribute('src', node.getAttribute('data-speedpilot-src'));
+                      node.removeAttribute('data-speedpilot-src');
+                    }
+                    if (node.hasAttribute('data-speedpilot-href')) {
+                      node.setAttribute('href', node.getAttribute('data-speedpilot-href'));
+                      node.removeAttribute('data-speedpilot-href');
+                    }
+                    var clone = document.createElement(node.tagName);
+                    for (var i = 0; i < node.attributes.length; i++) clone.setAttribute(node.attributes[i].name, node.attributes[i].value);
+                    if (node.parentNode) node.parentNode.replaceChild(clone, node);
+                  });
+                }
                 function release() {
                   if (released) return;
                   released = true;
+                  releaseStopped();
                   pending.forEach(function (node) {
                     if (!node.parentNode) return;
                     var clone = document.createElement(node.tagName);

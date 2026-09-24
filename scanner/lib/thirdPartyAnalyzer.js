@@ -35,6 +35,26 @@ function isPlatformUrl(url) {
   }
 }
 
+// SpeedPilot's own interceptor delivery script (see InterceptorController /
+// the "SpeedPilot Advanced Delay" app embed) is itself fetched by the
+// storefront and gets picked up by Lighthouse's third-party-summary audit
+// like any other request - without this, the app would flag its own script
+// as something the merchant should "fix". Excluded outright, not just
+// badged, since it isn't a third party the merchant installed at all.
+const OWN_HOSTS = ['speedpilot-production.up.railway.app'];
+
+function isOwnUrl(url) {
+  if (!url) return false;
+
+  try {
+    const host = new URL(url).hostname;
+
+    return OWN_HOSTS.some((ownHost) => host === ownHost || host.endsWith(`.${ownHost}`));
+  } catch {
+    return false;
+  }
+}
+
 // Tracking pixels (Facebook's "extended matching" params are the worst
 // offender - hundreds of comma-separated numbers in a single query param)
 // routinely produce URLs well past a thousand characters, and none of that
@@ -57,26 +77,47 @@ function stripVolatileParams(url) {
   }
 }
 
-function thirdPartyImpacts(lhr) {
+// Liquid's `replace` filter does a literal substring match, so the search
+// text handed to it has to be exactly what Shopify actually rendered - not
+// a reconstructed guess. This finds the real `src="..."`/`href="..."`
+// attribute (if any) that literally contains the flagged URL in the page's
+// own server-rendered HTML, and returns that exact substring verbatim.
+// Query params/hashes on the flagged URL itself can differ from what's in
+// the markup (stripVolatileParams already strips them off `url`), so this
+// matches on the origin+pathname prefix, not the full string.
+function findStaticMatch(rawHtml, url) {
+  if (!rawHtml || !url) return null;
+
+  const escaped = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`(?:src|href)\\s*=\\s*["'][^"']*${escaped}[^"']*["']`, 'i');
+  const match = rawHtml.match(pattern);
+
+  return match ? match[0] : null;
+}
+
+function thirdPartyImpacts(lhr, rawHtml) {
   const summary = lhr.audits?.['third-party-summary'];
   const items = summary?.details?.items ?? [];
 
-  return items.map((item) => {
-    const bytes = item.transferSize ?? 0;
-    const blockingMs = item.blockingTime ?? item.mainThreadTime ?? 0;
-    const rawUrl = item.subItems?.items?.[0]?.url ?? null;
-    const url = stripVolatileParams(rawUrl);
+  return items
+    .filter((item) => !isOwnUrl(stripVolatileParams(item.subItems?.items?.[0]?.url ?? null)))
+    .map((item) => {
+      const bytes = item.transferSize ?? 0;
+      const blockingMs = item.blockingTime ?? item.mainThreadTime ?? 0;
+      const rawUrl = item.subItems?.items?.[0]?.url ?? null;
+      const url = stripVolatileParams(rawUrl);
 
-    return {
-      name: item.entity?.text ?? item.entity ?? 'Unknown script',
-      url,
-      requests: item.subItems?.items?.length ?? 1,
-      bytes,
-      blockingMs,
-      impactLevel: impactLevelFor(bytes, blockingMs),
-      isPlatform: isPlatformUrl(url),
-    };
-  });
+      return {
+        name: item.entity?.text ?? item.entity ?? 'Unknown script',
+        url,
+        requests: item.subItems?.items?.length ?? 1,
+        bytes,
+        blockingMs,
+        impactLevel: impactLevelFor(bytes, blockingMs),
+        isPlatform: isPlatformUrl(url),
+        staticMatch: findStaticMatch(rawHtml, url),
+      };
+    });
 }
 
 function impactLevelFor(bytes, blockingMs) {
