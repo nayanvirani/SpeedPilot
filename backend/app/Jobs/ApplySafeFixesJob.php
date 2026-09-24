@@ -6,6 +6,7 @@ use App\Models\Audit;
 use App\Models\AuditIssue;
 use App\Models\ShopInstallation;
 use App\Services\PlanPolicy;
+use App\Services\Shopify\AccessTokenExpiredException;
 use App\Services\Shopify\AssetBackupService;
 use App\Services\Shopify\ImageLazyLoadSweeper;
 use App\Services\Shopify\ShopifyGraphQLClient;
@@ -54,6 +55,19 @@ class ApplySafeFixesJob implements ShouldQueue
         // duplicate) - issues stay recommendation-only rather than
         // defaulting to silently editing whatever Shopify reports as live.
         if (! $shop->target_theme_id) {
+            return;
+        }
+
+        // A live HTTP request (e.g. AuditController's synchronous "Fix Safe
+        // Issues" button) always has a fresh token by the time it gets here
+        // - VerifyShopifySessionToken already refreshed it. This job can
+        // also run from the daily monitoring schedule though, with no live
+        // session token available to refresh an expired one - checking
+        // upfront avoids several doomed API calls for a condition that only
+        // resolves itself once the merchant next opens the app.
+        if ($shop->needsFreshAccessToken()) {
+            $shop->update(['needs_reauth_at' => now()]);
+
             return;
         }
 
@@ -179,6 +193,15 @@ class ApplySafeFixesJob implements ShouldQueue
                 // through the rest, and flag it for the Dashboard to say so
                 // honestly instead of quietly reporting "0 fixes applied."
                 $shop->update(['theme_write_blocked_at' => now()]);
+
+                break;
+            } catch (AccessTokenExpiredException) {
+                // Rare mid-job race with the upfront needsFreshAccessToken()
+                // check above (the token expired between the check and this
+                // write) - same "stop, don't churn through more doomed
+                // calls" response, just a self-resolving condition instead
+                // of a permanent gate.
+                $shop->update(['needs_reauth_at' => now()]);
 
                 break;
             }

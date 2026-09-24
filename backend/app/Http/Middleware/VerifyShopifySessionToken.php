@@ -72,6 +72,15 @@ class VerifyShopifySessionToken
             }
         }
 
+        // A live session token just resolved this shop, meaning its access
+        // token is fresh (either it already was, or provisionViaTokenExchange
+        // just refreshed it) - clears whatever a background job's
+        // AccessTokenExpiredException may have flagged, since that's exactly
+        // the condition this satisfies.
+        if ($shop->needs_reauth_at) {
+            $shop->update(['needs_reauth_at' => null]);
+        }
+
         $request->attributes->set('shop', $shop);
 
         return $next($request);

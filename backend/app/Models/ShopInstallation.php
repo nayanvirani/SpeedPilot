@@ -20,6 +20,7 @@ class ShopInstallation extends Model
         'target_theme_id',
         'target_theme_mode',
         'theme_write_blocked_at',
+        'needs_reauth_at',
         'storefront_locked_at',
         'interceptor_token',
         'scan_frequency',
@@ -48,6 +49,7 @@ class ShopInstallation extends Model
             'installed_at' => 'datetime',
             'uninstalled_at' => 'datetime',
             'theme_write_blocked_at' => 'datetime',
+            'needs_reauth_at' => 'datetime',
             'storefront_locked_at' => 'datetime',
         ];
     }

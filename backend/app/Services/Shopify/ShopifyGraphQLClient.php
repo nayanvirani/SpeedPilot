@@ -46,6 +46,17 @@ class ShopifyGraphQLClient
                 'json' => ['query' => $query, 'variables' => $variables ?: new \stdClass],
             ]);
         } catch (RequestException $e) {
+            // Distinct from every other request failure: a 401 here means
+            // the stored access token itself is expired/invalid, not a
+            // scope/approval problem - see AccessTokenExpiredException for
+            // why this can't just be retried in a background context.
+            if ($e->getResponse()?->getStatusCode() === 401) {
+                throw new AccessTokenExpiredException(
+                    "Shopify rejected the access token for {$this->shopDomain}: ".$e->getMessage(),
+                    previous: $e,
+                );
+            }
+
             throw new RuntimeException(
                 "Shopify GraphQL request failed for {$this->shopDomain}: ".$e->getMessage(),
                 previous: $e,
