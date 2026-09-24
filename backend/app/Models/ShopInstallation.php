@@ -6,6 +6,7 @@ use App\Casts\SafeEncrypted;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class ShopInstallation extends Model
 {
@@ -20,6 +21,7 @@ class ShopInstallation extends Model
         'target_theme_mode',
         'theme_write_blocked_at',
         'storefront_locked_at',
+        'interceptor_token',
         'scan_frequency',
         'scan_devices',
         'slack_webhook_url',
@@ -118,6 +120,22 @@ class ShopInstallation extends Model
     public function hasAuditInProgress(): bool
     {
         return $this->audits()->whereIn('status', ['pending', 'running'])->exists();
+    }
+
+    /**
+     * Opaque identifier the theme.liquid interceptor tag uses to fetch its
+     * shop-specific script from /storefront/interceptor.js - an anonymous
+     * storefront visitor's browser requests that URL directly, so this is
+     * effectively public; using an opaque token instead of the shop domain
+     * just stops trivial enumeration of another shop's delay list.
+     */
+    public function interceptorToken(): string
+    {
+        if (! $this->interceptor_token) {
+            $this->update(['interceptor_token' => Str::random(40)]);
+        }
+
+        return $this->interceptor_token;
     }
 
     public function isActive(): bool

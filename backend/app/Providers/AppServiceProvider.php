@@ -37,5 +37,13 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('rum', function ($request) {
             return Limit::perMinute(120)->by($request->input('shop_domain', $request->ip()));
         });
+
+        // /storefront/interceptor.js - fetched by every visitor of every
+        // shop with an active delay target, so this needs real headroom for
+        // a genuinely busy store; throttled per shop token (not per-IP) for
+        // the same reason as 'rum' above.
+        RateLimiter::for('interceptor', function ($request) {
+            return Limit::perMinute(600)->by($request->query('t', $request->ip()));
+        });
     }
 }

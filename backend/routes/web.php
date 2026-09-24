@@ -13,6 +13,7 @@ use App\Http\Controllers\EmbeddedAppController;
 use App\Http\Controllers\FaqController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\ShopifyOAuthController;
+use App\Http\Controllers\Storefront\InterceptorController;
 use App\Http\Controllers\Webhooks\AppSubscriptionsUpdateController;
 use App\Http\Controllers\Webhooks\AppUninstalledController;
 use App\Http\Controllers\Webhooks\GdprController;
@@ -27,6 +28,14 @@ Route::get('/auth/callback', [ShopifyOAuthController::class, 'callback']);
 // a redeploy - must be registered before the embedded-app catch-all below.
 Route::get('/privacy', fn () => app(PageController::class)->show('privacy'))->name('privacy');
 Route::get('/faq', [FaqController::class, 'index'])->name('faq');
+
+// Public, unauthenticated - fetched directly by storefront visitors'
+// browsers via the <script src> tag "Advanced delay (experimental)" writes
+// into theme.liquid. See InterceptorController's docblock for why the
+// engine lives here instead of inline in the theme.
+Route::get('/storefront/interceptor.js', [InterceptorController::class, 'serve'])
+    ->middleware('throttle:interceptor')
+    ->name('storefront.interceptor');
 
 // Webhooks - HMAC-verified and deduped by shopify.webhook, never App-Bridge
 // session tokens.

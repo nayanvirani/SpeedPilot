@@ -118,9 +118,21 @@ class ScriptImpactActionService
      * The "Advanced delay (experimental)" action - for a script SpeedPilot
      * can't find in theme files at all (Shopify ScriptTag-injected), this
      * doesn't edit the app's own tag (impossible - it isn't theme content).
-     * Instead it maintains one shared interceptor snippet in theme.liquid
-     * that watches for this script's URL being inserted into the DOM and
-     * delays it - best-effort, not guaranteed, see renderInterceptorBlock().
+     *
+     * The engine itself is NOT written into the merchant's theme - only a
+     * single, stable <script src> tag pointing at the public
+     * /storefront/interceptor.js endpoint (InterceptorController), which
+     * generates the actual watcher JS (engine + this shop's current delay
+     * list) fresh on every request. That keeps the real implementation off
+     * every merchant's theme editor, means toggling a delay on/off never
+     * needs another theme write (only the DB row changes - the endpoint
+     * just reads it live), and - the actual point of hosting it, not
+     * secrecy for its own sake - ties the feature to an active
+     * install/subscription: the endpoint checks $shop->isActive() before
+     * returning anything, so uninstalling stops it immediately with no
+     * separate cleanup step. None of this makes the JS un-inspectable to
+     * someone who opens browser DevTools - nothing that runs in a browser
+     * ever is - it just isn't sitting in cleartext in the theme source.
      *
      * @return array{applied: bool, message: ?string, blocked: bool}
      */
@@ -134,23 +146,17 @@ class ScriptImpactActionService
             return ['applied' => false, 'message' => 'Pick which theme SpeedPilot should apply changes to first (Dashboard > Target theme).', 'blocked' => false];
         }
 
-        $target = $shop->interceptorDelayTargets()->firstOrCreate(['script_url' => $impact->script_url]);
-        $result = $this->rewriteInterceptorBlock($shop);
+        $shop->interceptorDelayTargets()->firstOrCreate(['script_url' => $impact->script_url]);
 
-        // The theme was never actually updated to match - don't leave a
-        // phantom target a future scan would re-apply status=delayed for,
-        // even though nothing in the live theme reflects it. Only rolls
-        // back what THIS call added - if the target already existed (a
-        // retry of an already-active delay that happened to fail this
-        // time), leave it alone rather than second-guess prior state.
-        if (! $result['applied'] && $target->wasRecentlyCreated) {
-            $target->delete();
-        }
-
-        return $result;
+        return $this->ensureInterceptorTagInstalled($shop);
     }
 
     /**
+     * Just removes this shop's target - the shared theme.liquid tag stays
+     * (harmless, and the hosted endpoint naturally starts returning a no-op
+     * script once a shop has no targets left, so there's nothing to revert
+     * in the theme itself - see the class docblock above).
+     *
      * @return array{applied: bool, message: ?string, blocked: bool}
      */
     public function restoreInterceptor(ShopInstallation $shop, AppImpact $impact): array
@@ -159,12 +165,14 @@ class ScriptImpactActionService
             $shop->interceptorDelayTargets()->where('script_url', $impact->script_url)->delete();
         }
 
-        return $this->rewriteInterceptorBlock($shop);
+        return ['applied' => true, 'message' => null, 'blocked' => false];
     }
 
     /**
-     * Read-only twin of interceptorDelay() - previews the theme.liquid diff
-     * without writing it, same contract as preview() above.
+     * Read-only twin of interceptorDelay() - previews installing the tag
+     * (a merchant without theme-write access approved yet can paste this
+     * themselves), same contract as preview() above. Shows no diff if the
+     * tag is already installed - nothing left to preview at that point.
      *
      * @return array{asset_key: ?string, original: ?string, fixed: ?string, error: ?string}
      */
@@ -187,10 +195,8 @@ class ScriptImpactActionService
             return [...$empty, 'asset_key' => $assetKey, 'error' => 'Could not read your theme.liquid file.'];
         }
 
-        $urls = $shop->interceptorDelayTargets()->pluck('script_url')->push($impact->script_url)->unique()->values()->all();
-
         try {
-            $updated = self::renderInterceptorBlock($original, $urls);
+            $updated = self::insertInstallBlock($original, $shop->interceptorToken());
         } catch (\RuntimeException $e) {
             return [...$empty, 'asset_key' => $assetKey, 'error' => $e->getMessage()];
         }
@@ -199,16 +205,15 @@ class ScriptImpactActionService
     }
 
     /**
-     * Regenerates the interceptor block from the shop's *entire current*
-     * interceptor_delay_targets list and writes it - never patches just one
-     * entry. Multiple app_impacts share this one theme.liquid block, so
-     * "what should it contain right now" is always derived fresh from the
-     * DB rather than trying to revert a specific prior diff (which would be
-     * order-dependent across independent toggles of different apps).
+     * Idempotent - if the tag is already there, this is a no-op success and
+     * never touches the theme again. Only the very first "Advanced delay"
+     * click for a shop ever writes theme.liquid; every toggle after that
+     * (for this app or any other) is purely a DB change the hosted endpoint
+     * picks up on its own next request.
      *
      * @return array{applied: bool, message: ?string, blocked: bool}
      */
-    private function rewriteInterceptorBlock(ShopInstallation $shop): array
+    private function ensureInterceptorTagInstalled(ShopInstallation $shop): array
     {
         $themeId = $shop->target_theme_id;
         $assetKey = 'layout/theme.liquid';
@@ -219,36 +224,25 @@ class ScriptImpactActionService
             return ['applied' => false, 'message' => 'Could not read your theme.liquid file.', 'blocked' => false];
         }
 
-        $urls = $shop->interceptorDelayTargets()->pluck('script_url')->all();
+        if (str_contains($original, self::MARKER_START)) {
+            return ['applied' => true, 'message' => null, 'blocked' => false];
+        }
 
         try {
-            $updated = self::renderInterceptorBlock($original, $urls);
+            $updated = self::insertInstallBlock($original, $shop->interceptorToken());
         } catch (\RuntimeException $e) {
             return ['applied' => false, 'message' => $e->getMessage(), 'blocked' => false];
         }
 
-        if ($updated === $original) {
-            return ['applied' => true, 'message' => null, 'blocked' => false];
-        }
+        $optimization = $shop->optimizations()->create([
+            'type' => 'interceptor_install',
+            'risk_tier' => 'medium',
+            'status' => 'recommended',
+            'theme_id' => $themeId,
+            'asset_key' => $assetKey,
+        ]);
 
-        // Only back up on the very first-ever interceptor write (when the
-        // marker doesn't exist yet) - this preserves the pristine original
-        // for a full manual rollback later. Routine toggles after that just
-        // regenerate the block; there's no single "prior state" to restore
-        // to that would be correct for every other app sharing this file.
-        $optimization = null;
-
-        if (! str_contains($original, self::MARKER_START)) {
-            $optimization = $shop->optimizations()->create([
-                'type' => 'interceptor_install',
-                'risk_tier' => 'medium',
-                'status' => 'recommended',
-                'theme_id' => $themeId,
-                'asset_key' => $assetKey,
-            ]);
-
-            $this->backups->backup($optimization, $themeId, $assetKey, $original, $updated);
-        }
+        $this->backups->backup($optimization, $themeId, $assetKey, $original, $updated);
 
         try {
             $this->themeAssets->write($themeId, $assetKey, $updated);
@@ -263,33 +257,21 @@ class ScriptImpactActionService
         }
 
         $shop->update(['theme_write_blocked_at' => null]);
-        $optimization?->update(['status' => 'applied', 'applied_at' => now()]);
+        $optimization->update(['status' => 'applied', 'applied_at' => now()]);
 
         return ['applied' => true, 'message' => null, 'blocked' => false];
     }
 
-    /**
-     * @param  array<int, string>  $urls
-     */
-    public static function renderInterceptorBlock(string $liquidContent, array $urls): string
+    public static function insertInstallBlock(string $liquidContent, string $token): string
     {
-        $urls = array_values(array_unique($urls));
-
-        if (empty($urls)) {
-            // Nothing left to delay - strip the block entirely rather than
-            // leaving a dead, empty watcher in the merchant's theme.
-            $pattern = '/\s*'.preg_quote(self::MARKER_START, '/').'.*?'.preg_quote(self::MARKER_END, '/').'/s';
-
-            return preg_replace($pattern, '', $liquidContent) ?? $liquidContent;
+        if (str_contains($liquidContent, self::MARKER_START)) {
+            return $liquidContent;
         }
 
-        $block = self::MARKER_START."\n".self::interceptorSnippet($urls)."\n".self::MARKER_END;
-
-        if (str_contains($liquidContent, self::MARKER_START) && str_contains($liquidContent, self::MARKER_END)) {
-            $pattern = '/'.preg_quote(self::MARKER_START, '/').'.*?'.preg_quote(self::MARKER_END, '/').'/s';
-
-            return preg_replace($pattern, $block, $liquidContent, 1) ?? $liquidContent;
-        }
+        $url = rtrim(config('app.url'), '/').'/storefront/interceptor.js?t='.urlencode($token);
+        $block = self::MARKER_START
+            ."\n<script src=\"".e($url)."\" async></script>\n"
+            .self::MARKER_END;
 
         foreach (['{{- content_for_header -}}', '{{ content_for_header }}', '{{content_for_header}}'] as $needle) {
             if (str_contains($liquidContent, $needle)) {
@@ -301,11 +283,13 @@ class ScriptImpactActionService
     }
 
     /**
-     * Best-effort, not guaranteed: catches scripts/stylesheets *dynamically
-     * inserted* into the DOM by other JS after page load (how most heavy
-     * third-party trackers actually load their real payload) via
+     * The actual watcher engine - lives here so InterceptorController can
+     * render it per-request with a shop's live delay list, never as a
+     * static file. Best-effort, not guaranteed: catches scripts/stylesheets
+     * *dynamically inserted* into the DOM by other JS after page load (how
+     * most heavy third-party trackers actually load their real payload) via
      * MutationObserver, and delays them the same way delayedLoaderSnippet()
-     * above does - same trigger set, for a consistent merchant-facing
+     * below does - same trigger set, for a consistent merchant-facing
      * experience regardless of which mechanism ends up handling a given
      * script. Cannot intercept a script that's static markup in the initial
      * HTML response (Shopify's own ScriptTag rendering) - the browser
@@ -314,12 +298,11 @@ class ScriptImpactActionService
      *
      * @param  array<int, string>  $urls
      */
-    private static function interceptorSnippet(array $urls): string
+    public static function interceptorEngineJs(array $urls): string
     {
-        $json = json_encode(array_values($urls), JSON_UNESCAPED_SLASHES);
+        $json = json_encode(array_values(array_unique($urls)), JSON_UNESCAPED_SLASHES);
 
-        return <<<HTML
-            <script>
+        return <<<JS
             (function () {
               var PATTERNS = {$json};
               var released = false, pending = [];
@@ -353,8 +336,7 @@ class ScriptImpactActionService
                 });
               }).observe(document.documentElement, { childList: true, subtree: true });
             })();
-            </script>
-            HTML;
+            JS;
     }
 
     /**
