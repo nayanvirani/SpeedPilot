@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Storefront;
 
 use App\Http\Controllers\Controller;
 use App\Models\ShopInstallation;
+use App\Services\JsMinifier;
 use App\Services\Shopify\ScriptImpactActionService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -63,7 +64,7 @@ class InterceptorController extends Controller
 
     private function jsResponse(string $body): Response
     {
-        return response($body, 200)
+        return response(JsMinifier::minify($body), 200)
             ->header('Content-Type', 'application/javascript; charset=utf-8')
             // Real storefront traffic, fetched on every pageview by every
             // visitor - a short cache still meaningfully cuts origin load
