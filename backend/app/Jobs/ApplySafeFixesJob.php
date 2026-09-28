@@ -109,22 +109,39 @@ class ApplySafeFixesJob implements ShouldQueue
 
         $appliedCount = 0;
 
-        $safeIssues = $audit->issues()
-            ->where('risk_tier', 'safe')
-            ->where('fix_available', true)
-            ->get()
-            // A multi-page scan can report the same underlying fix once per
-            // page it appears on (e.g. a shared header script, or an image
-            // lazy-load sweep that isn't tied to one specific image at all)
-            // - applying it again per duplicate would just waste the plan's
-            // auto-fix limit on the same underlying change.
-            ->unique(fn (AuditIssue $issue) => $issue->meta['asset_key']
-                ?? $issue->meta['fix_type']
-                ?? $issue->id);
-
         if ($this->onlyIssueId !== null) {
-            $safeIssues = $safeIssues->where('id', $this->onlyIssueId);
+            // A single explicit target from the per-issue "Auto fix on
+            // theme" button - fetched directly, bypassing the dedup below
+            // entirely. That dedup collapses every lazy_load_sweep issue
+            // across all pages down to just one (they share the same
+            // fix_type, no asset_key), so filtering it *after* the collapse
+            // silently dropped this exact issue whenever it wasn't the one
+            // survivor - the job then ran with an empty collection and
+            // silently did nothing, which the controller reported as a
+            // generic "couldn't apply this" (confirmed live on jewel-nests:
+            // clicking the button on the Collection-page instance of a
+            // Lazy-load candidate issue no-opped, while the Homepage
+            // instance of the exact same fix worked).
+            $safeIssues = $audit->issues()
+                ->where('id', $this->onlyIssueId)
+                ->where('risk_tier', 'safe')
+                ->where('fix_available', true)
+                ->get();
         } else {
+            $safeIssues = $audit->issues()
+                ->where('risk_tier', 'safe')
+                ->where('fix_available', true)
+                ->get()
+                // A multi-page scan can report the same underlying fix once
+                // per page it appears on (e.g. a shared header script, or an
+                // image lazy-load sweep that isn't tied to one specific
+                // image at all) - applying it again per duplicate would just
+                // waste the plan's auto-fix limit on the same underlying
+                // change.
+                ->unique(fn (AuditIssue $issue) => $issue->meta['asset_key']
+                    ?? $issue->meta['fix_type']
+                    ?? $issue->id);
+
             $limit = $policy->autoFixLimit();
             if ($limit !== null) {
                 $safeIssues = $safeIssues->take($limit);
