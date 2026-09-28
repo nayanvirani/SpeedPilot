@@ -62,7 +62,12 @@ class AssetBackupService
         $themeAssets->write($backup->theme_id, $backup->asset_key, $backup->updated_content);
 
         $backup->update(['restored_at' => null]);
-        $optimization->update(['status' => 'applied', 'applied_at' => now()]);
+        // Clears reverted_at too - not just a merchant-triggered rollback,
+        // reapply() is also OptimizationDriftChecker's restore path
+        // (confirmed live: without this, a drift-flagged fix that was
+        // correctly re-applied still showed "reverted" with a stale
+        // Re-apply button, since nothing else ever cleared that flag).
+        $optimization->update(['status' => 'applied', 'applied_at' => now(), 'reverted_at' => null]);
 
         return true;
     }
