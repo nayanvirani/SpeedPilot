@@ -16,12 +16,14 @@ class PlanPolicy
 
     public function __construct(private readonly ShopInstallation $shop)
     {
-        // A shop with no recognized/active plan (not yet subscribed, or
-        // uninstalled) resolves to null - every getter below defaults
-        // safely (false/0/null) in that case, so an unsubscribed shop
-        // simply can't auto-fix, run monitoring, etc. until it picks a
-        // paid plan. There is no billable "Free" tier.
-        $this->plan = Plan::findByKey($shop->plan);
+        // A shop with no recognized/active plan (never subscribed, or past
+        // its plan_expires_at grace period - see hasPlanAccess()) resolves
+        // to null - every getter below defaults safely (false/0/null) in
+        // that case, so an unsubscribed shop simply can't auto-fix, run
+        // monitoring, etc. until it has a usable plan. There is no billable
+        // "Free" tier. A cancelled-but-not-yet-expired shop still resolves
+        // normally here - hasPlanAccess() is what grants the grace period.
+        $this->plan = $shop->hasPlanAccess() ? Plan::findByKey($shop->plan) : null;
     }
 
     public function canAutoFix(): bool

@@ -30,6 +30,7 @@ class ShopInstallation extends Model
         'slack_webhook_url',
         'scope',
         'plan',
+        'plan_expires_at',
         'shopify_subscription_id',
         'installed_at',
         'uninstalled_at',
@@ -54,7 +55,29 @@ class ShopInstallation extends Model
             'needs_reauth_at' => 'datetime',
             'storefront_locked_at' => 'datetime',
             'interceptor_delay_ms' => 'integer',
+            'plan_expires_at' => 'datetime',
         ];
+    }
+
+    /**
+     * A cancelled subscription doesn't cut a merchant off immediately -
+     * they already paid for the current billing period, so access lasts
+     * until plan_expires_at regardless of whether Shopify currently
+     * reports the subscription as active or cancelled. Renewing simply
+     * pushes plan_expires_at forward again the next time a sync runs; no
+     * separate "reactivate" handling needed anywhere.
+     *
+     * A set plan with an unknown (null) expiry counts as having access,
+     * not as expired - this is what a currently-paying shop looks like the
+     * moment plan_expires_at is introduced (nothing has backfilled it yet)
+     * or if a sync ever legitimately can't determine a period end. Only an
+     * expiry date that's actually in the past ever revokes access; the
+     * absence of one never does.
+     */
+    public function hasPlanAccess(): bool
+    {
+        return $this->plan !== null
+            && ($this->plan_expires_at === null || $this->plan_expires_at->isFuture());
     }
 
     public function needsFreshAccessToken(): bool

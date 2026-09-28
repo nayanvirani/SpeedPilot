@@ -56,9 +56,17 @@ export default function Billing() {
             <BlockStack gap="400">
                 {error && <Banner tone="critical">{error}</Banner>}
 
-                {current?.plan && (
+                {current?.plan && current.subscription_active && (
                     <Banner tone="success">
                         You're on the {current.plan.name} plan. Manage or change it on Shopify.
+                    </Banner>
+                )}
+                {current?.plan && !current.subscription_active && (
+                    <Banner tone="warning">
+                        Your {current.plan.name} plan was cancelled, but you still have access through{' '}
+                        {current.plan_expires_at ? new Date(current.plan_expires_at).toLocaleDateString() : 'the end of your paid period'} -
+                        the period you already paid for. Resubscribe below any time before then to keep going
+                        without a gap.
                     </Banner>
                 )}
 
