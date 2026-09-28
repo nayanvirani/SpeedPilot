@@ -562,6 +562,23 @@ class ScriptImpactActionService
                 JS,
         };
 
+        // The configured delay means something different depending on the
+        // trigger: for 'interaction'/'timeout_only' it IS the intended
+        // delay, so the fallback timer should fire at exactly that value.
+        // For 'window_load'/'document_load' it's supposed to be a genuine
+        // safety net for "that event never fires at all" - using the same
+        // short value there means the fallback races the real event on any
+        // page that takes longer to load than the configured number
+        // (confirmed live: a hero video pushed window.load past 5s, so the
+        // 5s fallback fired first and released before the page had actually
+        // loaded - exactly what "wait for window load" was supposed to
+        // prevent). A trigger-based fallback needs enough headroom to never
+        // credibly beat the real event under normal conditions.
+        $fallbackMs = match ($trigger) {
+            'window_load', 'document_load' => max($delayMs, 20000),
+            default => $delayMs,
+        };
+
         return <<<JS
             (function () {
               try {
@@ -642,7 +659,7 @@ class ScriptImpactActionService
                   }
                 }
                 {$earlyTrigger}
-                setTimeout(function () { release('timeout'); }, {$delayMs});
+                setTimeout(function () { release('timeout'); }, {$fallbackMs});
                 new MutationObserver(function (mutations) {
                   if (released) return;
                   mutations.forEach(function (m) {

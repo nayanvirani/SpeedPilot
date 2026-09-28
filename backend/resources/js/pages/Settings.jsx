@@ -284,6 +284,8 @@ function AdvancedDelayTimingSettings() {
         return null;
     }
 
+    const isPageEventTrigger = prefs.interceptor_trigger === 'window_load' || prefs.interceptor_trigger === 'document_load';
+
     return (
         <Card>
             <BlockStack gap="300">
@@ -293,6 +295,16 @@ function AdvancedDelayTimingSettings() {
                     the App &amp; Script Impact page. The timer below always applies as a fallback, even if
                     you pick an early trigger that never fires for some reason.
                 </Text>
+                {isPageEventTrigger && (
+                    <Text as="p" tone="subdued">
+                        With "{prefs.interceptor_trigger === 'window_load' ? 'Page fully loaded' : 'HTML parsed'}"
+                        selected, the timer below is only a last-resort safety net (minimum 20 seconds, even if
+                        set lower) - it won't release early just because the timer is short. This avoids the
+                        timer racing and beating the real event on a page that takes longer to load than
+                        expected (confirmed live: a background video pushed page-load past 5 seconds, so a
+                        5-second timer released before the page had actually finished loading).
+                    </Text>
+                )}
                 <InlineStack gap="300" wrap>
                     <div style={{ minWidth: '260px' }}>
                         <Select
@@ -304,7 +316,7 @@ function AdvancedDelayTimingSettings() {
                     </div>
                     <div style={{ minWidth: '200px' }}>
                         <Select
-                            label="Release after (fallback timer)"
+                            label={isPageEventTrigger ? 'Safety-net timer (minimum 20s)' : 'Release after (timer)'}
                             options={DELAY_OPTIONS}
                             value={String(prefs.interceptor_delay_ms)}
                             onChange={(v) => save({ ...prefs, interceptor_delay_ms: Number(v) })}
