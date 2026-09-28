@@ -19,6 +19,7 @@ class Optimization extends Model
         'risk_tier',
         'status',
         'applied_at',
+        'reverted_at',
         'theme_id',
         'asset_key',
         'meta',
@@ -28,6 +29,7 @@ class Optimization extends Model
     {
         return [
             'applied_at' => 'datetime',
+            'reverted_at' => 'datetime',
             'meta' => 'array',
         ];
     }

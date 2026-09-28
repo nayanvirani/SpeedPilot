@@ -287,6 +287,182 @@ class ScriptImpactActionService
         return ['applied' => true, 'message' => null, 'blocked' => false];
     }
 
+    private const PREFETCH_TAG_START = '<!-- SpeedPilot:prefetch:start -->';
+
+    private const PREFETCH_TAG_END = '<!-- SpeedPilot:prefetch:end -->';
+
+    public static function prefetchManualSnippet(): string
+    {
+        $url = rtrim(config('app.url'), '/').'/storefront/prefetch.js?shop={{ shop.permanent_domain | url_encode }}';
+
+        return '<script src="'.$url.'" defer></script>';
+    }
+
+    /**
+     * Same idempotent marker-block-after-<head> install as
+     * autoInstallInterceptorTag(), a fully independent toggle - a merchant
+     * can turn instant-navigation on without touching Advanced Delay at
+     * all, and vice versa.
+     *
+     * @return array{applied: bool, message: ?string, blocked: bool}
+     */
+    public function autoInstallPrefetchTag(ShopInstallation $shop): array
+    {
+        if (! $shop->target_theme_id) {
+            return ['applied' => false, 'message' => 'Pick which theme SpeedPilot should apply changes to first (Dashboard > Target theme).', 'blocked' => false];
+        }
+
+        $themeId = $shop->target_theme_id;
+        $assetKey = 'layout/theme.liquid';
+
+        $original = $this->themeAssets->read($themeId, $assetKey);
+
+        if ($original === null) {
+            return ['applied' => false, 'message' => 'Could not read your theme.liquid file.', 'blocked' => false];
+        }
+
+        if (str_contains($original, self::PREFETCH_TAG_START)) {
+            return ['applied' => true, 'message' => null, 'blocked' => false];
+        }
+
+        $block = self::PREFETCH_TAG_START."\n".self::prefetchManualSnippet()."\n".self::PREFETCH_TAG_END;
+        $updated = preg_replace('/(<head[^>]*>)/i', '$1'."\n".$block, $original, 1);
+
+        if ($updated === null || $updated === $original) {
+            return ['applied' => false, 'message' => "Couldn't find a <head> tag to add this to in your theme.liquid - contact SpeedPilot support.", 'blocked' => false];
+        }
+
+        $optimization = $shop->optimizations()
+            ->where('type', 'prefetch_install')
+            ->where('status', 'recommended')
+            ->first();
+
+        if (! $optimization) {
+            $optimization = $shop->optimizations()->create([
+                'type' => 'prefetch_install',
+                'risk_tier' => 'safe',
+                'status' => 'recommended',
+                'theme_id' => $themeId,
+                'asset_key' => $assetKey,
+            ]);
+        }
+
+        $this->backups->backup($optimization, $themeId, $assetKey, $original, $updated);
+
+        try {
+            $this->themeAssets->write($themeId, $assetKey, $updated);
+        } catch (ThemeWriteAccessDeniedException) {
+            $shop->update(['theme_write_blocked_at' => now()]);
+
+            return [
+                'applied' => false,
+                'message' => "Couldn't update your theme automatically right now - try again once SpeedPilot's theme-editing access is approved, or use \"Manual fix\" to paste it yourself.",
+                'blocked' => true,
+            ];
+        }
+
+        $shop->update(['theme_write_blocked_at' => null]);
+        $optimization->update(['status' => 'applied', 'applied_at' => now()]);
+
+        return ['applied' => true, 'message' => null, 'blocked' => false];
+    }
+
+    /**
+     * Modeled on the long-established, MIT-licensed "instant.page"
+     * technique: prefetches a same-origin link's HTML before the shopper
+     * actually clicks it, so navigation feels instant by the time they do.
+     * Two triggers - hovering (desktop) after a short delay so an
+     * accidental mouse-pass doesn't fire a prefetch, and scrolling into
+     * view (mobile, where there's no hover) via IntersectionObserver.
+     *
+     * Hard exclusions before ever prefetching anything: cart, checkout,
+     * account (state-bearing, never safe to speculatively fetch), a
+     * query-bearing search results page, anything marked
+     * data-no-instant/rel=nofollow, and a capped total so a page with
+     * hundreds of links can't trigger a prefetch storm. Also backs off
+     * entirely on Data Saver / a slow connection, via the Network
+     * Information API where the browser supports it.
+     */
+    public static function prefetchEngineJs(): string
+    {
+        return <<<'JS'
+(function() {
+  try {
+    if (window.__speedpilotPrefetch) return;
+    window.__speedpilotPrefetch = true;
+
+    var conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (conn && (conn.saveData || /2g/.test(conn.effectiveType || ''))) {
+      console.log('[SpeedPilot] instant-navigation disabled - slow connection or Data Saver on');
+      return;
+    }
+
+    var MAX_PREFETCH = 20;
+    var HOVER_DELAY_MS = 65;
+    var prefetched = new Set();
+
+    function isEligible(a) {
+      if (!a || !a.href) return false;
+      var url;
+      try { url = new URL(a.href, location.href); } catch (e) { return false; }
+      if (url.origin !== location.origin) return false;
+      if (url.pathname === location.pathname && url.search === location.search) return false;
+      if (a.hasAttribute('data-no-instant') || (a.rel || '').indexOf('nofollow') !== -1) return false;
+      if (/^\/(cart|checkout|account)(\/|$)/.test(url.pathname)) return false;
+      if (url.pathname === '/search' && url.search) return false;
+      if (prefetched.has(url.href)) return false;
+      return true;
+    }
+
+    function prefetch(url) {
+      if (prefetched.size >= MAX_PREFETCH) return;
+      prefetched.add(url);
+      var link = document.createElement('link');
+      link.rel = 'prefetch';
+      link.href = url;
+      document.head.appendChild(link);
+    }
+
+    var hoverTimer = null;
+    document.addEventListener('mouseover', function(e) {
+      var a = e.target.closest && e.target.closest('a');
+      if (!isEligible(a)) return;
+      clearTimeout(hoverTimer);
+      hoverTimer = setTimeout(function() { prefetch(a.href); }, HOVER_DELAY_MS);
+    }, true);
+
+    document.addEventListener('mouseout', function(e) {
+      if (e.target.closest && e.target.closest('a')) clearTimeout(hoverTimer);
+    }, true);
+
+    document.addEventListener('touchstart', function(e) {
+      var a = e.target.closest && e.target.closest('a');
+      if (isEligible(a)) prefetch(a.href);
+    }, { passive: true, capture: true });
+
+    if ('IntersectionObserver' in window) {
+      var io = new IntersectionObserver(function(entries) {
+        entries.forEach(function(entry) {
+          if (entry.isIntersecting && isEligible(entry.target)) {
+            prefetch(entry.target.href);
+            io.unobserve(entry.target);
+          }
+        });
+      }, { rootMargin: '200px' });
+
+      document.querySelectorAll('a[href]').forEach(function(a) {
+        if (isEligible(a)) io.observe(a);
+      });
+    }
+
+    console.log('[SpeedPilot] instant-navigation active');
+  } catch (e) {
+    console.warn('[SpeedPilot] instant-navigation error', e);
+  }
+})();
+JS;
+    }
+
     private const CONTENT_STOP_START = '<!-- SpeedPilot:content-stop:start -->';
 
     private const CONTENT_STOP_END = '<!-- SpeedPilot:content-stop:end -->';

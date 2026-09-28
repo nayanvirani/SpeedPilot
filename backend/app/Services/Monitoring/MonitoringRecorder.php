@@ -35,6 +35,7 @@ class MonitoringRecorder
     public function __construct(
         private readonly AuditDiffService $diffService,
         private readonly SlackNotifier $slack,
+        private readonly RevenueImpactEstimator $revenueEstimator,
     ) {
     }
 
@@ -95,12 +96,20 @@ class MonitoringRecorder
         // this run, or it would just find itself.
         $lastRun = $shop->monitoringRuns()->latest('run_at')->first();
 
+        // Consecutive-run delta, not first-vs-latest - summed across every
+        // run this becomes a real running total since monitoring began (the
+        // "ROI ledger"), not a repeat of the Dashboard's one-time snapshot.
+        $revenueImpact = ($previousAudit && $previousAudit->lcp !== null && $audit->lcp !== null)
+            ? $this->revenueEstimator->estimate($shop, (float) $previousAudit->lcp, (float) $audit->lcp)
+            : null;
+
         $shop->monitoringRuns()->create([
             'audit_id' => $audit->id,
             'run_at' => now(),
             'trend_delta' => $trendDelta,
             'is_regression' => $isRegression,
             'diff_summary' => $diff,
+            'revenue_impact' => $revenueImpact,
         ]);
 
         // Independent of the score-regression check above - a budget breach

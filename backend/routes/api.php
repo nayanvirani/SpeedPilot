@@ -60,6 +60,9 @@ Route::middleware('shopify.session')->group(function () {
     Route::put('/settings/slack-webhook', [ShopSettingsController::class, 'updateSlackWebhook']);
     Route::put('/settings/revenue-inputs', [ShopSettingsController::class, 'updateRevenueInputs']);
     Route::put('/settings/speed-budget', [ShopSettingsController::class, 'updateSpeedBudget']);
+    Route::post('/settings/prefetch-tag/install', [ShopSettingsController::class, 'installPrefetchTag']);
+    Route::get('/settings/llms-txt/code', [ShopSettingsController::class, 'llmsTxtCode']);
+    Route::post('/settings/llms-txt/apply', [ShopSettingsController::class, 'applyLlmsTxt']);
     Route::get('/themes', [ShopSettingsController::class, 'listThemes']);
     Route::put('/settings/target-theme', [ShopSettingsController::class, 'updateTargetTheme']);
 });

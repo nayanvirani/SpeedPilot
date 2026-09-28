@@ -17,6 +17,7 @@ class MonitoringRun extends Model
         'trend_delta',
         'is_regression',
         'diff_summary',
+        'revenue_impact',
     ];
 
     protected function casts(): array
@@ -25,6 +26,7 @@ class MonitoringRun extends Model
             'run_at' => 'datetime',
             'is_regression' => 'boolean',
             'diff_summary' => 'array',
+            'revenue_impact' => 'array',
         ];
     }
 

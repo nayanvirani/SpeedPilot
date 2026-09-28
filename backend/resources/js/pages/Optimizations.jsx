@@ -4,7 +4,7 @@ import { Badge, BlockStack, Box, Button, Card, DataTable, InlineStack, Modal, Pa
 import { api } from '../api';
 import ThemeAccessStatus from '../components/ThemeAccessStatus';
 
-const STATUS_TONE = { applied: 'success', rolled_back: 'new', recommended: 'info' };
+const STATUS_TONE = { applied: 'success', rolled_back: 'new', recommended: 'info', reverted: 'warning' };
 
 function CodeBlock({ label, content, tone }) {
     return (
@@ -59,22 +59,24 @@ export default function Optimizations() {
     const rows = optimizations.map((opt) => {
         const backup = opt.backups?.[0];
 
+        const displayStatus = opt.reverted_at ? 'reverted' : opt.status;
+
         return [
             opt.audit_issue?.title ?? opt.type,
             opt.asset_key ?? '—',
             opt.risk_tier,
-            <Badge key={`status-${opt.id}`} tone={STATUS_TONE[opt.status]}>{opt.status}</Badge>,
+            <Badge key={`status-${opt.id}`} tone={STATUS_TONE[displayStatus]}>{displayStatus}</Badge>,
             opt.applied_at ?? '—',
             <div key={`actions-${opt.id}`} style={{ display: 'flex', gap: '8px' }}>
                 {backup && (
                     <Button size="micro" onClick={() => { setShowFullDiff(false); setDiffOpt(opt); }}>View change</Button>
                 )}
-                {opt.status === 'applied' && (
+                {opt.status === 'applied' && !opt.reverted_at && (
                     <Button size="micro" loading={pendingId === opt.id} onClick={() => rollback(opt.id)}>
                         Rollback
                     </Button>
                 )}
-                {opt.status === 'rolled_back' && (
+                {(opt.status === 'rolled_back' || opt.reverted_at) && (
                     <Button size="micro" variant="primary" loading={pendingId === opt.id} onClick={() => reapply(opt.id)}>
                         Re-apply
                     </Button>

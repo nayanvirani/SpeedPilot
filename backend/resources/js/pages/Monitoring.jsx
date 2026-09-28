@@ -239,6 +239,52 @@ function MonthlyReport() {
     );
 }
 
+function formatDollars(value) {
+    return `$${Math.abs(value).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+}
+
+/**
+ * A running total across every recorded run since monitoring began, not
+ * just the Dashboard's one-time before/after snapshot - each run's own
+ * estimate (consecutive-run delta) nets together into "what's changed
+ * overall", positive runs offsetting negative ones honestly rather than
+ * only ever showing improvements.
+ */
+function RoiLedger({ runs }) {
+    const withImpact = runs.filter((r) => r.revenue_impact && Math.abs(r.revenue_impact.conversion_change_pct) >= 0.1);
+
+    if (withImpact.length === 0) {
+        return null;
+    }
+
+    const totalPct = withImpact.reduce((sum, r) => sum + r.revenue_impact.conversion_change_pct, 0);
+    const hasDollar = withImpact.every((r) => r.revenue_impact.monthly_revenue_low !== null);
+    const totalLow = hasDollar ? withImpact.reduce((sum, r) => sum + r.revenue_impact.monthly_revenue_low, 0) : null;
+    const totalHigh = hasDollar ? withImpact.reduce((sum, r) => sum + r.revenue_impact.monthly_revenue_high, 0) : null;
+    const improved = totalPct > 0;
+
+    return (
+        <Card>
+            <BlockStack gap="150">
+                <Text as="h2" variant="headingSm">ROI ledger</Text>
+                <Text as="p" tone="subdued">
+                    Net estimated conversion impact across {withImpact.length} recorded run{withImpact.length === 1 ? '' : 's'} since
+                    monitoring began - improvements and regressions netted together, not just the best moment.
+                </Text>
+                <Text as="p">
+                    Total: <Text as="span" fontWeight="semibold" tone={improved ? 'success' : 'critical'}>
+                        {improved ? '+' : ''}{totalPct.toFixed(1)}%
+                    </Text>
+                    {hasDollar && (
+                        <> (roughly {formatDollars(Math.min(totalLow, totalHigh))}–{formatDollars(Math.max(totalLow, totalHigh))}/month)</>
+                    )}
+                </Text>
+                <Text as="p" tone="subdued">Industry-average estimate, not a guarantee - see the Dashboard for methodology.</Text>
+            </BlockStack>
+        </Card>
+    );
+}
+
 function RealVisitorData() {
     const [summary, setSummary] = useState(null);
 
@@ -325,6 +371,7 @@ export default function Monitoring() {
                     </Card>
                 )}
                 <WhatChanged diff={runs[runs.length - 1]?.diff_summary} />
+                <RoiLedger runs={runs} />
                 <PageTypeTrends />
                 <MonthlyReport />
                 <RealVisitorData />

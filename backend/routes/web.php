@@ -14,6 +14,7 @@ use App\Http\Controllers\FaqController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\ShopifyOAuthController;
 use App\Http\Controllers\Storefront\InterceptorController;
+use App\Http\Controllers\Storefront\PrefetchController;
 use App\Http\Controllers\Webhooks\AppSubscriptionsUpdateController;
 use App\Http\Controllers\Webhooks\AppUninstalledController;
 use App\Http\Controllers\Webhooks\GdprController;
@@ -36,6 +37,12 @@ Route::get('/faq', [FaqController::class, 'index'])->name('faq');
 Route::get('/storefront/interceptor.js', [InterceptorController::class, 'serve'])
     ->middleware('throttle:interceptor')
     ->name('storefront.interceptor');
+
+// Public, unauthenticated - same shape as interceptor.js above, fetched by
+// the <script src> tag "Instant navigation" writes into theme.liquid.
+Route::get('/storefront/prefetch.js', [PrefetchController::class, 'serve'])
+    ->middleware('throttle:interceptor')
+    ->name('storefront.prefetch');
 
 // Shopify App Proxy target - https://{shop}/apps/speedpilot/* forwards here
 // (see [app_proxy] in shopify.app.toml), verified via AppProxyVerifier.

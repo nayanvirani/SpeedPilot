@@ -6,9 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\OptimizedTheme;
 use App\Models\ShopInstallation;
 use App\Services\Scanner\StorefrontAccessChecker;
+use App\Services\Shopify\AssetBackupService;
+use App\Services\Shopify\LlmsTxtGenerator;
+use App\Services\Shopify\ScriptImpactActionService;
 use App\Services\Shopify\ShopifyGraphQLClient;
+use App\Services\Shopify\ThemeAssetLocatorService;
 use App\Services\Shopify\ThemeAssetService;
 use App\Services\Shopify\ThemeDuplicateService;
+use App\Services\Shopify\ThemeWriteAccessDeniedException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -47,6 +52,7 @@ class ShopSettingsController extends Controller
             'avg_order_value' => $shop->avg_order_value,
             'monthly_orders' => $shop->monthly_orders,
             'speed_budget_lcp_seconds' => $shop->speed_budget_lcp_seconds,
+            'has_prefetch_tag' => $shop->optimizations()->where('type', 'prefetch_install')->where('status', 'applied')->exists(),
             // Shopify gates actually writing theme files behind a separate,
             // app-level "protected scope" exemption it grants (or doesn't) -
             // this is never a per-merchant setting, and no button in this
@@ -162,6 +168,99 @@ class ShopSettingsController extends Controller
         ]);
 
         return response()->json(['speed_budget_lcp_seconds' => $shop->speed_budget_lcp_seconds]);
+    }
+
+    /**
+     * Read-only preview for the "Manual fix" button - never writes, just
+     * hands back what applyLlmsTxt() would write so a merchant can paste it
+     * into templates/llms.txt.liquid themselves via Shopify's theme editor.
+     */
+    public function llmsTxtCode(Request $request)
+    {
+        /** @var ShopInstallation $shop */
+        $shop = $request->attributes->get('shop');
+
+        $generator = new LlmsTxtGenerator(new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token));
+        $content = $generator->generate($shop);
+
+        return response()->json(['code' => [
+            'fix_type' => 'llms_txt',
+            'files' => [['asset_key' => 'templates/llms.txt.liquid', 'original' => null, 'fixed' => $content]],
+            'truncated_count' => 0,
+        ]]);
+    }
+
+    /**
+     * Purely additive (a brand new file - Shopify serves it natively, see
+     * LlmsTxtGenerator's docblock) so this is safe-tier, one click, no
+     * preview-then-confirm needed - same tier as the lazy-load sweep.
+     * Re-running regenerates and overwrites the same file in place, safe to
+     * do any time a shop's collections change.
+     */
+    public function applyLlmsTxt(Request $request, AssetBackupService $backups)
+    {
+        /** @var ShopInstallation $shop */
+        $shop = $request->attributes->get('shop');
+
+        if (! $shop->target_theme_id) {
+            return response()->json(['error' => 'Choose a target theme in Settings first.'], 422);
+        }
+
+        $themeAssets = new ThemeAssetService(new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token));
+        $generator = new LlmsTxtGenerator(new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token));
+
+        $assetKey = 'templates/llms.txt.liquid';
+        $themeId = $shop->target_theme_id;
+        $original = $themeAssets->read($themeId, $assetKey);
+        $content = $generator->generate($shop);
+
+        $optimization = $shop->optimizations()
+            ->where('type', 'llms_txt')
+            ->where('theme_id', $themeId)
+            ->first();
+
+        if (! $optimization) {
+            $optimization = $shop->optimizations()->create([
+                'type' => 'llms_txt',
+                'risk_tier' => 'safe',
+                'status' => 'recommended',
+                'theme_id' => $themeId,
+                'asset_key' => $assetKey,
+            ]);
+        }
+
+        $backups->backup($optimization, $themeId, $assetKey, $original ?? '', $content);
+
+        try {
+            $themeAssets->write($themeId, $assetKey, $content);
+        } catch (ThemeWriteAccessDeniedException) {
+            $shop->update(['theme_write_blocked_at' => now()]);
+
+            return response()->json(['error' => "Couldn't apply this automatically right now - use Manual fix instead."], 503);
+        }
+
+        $shop->update(['theme_write_blocked_at' => null]);
+        $optimization->update(['status' => 'applied', 'applied_at' => now(), 'reverted_at' => null]);
+
+        return response()->json(['optimization' => $optimization]);
+    }
+
+    /**
+     * "Instant navigation" - independent of Advanced Delay's tag, its own
+     * global toggle (see ScriptImpactActionService::autoInstallPrefetchTag()).
+     */
+    public function installPrefetchTag(Request $request)
+    {
+        /** @var ShopInstallation $shop */
+        $shop = $request->attributes->get('shop');
+
+        $actions = new ScriptImpactActionService(
+            $themeAssets = new ThemeAssetService(new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token)),
+            new ThemeAssetLocatorService($themeAssets),
+            new AssetBackupService,
+        );
+
+        return response()->json($actions->autoInstallPrefetchTag($shop));
     }
 
     /**

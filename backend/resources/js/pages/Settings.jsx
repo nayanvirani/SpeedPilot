@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Banner, BlockStack, Button, Card, InlineStack, Page, Select, Text, TextField } from '@shopify/polaris';
 import { api } from '../api';
+import FixCodeViewer from '../components/FixCodeViewer';
 
 function StorefrontPasswordSettings() {
     const [hasPassword, setHasPassword] = useState(null);
@@ -463,6 +464,100 @@ function SpeedBudgetSettings() {
     );
 }
 
+function InstantNavigationSettings() {
+    const [hasTag, setHasTag] = useState(null);
+    const [installing, setInstalling] = useState(false);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        api.get('/settings').then((res) => setHasTag(!!res.has_prefetch_tag)).catch(() => setHasTag(false));
+    }, []);
+
+    async function install() {
+        setInstalling(true);
+        setError(null);
+        try {
+            const res = await api.post('/settings/prefetch-tag/install', {});
+            if (res.applied) {
+                setHasTag(true);
+            } else {
+                setError(res.message || 'Could not install this right now.');
+            }
+        } catch (e) {
+            setError(e.body?.error || 'Could not install this right now.');
+        } finally {
+            setInstalling(false);
+        }
+    }
+
+    if (hasTag === null) {
+        return null;
+    }
+
+    return (
+        <Card>
+            <BlockStack gap="200">
+                <Text as="h3" variant="headingSm"><span className="sp-heading">Instant navigation</span></Text>
+                <Text as="p" tone="subdued">
+                    Prefetches a page's content when a shopper hovers a link (or scrolls it into view on
+                    mobile), so the next page feels instant by the time they click. Never touches cart,
+                    checkout, or account links. Independent of Advanced Delay - turning this on doesn't
+                    affect that setting.
+                </Text>
+                {hasTag ? (
+                    <Text as="span" tone="success">Installed and active on your theme.</Text>
+                ) : (
+                    <InlineStack gap="200" blockAlign="center">
+                        <Button variant="primary" loading={installing} onClick={install}>Enable instant navigation</Button>
+                        {error && <Text as="span" tone="critical">{error}</Text>}
+                    </InlineStack>
+                )}
+            </BlockStack>
+        </Card>
+    );
+}
+
+function LlmsTxtSettings() {
+    const [applying, setApplying] = useState(false);
+    const [applied, setApplied] = useState(null);
+    const [error, setError] = useState(null);
+
+    async function apply() {
+        setApplying(true);
+        setError(null);
+        try {
+            const res = await api.post('/settings/llms-txt/apply', {});
+            setApplied(res.optimization);
+        } catch (e) {
+            setError(e.body?.error || 'Could not apply this right now.');
+        } finally {
+            setApplying(false);
+        }
+    }
+
+    return (
+        <Card>
+            <BlockStack gap="200">
+                <Text as="h3" variant="headingSm"><span className="sp-heading">AI/LLM discoverability (llms.txt)</span></Text>
+                <Text as="p" tone="subdued">
+                    Generates /llms.txt - a short plain-text summary of your store that AI agents and LLM
+                    crawlers look for, the same emerging convention as robots.txt. Safe to re-run any time
+                    your collections change.
+                </Text>
+                {applied ? (
+                    <Text as="span" tone="success">Applied to {applied.asset_key} - roll back anytime from the Optimizations page.</Text>
+                ) : (
+                    <InlineStack gap="200" blockAlign="center">
+                        <Button variant="primary" loading={applying} onClick={apply}>Generate llms.txt</Button>
+                        <FixCodeViewer fetchPath="/settings/llms-txt/code" />
+                        {error && <Text as="span" tone="critical">{error}</Text>}
+                    </InlineStack>
+                )}
+            </BlockStack>
+        </Card>
+    );
+}
+
 function SlackNotificationSettings() {
     const [hasWebhook, setHasWebhook] = useState(null);
     const [value, setValue] = useState('');
@@ -549,6 +644,8 @@ export default function Settings() {
                 <StorefrontPasswordSettings />
                 <RevenueInputsSettings />
                 <SpeedBudgetSettings />
+                <InstantNavigationSettings />
+                <LlmsTxtSettings />
                 <SlackNotificationSettings />
             </BlockStack>
         </Page>
