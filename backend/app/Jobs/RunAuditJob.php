@@ -6,6 +6,7 @@ use App\Exceptions\StorefrontPasswordException;
 use App\Models\Audit;
 use App\Models\AuditPage;
 use App\Models\ShopInstallation;
+use App\Services\Monitoring\MonitoringRecorder;
 use App\Services\PlanPolicy;
 use App\Services\Scanner\PageDiscoveryService;
 use App\Services\Scanner\PsiClient;
@@ -219,6 +220,13 @@ class RunAuditJob implements ShouldQueue
         if ((new PlanPolicy($shop))->canAutoFix()) {
             ApplySafeFixesJob::dispatch($shop->id, $audit->id);
         }
+
+        // Every completed scan updates monitoring data, not just ones the
+        // daily schedule happened to trigger - MonitoringRecorder is
+        // idempotent per audit_id, so RunMonitoringJob's own scheduled scan
+        // (which also runs through this same job) doesn't get recorded
+        // twice.
+        app(MonitoringRecorder::class)->record($shop, $audit->fresh());
     }
 
     private function persistPageReport(AuditPage $page, array $report): void

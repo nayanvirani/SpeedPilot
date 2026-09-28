@@ -4,6 +4,7 @@ import { Badge, Banner, BlockStack, Button, Card, InlineStack, Page, SkeletonBod
 import { api } from '../api';
 import CategoryScores from '../components/CategoryScores';
 import PerformanceHealth from '../components/PerformanceHealth';
+import PageLoadBeforeAfter from '../components/PageLoadBeforeAfter';
 
 function statusTone(status) {
     return status === 'complete' ? 'success' : status === 'failed' ? 'critical' : 'attention';
@@ -161,6 +162,7 @@ export default function Dashboard() {
         >
             <BlockStack gap="400">
                 <PerformanceHealth />
+                <PageLoadBeforeAfter />
                 {!loading && storefrontLocked && (
                     <Banner tone="critical" title="Your storefront is password-protected" action={{ content: 'Add storefront password', onAction: () => navigate('/settings') }}>
                         SpeedPilot can't reach your store's real content until it can unlock the password

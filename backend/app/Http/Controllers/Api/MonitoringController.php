@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Audit;
 use App\Models\AuditPage;
 use App\Models\ShopInstallation;
 use App\Services\Monitoring\MonthlyReportService;
@@ -11,6 +12,44 @@ use Illuminate\Http\Request;
 
 class MonitoringController extends Controller
 {
+    /**
+     * The concrete, plain-language proof point for the Dashboard: not an
+     * abstract score, but "your homepage loaded in Xs, now it loads in Ys" -
+     * the very first completed scan (before SpeedPilot touched anything)
+     * against the most recent one. LCP is the headline number since it's
+     * the metric that actually answers "how long until this feels loaded"
+     * to a real shopper; FCP/Speed Index ride along as secondary context.
+     */
+    public function beforeAfter(Request $request)
+    {
+        /** @var ShopInstallation $shop */
+        $shop = $request->attributes->get('shop');
+
+        $summarize = fn (?Audit $audit) => $audit ? [
+            'audit_id' => $audit->id,
+            'created_at' => $audit->created_at,
+            'score' => $audit->score,
+            'lcp' => $audit->lcp !== null ? (float) $audit->lcp : null,
+            'fcp' => $audit->fcp !== null ? (float) $audit->fcp : null,
+            'speed_index' => $audit->speed_index !== null ? (float) $audit->speed_index : null,
+        ] : null;
+
+        $before = $shop->audits()->where('status', 'complete')->oldest('created_at')->first();
+        $after = $shop->audits()->where('status', 'complete')->latest('created_at')->first();
+
+        // A single completed scan has nothing to compare against yet -
+        // showing it as both "before" and "after" would falsely claim a
+        // 0.0s improvement instead of "not enough data".
+        if ($before && $after && $before->id === $after->id) {
+            $after = null;
+        }
+
+        return response()->json([
+            'before' => $summarize($before),
+            'after' => $summarize($after),
+        ]);
+    }
+
     public function trend(Request $request)
     {
         /** @var ShopInstallation $shop */
