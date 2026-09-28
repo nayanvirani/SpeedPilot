@@ -7,6 +7,7 @@ use App\Jobs\ApplySafeFixesJob;
 use App\Jobs\RunAuditJob;
 use App\Models\AppSetting;
 use App\Models\Audit;
+use App\Models\AuditIssue;
 use App\Models\ShopInstallation;
 use App\Services\PlanPolicy;
 use App\Services\Scanner\StorefrontAccessChecker;
@@ -93,14 +94,13 @@ class AuditController extends Controller
     }
 
     /**
-     * On-demand twin of the automatic safe-fix pass that already runs after
-     * every scan - a merchant may run this again after re-reading the issue
-     * list, or the automatic pass may have found nothing to fix yet if the
-     * target theme was only just set. Runs synchronously so the merchant
-     * sees a real result immediately rather than polling; maxIssues bounds
-     * how many fixes one HTTP request can attempt (each is several
-     * sequential Shopify API calls) so it can't run long enough to hit a
-     * gateway timeout - the automatic post-scan dispatch has no such cap.
+     * Bulk "Fix Safe Issues" button on the audit page - applies every safe,
+     * fixable issue on this audit in one go. Nothing here runs on its own;
+     * a merchant has to click it. Runs synchronously so the merchant sees a
+     * real result immediately rather than polling; maxIssues bounds how many
+     * fixes one HTTP request can attempt (each is several sequential
+     * Shopify API calls) so it can't run long enough to hit a gateway
+     * timeout.
      */
     private const MAX_ISSUES_PER_REQUEST = 15;
 
@@ -132,5 +132,46 @@ class AuditController extends Controller
             'applied_count' => $applied->count(),
             'optimizations' => $applied,
         ]);
+    }
+
+    /**
+     * The per-issue "Auto fix on theme" button - every safe, fixable issue
+     * shows this right next to "Manual fix", and nothing is written unless
+     * the merchant clicks it. Targets exactly this one issue via
+     * ApplySafeFixesJob's onlyIssueId, so clicking one issue's button can
+     * never apply a different one.
+     */
+    public function applySingleSafeFix(Request $request, int $issueId)
+    {
+        /** @var ShopInstallation $shop */
+        $shop = $request->attributes->get('shop');
+
+        if (! (new PlanPolicy($shop))->canAutoFix()) {
+            return response()->json(['error' => 'Automatic fixes are not available on your plan.'], 403);
+        }
+
+        $issue = AuditIssue::whereHas('audit', fn ($q) => $q->where('shop_installation_id', $shop->id))
+            ->where('risk_tier', 'safe')
+            ->findOrFail($issueId);
+
+        if (! $shop->target_theme_id) {
+            return response()->json(['error' => 'Choose a target theme in Settings first.'], 422);
+        }
+
+        ApplySafeFixesJob::dispatchSync($shop->id, $issue->audit_id, onlyIssueId: $issue->id);
+
+        $optimization = $shop->optimizations()
+            ->where('audit_issue_id', $issue->id)
+            ->where('status', 'applied')
+            ->latest('applied_at')
+            ->first(['id', 'type', 'asset_key']);
+
+        if (! $optimization) {
+            return response()->json([
+                'error' => "Couldn't apply this automatically right now - use Manual fix instead, or Shopify's theme-write approval may still be pending.",
+            ], 503);
+        }
+
+        return response()->json(['optimization' => $optimization]);
     }
 }

@@ -56,7 +56,7 @@ function PageScoreCards({ pages }) {
 // (safe/medium/high) - this is just giving it the merchant-facing framing
 // spec calls for, not a second classification system to keep in sync.
 const FIX_CONFIDENCE = {
-    safe: { icon: '🟢', label: 'Safe', tone: 'success', blurb: 'Can be applied automatically.' },
+    safe: { icon: '🟢', label: 'Safe', tone: 'success', blurb: 'One click applies it to your theme.' },
     medium: { icon: '🟡', label: 'Review', tone: 'warning', blurb: 'Requires your confirmation before it changes anything.' },
     high: { icon: '🔴', label: 'Manual', tone: 'critical', blurb: 'Recommendation only - review and apply yourself.' },
 };
@@ -162,10 +162,10 @@ function MediumFixControls({ issue }) {
 
     return (
         <BlockStack gap="200">
-            <Text as="span" fontWeight="medium">Auto-fix</Text>
             {!preview ? (
                 <InlineStack gap="200" blockAlign="center">
-                    <Button size="micro" loading={loading} onClick={loadPreview}>Preview fix</Button>
+                    <Button size="micro" variant="primary" loading={loading} onClick={loadPreview}>Auto fix on theme</Button>
+                    <FixCodeViewer fetchPath={`/audit-issues/${issue.id}/fix-code`} />
                     {error && <Text as="span" tone="critical">{error}</Text>}
                 </InlineStack>
             ) : (
@@ -177,26 +177,52 @@ function MediumFixControls({ issue }) {
                     </Text>
                     <InlineStack gap="200" blockAlign="center">
                         <Button size="micro" variant="primary" loading={loading} onClick={apply}>
-                            Apply this fix
+                            Confirm - apply this fix
                         </Button>
+                        <FixCodeViewer fetchPath={`/audit-issues/${issue.id}/fix-code`} />
                         {error && <Text as="span" tone="critical">{error}</Text>}
                     </InlineStack>
                 </BlockStack>
             )}
-            <FixCodeViewer fetchPath={`/audit-issues/${issue.id}/fix-code`} />
         </BlockStack>
     );
 }
 
+/**
+ * Every safe, fix_available issue gets exactly these two options, nothing
+ * happens on its own: "Auto fix on theme" writes just this one fix via
+ * AuditController::applySingleSafeFix (never the bulk endpoint), "Manual
+ * fix" shows the same code to paste in by hand instead.
+ */
 function SafeFixControls({ issue }) {
+    const [applying, setApplying] = useState(false);
+    const [applied, setApplied] = useState(null);
+    const [error, setError] = useState(null);
+
+    async function apply() {
+        setApplying(true);
+        setError(null);
+        try {
+            const res = await api.post(`/audit-issues/${issue.id}/safe-fix/apply`, {});
+            setApplied(res.optimization);
+        } catch (e) {
+            setError(e.body?.error || 'Could not apply this fix right now.');
+        } finally {
+            setApplying(false);
+        }
+    }
+
+    if (applied) {
+        return <Text as="p" tone="success">Applied to {applied.asset_key} - roll back anytime from the Optimizations page.</Text>;
+    }
+
     return (
-        <BlockStack gap="200">
-            <Text as="span" fontWeight="medium">Auto-fix</Text>
-            <Text as="p" tone="subdued">
-                Included in "Fix Safe Issues" above, or applies automatically on your next
-                scheduled scan once a target theme is selected in Settings.
-            </Text>
-            <FixCodeViewer fetchPath={`/audit-issues/${issue.id}/fix-code`} />
+        <BlockStack gap="150">
+            <InlineStack gap="200" blockAlign="center">
+                <Button size="micro" variant="primary" loading={applying} onClick={apply}>Auto fix on theme</Button>
+                <FixCodeViewer fetchPath={`/audit-issues/${issue.id}/fix-code`} />
+            </InlineStack>
+            {error && <Text as="span" tone="critical">{error}</Text>}
         </BlockStack>
     );
 }
@@ -462,9 +488,10 @@ export default function AuditDetail() {
                     ) : (
                         <BlockStack gap="400">
                             <Text as="p" tone="subdued">
-                                🟢 Safe can be applied automatically. 🟡 Review needs your confirmation
-                                first. 🔴 Manual is a recommendation only - check the Optimizations page
-                                to see exactly which fixes went through and roll any of them back.
+                                Nothing changes your theme unless you click "Auto fix on theme" below - or use
+                                "Manual fix" to copy the change in yourself. 🟢 Safe fixes need one click. 🟡 Review
+                                shows a preview before it writes anything. 🔴 Manual is a recommendation only. Check
+                                the Optimizations page to see exactly which fixes went through and roll any of them back.
                             </Text>
                             <InlineStack gap="200" wrap>
                                 <div style={{ minWidth: '200px' }}>

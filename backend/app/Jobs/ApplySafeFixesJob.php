@@ -37,10 +37,14 @@ class ApplySafeFixesJob implements ShouldQueue
         private readonly int $auditId,
         // Extra cap on top of the plan's own autoFixLimit() - used by the
         // synchronous on-demand endpoint to bound how long one HTTP request
-        // can run (each fix is several sequential Shopify API calls), never
-        // by the automatic post-scan dispatch, which should honor only the
-        // plan's real limit.
+        // can run (each fix is several sequential Shopify API calls).
         private readonly ?int $maxIssues = null,
+        // Set by the per-issue "Auto fix on theme" button (AuditController::
+        // applySingleSafeFix) - targets exactly this one issue, ignoring
+        // both autoFixLimit() and $maxIssues, since a merchant explicitly
+        // choosing one specific fix isn't the bulk sweep those caps exist
+        // to bound.
+        private readonly ?int $onlyIssueId = null,
     ) {
     }
 
@@ -118,13 +122,17 @@ class ApplySafeFixesJob implements ShouldQueue
                 ?? $issue->meta['fix_type']
                 ?? $issue->id);
 
-        $limit = $policy->autoFixLimit();
-        if ($limit !== null) {
-            $safeIssues = $safeIssues->take($limit);
-        }
+        if ($this->onlyIssueId !== null) {
+            $safeIssues = $safeIssues->where('id', $this->onlyIssueId);
+        } else {
+            $limit = $policy->autoFixLimit();
+            if ($limit !== null) {
+                $safeIssues = $safeIssues->take($limit);
+            }
 
-        if ($this->maxIssues !== null) {
-            $safeIssues = $safeIssues->take($this->maxIssues);
+            if ($this->maxIssues !== null) {
+                $safeIssues = $safeIssues->take($this->maxIssues);
+            }
         }
 
         foreach ($safeIssues as $issue) {
@@ -256,6 +264,19 @@ class ApplySafeFixesJob implements ShouldQueue
         $changedCount = 0;
 
         foreach ($sweeper->sweep($liveThemeId) as $filename => $change) {
+            // sweep() always reads the *live* theme, which stays unmodified
+            // when writing to a preview duplicate - so a file already fixed
+            // on the duplicate still shows up as a "candidate" on every
+            // later call. Without this check, each call created a brand new
+            // "applied" Optimization row for the same file (confirmed live:
+            // the same file racking up 5+ duplicate rows a few minutes
+            // apart on jewel-nests) instead of recognizing it was already
+            // done - the same already-applied guard every other fix type
+            // gets below, just missing here until now.
+            if ($shop->optimizations()->where('type', 'lazy_load')->where('asset_key', $filename)->where('status', 'applied')->exists()) {
+                continue;
+            }
+
             // Reuse a still-pending attempt from an earlier blocked scan
             // instead of creating a new one every time - without this, a
             // scan re-running while write_themes stays unapproved (a

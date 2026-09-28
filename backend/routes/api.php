@@ -24,6 +24,7 @@ Route::middleware('shopify.session')->group(function () {
     Route::get('/audits', [AuditController::class, 'index']);
     Route::get('/audits/{id}', [AuditController::class, 'show']);
     Route::post('/audits/{id}/apply-safe-fixes', [AuditController::class, 'applySafeFixes']);
+    Route::post('/audit-issues/{id}/safe-fix/apply', [AuditController::class, 'applySingleSafeFix']);
     Route::get('/audit-issues/{id}/recommendation', [AiRecommendationController::class, 'show']);
     Route::get('/audits/{id}/priority-plan', [AiRecommendationController::class, 'prioritize']);
     Route::post('/audit-issues/{id}/medium-fix/preview', [MediumFixController::class, 'preview']);

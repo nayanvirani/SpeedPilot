@@ -217,9 +217,18 @@ class RunAuditJob implements ShouldQueue
             'status' => 'complete',
         ]);
 
-        if ((new PlanPolicy($shop))->canAutoFix()) {
-            ApplySafeFixesJob::dispatch($shop->id, $audit->id);
-        }
+        // Applying safe fixes is merchant-initiated only (the "Fix Safe
+        // Issues" button on the audit page, via AuditController::
+        // applySafeFixes()) - this used to auto-dispatch here on every
+        // completed scan, including the verification audit ApplySafeFixesJob
+        // itself creates after applying fixes. That verification audit
+        // completing re-triggered this same dispatch, which re-swept the
+        // *live* (unmodified) theme, found the same lazy-load candidates
+        // again, and wrote a fresh "applied" Optimization row for them -
+        // repeating every few minutes forever (confirmed live: the same file
+        // showing 5+ duplicate "applied" rows on jewel-nests). Making this
+        // strictly opt-in via the button removes the loop at its source
+        // instead of just patching the dedup.
 
         // Every completed scan updates monitoring data, not just ones the
         // daily schedule happened to trigger - MonitoringRecorder is
