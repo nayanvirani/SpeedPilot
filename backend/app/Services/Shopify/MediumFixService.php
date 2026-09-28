@@ -107,10 +107,11 @@ class MediumFixService
 
     /**
      * Unlike minify_css, the fix here isn't the stylesheet's own content -
-     * it's the <link> tag referencing it, wherever that tag actually lives
-     * in the theme (a section, snippet, or layout file). findTagSource()
-     * text-searches for that file the same way it already does for a
-     * render-blocking <script src>.
+     * it's whatever tag/filter renders it, wherever that lives in the theme
+     * (a section, snippet, or layout file). findStylesheetSource() searches
+     * by plain filename rather than findTagSource()'s hostname-fallback
+     * logic, which is built for scripts and produced a wrong-file match when
+     * tried against a real store's CSS (see that method's docblock).
      *
      * @return array{0: string, 1: string, 2: string} [assetKey, originalContent, fixedContent]
      */
@@ -123,7 +124,7 @@ class MediumFixService
         $cssUrl = $issue->meta['css_url'] ?? '';
         $liveThemeId = $this->activeThemeIdOrFail($shop);
 
-        $assetKey = $this->locator->findTagSource($liveThemeId, $cssUrl);
+        $assetKey = $this->locator->findStylesheetSource($liveThemeId, $cssUrl);
 
         if (! $assetKey) {
             throw new RuntimeException('Could not find this stylesheet\'s <link> tag in your theme\'s files.');
