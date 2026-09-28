@@ -16,26 +16,29 @@ use App\Models\ShopInstallation;
  * the fix genuinely helped. RUM stays a separate, already-shown figure on
  * the Monitoring page instead.
  *
- * The conversion-elasticity figure below is a disclosed, round industry
- * average from published retail page-speed studies (e.g. Portent's ~4.4%
- * per second on desktop e-commerce conversion, and Google/Deloitte's
- * "Milliseconds Make Millions" mobile retail findings) - not a measurement
- * of this specific store's actual visitors. Every consumer of this output
- * must present it as an estimate, never a guarantee.
+ * The conversion-elasticity figure below is deliberately conservative, not
+ * the aggressive end of what's out there. An earlier version used ~7%/second
+ * (loosely, and it turned out incorrectly, inspired by Portent's ~4.4%
+ * *relative conversion-rate drop* per second finding - a different, narrower
+ * claim than "your total revenue moves by this % per second," which is what
+ * this estimator actually applies it as) - live-tested against a real
+ * merchant's own numbers, it produced a "+22.8%, roughly $1.7M-$3.1M/month"
+ * estimate, which is not a credible claim for any real business regardless
+ * of how large their baseline revenue is. A believable few-percent estimate
+ * is more useful (and more honest) than a dramatic one nobody believes.
+ * Every consumer of this output must present it as a rough estimate, never
+ * a guarantee.
  */
 class RevenueImpactEstimator
 {
-    private const CONVERSION_CHANGE_PER_SECOND = 0.07; // 7% per second of LCP
+    private const CONVERSION_CHANGE_PER_SECOND = 0.01; // 1% per second of LCP
 
-    // The underlying studies measure conversion sensitivity within a normal
-    // few-hundred-ms-to-low-seconds range - linearly extrapolating that
-    // straight through a large delta (e.g. a first-ever scan against a
-    // since-heavily-optimized store, 6+ seconds of LCP improvement) produces
-    // an implausible number (confirmed live: a 6s delta computed as "42%
-    // conversion lift", which would undermine trust in this figure rather
-    // than build it). Capping keeps every shown number inside a range the
-    // cited studies actually support.
-    private const MAX_CONVERSION_CHANGE_PCT = 0.30;
+    // Keeps even a large, multi-second delta inside a range a merchant would
+    // actually find credible - a "several percent" conversion claim from a
+    // real speed improvement is believable; a "quarter of your revenue"
+    // claim isn't, no matter how large the underlying elasticity study's
+    // number technically was for a much narrower measurement window.
+    private const MAX_CONVERSION_CHANGE_PCT = 0.08;
 
     /**
      * @return array{
