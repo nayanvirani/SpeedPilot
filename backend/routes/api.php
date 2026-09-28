@@ -58,6 +58,8 @@ Route::middleware('shopify.session')->group(function () {
     Route::put('/settings/scan-preferences', [ShopSettingsController::class, 'updateScanPreferences']);
     Route::put('/settings/interceptor-timing', [ShopSettingsController::class, 'updateInterceptorTiming']);
     Route::put('/settings/slack-webhook', [ShopSettingsController::class, 'updateSlackWebhook']);
+    Route::put('/settings/revenue-inputs', [ShopSettingsController::class, 'updateRevenueInputs']);
+    Route::put('/settings/speed-budget', [ShopSettingsController::class, 'updateSpeedBudget']);
     Route::get('/themes', [ShopSettingsController::class, 'listThemes']);
     Route::put('/settings/target-theme', [ShopSettingsController::class, 'updateTargetTheme']);
 });

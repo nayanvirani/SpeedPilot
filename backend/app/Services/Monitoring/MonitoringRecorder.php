@@ -76,6 +76,21 @@ class MonitoringRecorder
             )
             : null;
 
+        // Resolve each newly-appeared script to its AppImpact id on *this*
+        // audit, so the Monitoring page can offer a direct "Disable"/"Delay"
+        // button instead of making the merchant go find it themselves on
+        // App & Script Impact. A suggested action, not an automatic revert -
+        // still requires the merchant to click it there.
+        if ($diff !== null && ! empty($diff['new_third_party_scripts'])) {
+            $diff['new_third_party_scripts'] = collect($diff['new_third_party_scripts'])
+                ->map(function (array $script) use ($audit) {
+                    $script['app_impact_id'] = $audit->appImpacts->firstWhere('app_name', $script['app_name'])?->id;
+
+                    return $script;
+                })
+                ->all();
+        }
+
         // Needed for the recovery check below - must read before creating
         // this run, or it would just find itself.
         $lastRun = $shop->monitoringRuns()->latest('run_at')->first();
@@ -87,6 +102,12 @@ class MonitoringRecorder
             'is_regression' => $isRegression,
             'diff_summary' => $diff,
         ]);
+
+        // Independent of the score-regression check above - a budget breach
+        // is its own signal (a merchant-chosen hard line, not a relative
+        // day-over-day drop), so it's checked and alerted regardless of
+        // whether this run also counts as a regression.
+        $this->checkSpeedBudget($shop, $audit);
 
         if ($isRegression) {
             $this->slack->send($shop, $this->buildRegressionMessage($shop, $audit, $previousScore, $trendDelta, $diff ?? []));
@@ -101,6 +122,41 @@ class MonitoringRecorder
         // eventual recovery get a Slack message.
         if ($lastRun && $lastRun->is_regression) {
             $this->maybeSendRecoveryMessage($shop, $lastRun, $audit);
+        }
+    }
+
+    /**
+     * A merchant-set target max LCP (Settings > Speed budget), distinct from
+     * the relative score-regression check above - alerts only on the
+     * transition into or out of breach (speed_budget_breached_at tracks
+     * which state we're in), same "don't spam every day it stays bad" rule
+     * the regression/recovery pair above already uses.
+     */
+    private function checkSpeedBudget(ShopInstallation $shop, Audit $audit): void
+    {
+        if ($shop->speed_budget_lcp_seconds === null || $audit->lcp === null) {
+            return;
+        }
+
+        $lcp = (float) $audit->lcp;
+        $overBudget = $lcp > $shop->speed_budget_lcp_seconds;
+
+        if ($overBudget && $shop->speed_budget_breached_at === null) {
+            $shop->update(['speed_budget_breached_at' => now()]);
+            $this->slack->send($shop, sprintf(
+                ':rotating_light: SpeedPilot: %s just crossed your speed budget - LCP is %.2fs, budget is %.2fs.',
+                $shop->shop_domain,
+                $lcp,
+                $shop->speed_budget_lcp_seconds,
+            ));
+        } elseif (! $overBudget && $shop->speed_budget_breached_at !== null) {
+            $shop->update(['speed_budget_breached_at' => null]);
+            $this->slack->send($shop, sprintf(
+                ':white_check_mark: SpeedPilot: %s is back within its speed budget - LCP is %.2fs (budget %.2fs).',
+                $shop->shop_domain,
+                $lcp,
+                $shop->speed_budget_lcp_seconds,
+            ));
         }
     }
 
@@ -146,7 +202,8 @@ class MonitoringRecorder
 
         if (! empty($diff['new_third_party_scripts'])) {
             $names = collect($diff['new_third_party_scripts'])->pluck('app_name')->implode(', ');
-            $lines[] = "- New third-party script(s) since the last scan: {$names} - a possible contributor, not a confirmed cause.";
+            $lines[] = "- New third-party script(s) since the last scan: {$names} - a possible contributor, not a "
+                .'confirmed cause. One-click Disable/Delay for these is on the Monitoring page.';
         }
 
         if (! empty($diff['new_issues'])) {

@@ -30,6 +30,10 @@ class ShopInstallation extends Model
         'scan_frequency',
         'scan_devices',
         'slack_webhook_url',
+        'avg_order_value',
+        'monthly_orders',
+        'speed_budget_lcp_seconds',
+        'speed_budget_breached_at',
         'scope',
         'plan',
         'plan_expires_at',
@@ -61,6 +65,10 @@ class ShopInstallation extends Model
             'storefront_locked_at' => 'datetime',
             'interceptor_delay_ms' => 'integer',
             'plan_expires_at' => 'datetime',
+            'avg_order_value' => 'float',
+            'monthly_orders' => 'integer',
+            'speed_budget_lcp_seconds' => 'float',
+            'speed_budget_breached_at' => 'datetime',
         ];
     }
 

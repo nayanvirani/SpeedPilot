@@ -330,6 +330,139 @@ function AdvancedDelayTimingSettings() {
     );
 }
 
+function RevenueInputsSettings() {
+    const [values, setValues] = useState(null);
+    const [saving, setSaving] = useState(false);
+    const [saved, setSaved] = useState(false);
+
+    useEffect(() => {
+        api.get('/settings').then((res) => setValues({
+            avg_order_value: res.avg_order_value !== null && res.avg_order_value !== undefined ? String(res.avg_order_value) : '',
+            monthly_orders: res.monthly_orders !== null && res.monthly_orders !== undefined ? String(res.monthly_orders) : '',
+        }));
+    }, []);
+
+    async function save() {
+        setSaving(true);
+        setSaved(false);
+        try {
+            const res = await api.put('/settings/revenue-inputs', {
+                avg_order_value: values.avg_order_value === '' ? null : Number(values.avg_order_value),
+                monthly_orders: values.monthly_orders === '' ? null : Number(values.monthly_orders),
+            });
+            setValues({
+                avg_order_value: res.avg_order_value !== null ? String(res.avg_order_value) : '',
+                monthly_orders: res.monthly_orders !== null ? String(res.monthly_orders) : '',
+            });
+            setSaved(true);
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    if (!values) {
+        return null;
+    }
+
+    return (
+        <Card>
+            <BlockStack gap="200">
+                <Text as="h3" variant="headingSm"><span className="sp-heading">Revenue inputs</span></Text>
+                <Text as="p" tone="subdued">
+                    Optional - adds a personalized dollar estimate to the Dashboard's page-load
+                    improvement card, on top of the percentage estimate it always shows. Leave blank to
+                    only see the percentage.
+                </Text>
+                <InlineStack gap="300" wrap>
+                    <div style={{ minWidth: '200px' }}>
+                        <TextField
+                            label="Average order value ($)"
+                            type="number"
+                            min={0}
+                            value={values.avg_order_value}
+                            onChange={(v) => { setValues({ ...values, avg_order_value: v }); setSaved(false); }}
+                            autoComplete="off"
+                        />
+                    </div>
+                    <div style={{ minWidth: '200px' }}>
+                        <TextField
+                            label="Average monthly orders"
+                            type="number"
+                            min={0}
+                            value={values.monthly_orders}
+                            onChange={(v) => { setValues({ ...values, monthly_orders: v }); setSaved(false); }}
+                            autoComplete="off"
+                        />
+                    </div>
+                </InlineStack>
+                <InlineStack gap="200" blockAlign="center">
+                    <Button loading={saving} onClick={save}>Save</Button>
+                    {saved && <Text as="span" tone="success">Saved</Text>}
+                </InlineStack>
+            </BlockStack>
+        </Card>
+    );
+}
+
+function SpeedBudgetSettings() {
+    const [value, setValue] = useState(null);
+    const [saving, setSaving] = useState(false);
+    const [saved, setSaved] = useState(false);
+
+    useEffect(() => {
+        api.get('/settings').then((res) => setValue(
+            res.speed_budget_lcp_seconds !== null && res.speed_budget_lcp_seconds !== undefined
+                ? String(res.speed_budget_lcp_seconds)
+                : '',
+        ));
+    }, []);
+
+    async function save() {
+        setSaving(true);
+        setSaved(false);
+        try {
+            const res = await api.put('/settings/speed-budget', {
+                speed_budget_lcp_seconds: value === '' ? null : Number(value),
+            });
+            setValue(res.speed_budget_lcp_seconds !== null ? String(res.speed_budget_lcp_seconds) : '');
+            setSaved(true);
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    if (value === null) {
+        return null;
+    }
+
+    return (
+        <Card>
+            <BlockStack gap="200">
+                <Text as="h3" variant="headingSm"><span className="sp-heading">Speed budget</span></Text>
+                <Text as="p" tone="subdued">
+                    Get a Slack alert the moment a scan's LCP crosses this line, instead of only finding
+                    out from a score drop after the fact. Leave blank to disable.
+                </Text>
+                <InlineStack gap="200" blockAlign="end">
+                    <div style={{ minWidth: '200px' }}>
+                        <TextField
+                            label="Alert if LCP exceeds (seconds)"
+                            type="number"
+                            min={0.1}
+                            step={0.1}
+                            value={value}
+                            onChange={(v) => { setValue(v); setSaved(false); }}
+                            autoComplete="off"
+                        />
+                    </div>
+                    <Button loading={saving} onClick={save}>Save</Button>
+                    {saved && <Text as="span" tone="success">Saved</Text>}
+                </InlineStack>
+            </BlockStack>
+        </Card>
+    );
+}
+
 function SlackNotificationSettings() {
     const [hasWebhook, setHasWebhook] = useState(null);
     const [value, setValue] = useState('');
@@ -414,6 +547,8 @@ export default function Settings() {
                 <TargetThemeSettings />
                 <AdvancedDelayTimingSettings />
                 <StorefrontPasswordSettings />
+                <RevenueInputsSettings />
+                <SpeedBudgetSettings />
                 <SlackNotificationSettings />
             </BlockStack>
         </Page>

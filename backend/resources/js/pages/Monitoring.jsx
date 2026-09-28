@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Badge, BlockStack, Card, DataTable, InlineStack, Page, SkeletonBodyText, Tabs, Text } from '@shopify/polaris';
+import { Badge, BlockStack, Button, Card, DataTable, InlineStack, Page, SkeletonBodyText, Tabs, Text } from '@shopify/polaris';
 import { api } from '../api';
 import TrendChart from '../components/TrendChart';
 
@@ -77,7 +77,42 @@ function PageTypeTrends() {
     );
 }
 
+function NewScriptSuggestedAction({ script, pendingKey, onAction }) {
+    if (!script.app_impact_id) {
+        return (
+            <Text as="span" tone="subdued">{script.app_name}</Text>
+        );
+    }
+
+    const busy = pendingKey === `${script.app_impact_id}-disabled` || pendingKey === `${script.app_impact_id}-delayed`;
+
+    return (
+        <InlineStack gap="150" blockAlign="center">
+            <Text as="span">{script.app_name}</Text>
+            <Button
+                size="micro"
+                loading={pendingKey === `${script.app_impact_id}-disabled`}
+                disabled={busy && pendingKey !== `${script.app_impact_id}-disabled`}
+                onClick={() => onAction(script, 'disabled')}
+            >
+                Disable
+            </Button>
+            <Button
+                size="micro"
+                loading={pendingKey === `${script.app_impact_id}-delayed`}
+                disabled={busy && pendingKey !== `${script.app_impact_id}-delayed`}
+                onClick={() => onAction(script, 'delayed')}
+            >
+                Delay
+            </Button>
+        </InlineStack>
+    );
+}
+
 function WhatChanged({ diff }) {
+    const [pendingKey, setPendingKey] = useState(null);
+    const [result, setResult] = useState({});
+
     if (!diff) {
         return null;
     }
@@ -87,6 +122,27 @@ function WhatChanged({ diff }) {
     const droppedPages = (diff.page_type_deltas ?? []).filter((p) => p.delta !== null && p.delta < 0);
     const nothingChanged = newScripts.length === 0 && newIssues.length === 0 && droppedPages.length === 0;
 
+    async function applyAction(script, status) {
+        const confirmMsg = status === 'disabled'
+            ? `Disable ${script.app_name}? This stops it from loading on your storefront - only its own admin can re-enable the app itself, but you can switch this back to "Active" any time from App & Script Impact.`
+            : `Delay ${script.app_name}? This is a suggested action, not a guarantee - see App & Script Impact for the full explanation of how delaying works.`;
+
+        if (!window.confirm(confirmMsg)) {
+            return;
+        }
+
+        const key = `${script.app_impact_id}-${status}`;
+        setPendingKey(key);
+        try {
+            await api.patch(`/app-impacts/${script.app_impact_id}`, { status });
+            setResult((r) => ({ ...r, [script.app_impact_id]: status }));
+        } catch (e) {
+            setResult((r) => ({ ...r, [script.app_impact_id]: `error:${e.body?.error || 'Could not apply this right now.'}` }));
+        } finally {
+            setPendingKey(null);
+        }
+    }
+
     return (
         <Card>
             <BlockStack gap="200">
@@ -95,9 +151,31 @@ function WhatChanged({ diff }) {
                     <Text as="p" tone="subdued">No new scripts, issues, or page-level drops since the previous scan.</Text>
                 )}
                 {newScripts.length > 0 && (
-                    <Text as="p">
-                        New script(s) detected (a possible contributor, not a confirmed cause): {newScripts.map((s) => s.app_name).join(', ')}
-                    </Text>
+                    <BlockStack gap="150">
+                        <Text as="p" tone="subdued">
+                            New script(s) detected since the last scan (a possible contributor, not a confirmed cause):
+                        </Text>
+                        {newScripts.map((s) => {
+                            const appliedStatus = result[s.app_impact_id];
+
+                            if (appliedStatus && !appliedStatus.startsWith('error:')) {
+                                return (
+                                    <Text as="p" key={s.app_name} tone="success">
+                                        {s.app_name}: set to {appliedStatus} - view or roll back on App & Script Impact.
+                                    </Text>
+                                );
+                            }
+
+                            return (
+                                <BlockStack gap="050" key={s.app_name}>
+                                    <NewScriptSuggestedAction script={s} pendingKey={pendingKey} onAction={applyAction} />
+                                    {appliedStatus?.startsWith('error:') && (
+                                        <Text as="span" tone="critical">{appliedStatus.slice(6)}</Text>
+                                    )}
+                                </BlockStack>
+                            );
+                        })}
+                    </BlockStack>
                 )}
                 {newIssues.length > 0 && (
                     <Text as="p">{newIssues.length} new issue(s): {newIssues.map((i) => i.title).join('; ')}</Text>

@@ -44,6 +44,9 @@ class ShopSettingsController extends Controller
             'has_slack_webhook' => ! empty($shop->slack_webhook_url),
             'interceptor_delay_ms' => $shop->interceptor_delay_ms,
             'interceptor_trigger' => $shop->interceptor_trigger,
+            'avg_order_value' => $shop->avg_order_value,
+            'monthly_orders' => $shop->monthly_orders,
+            'speed_budget_lcp_seconds' => $shop->speed_budget_lcp_seconds,
             // Shopify gates actually writing theme files behind a separate,
             // app-level "protected scope" exemption it grants (or doesn't) -
             // this is never a per-merchant setting, and no button in this
@@ -99,6 +102,66 @@ class ShopSettingsController extends Controller
             'interceptor_delay_ms' => $shop->interceptor_delay_ms,
             'interceptor_trigger' => $shop->interceptor_trigger,
         ]);
+    }
+
+    /**
+     * Optional inputs for the Dashboard's revenue-impact estimate
+     * (MonitoringController::beforeAfter()) - both nullable/clearable, since
+     * showing a percentage-only estimate is honest and a fabricated dollar
+     * figure from guessed traffic/AOV is not.
+     */
+    public function updateRevenueInputs(Request $request)
+    {
+        /** @var ShopInstallation $shop */
+        $shop = $request->attributes->get('shop');
+
+        $data = $request->validate([
+            'avg_order_value' => 'nullable|numeric|min:0|max:999999.99',
+            'monthly_orders' => 'nullable|integer|min:0|max:10000000',
+        ]);
+
+        $shop->update([
+            'avg_order_value' => $data['avg_order_value'] ?? null,
+            'monthly_orders' => $data['monthly_orders'] ?? null,
+        ]);
+
+        return response()->json([
+            'avg_order_value' => $shop->avg_order_value,
+            'monthly_orders' => $shop->monthly_orders,
+        ]);
+    }
+
+    /**
+     * A merchant-set target max LCP - null disables it entirely.
+     * MonitoringRecorder alerts on the transition into/out of breach, using
+     * speed_budget_breached_at the same way the existing regression/recovery
+     * pair already tracks state.
+     */
+    public function updateSpeedBudget(Request $request)
+    {
+        /** @var ShopInstallation $shop */
+        $shop = $request->attributes->get('shop');
+
+        $data = $request->validate([
+            'speed_budget_lcp_seconds' => 'nullable|numeric|min:0.1|max:60',
+        ]);
+
+        $newBudget = $data['speed_budget_lcp_seconds'] ?? null;
+        $latestLcp = $shop->audits()->where('status', 'complete')->latest('created_at')->value('lcp');
+
+        // Clearing the budget, or raising it past the current LCP, should
+        // also clear any standing breach flag - otherwise a merchant who
+        // loosens their budget would never get a "back within budget"
+        // message later, since the flag would still reflect the old,
+        // stricter target instead of the one actually in effect now.
+        $stillBreached = $newBudget !== null && $latestLcp !== null && (float) $latestLcp > $newBudget;
+
+        $shop->update([
+            'speed_budget_lcp_seconds' => $newBudget,
+            'speed_budget_breached_at' => $stillBreached ? $shop->speed_budget_breached_at : null,
+        ]);
+
+        return response()->json(['speed_budget_lcp_seconds' => $shop->speed_budget_lcp_seconds]);
     }
 
     /**

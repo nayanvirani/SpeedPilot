@@ -7,6 +7,7 @@ use App\Models\Audit;
 use App\Models\AuditPage;
 use App\Models\ShopInstallation;
 use App\Services\Monitoring\MonthlyReportService;
+use App\Services\Monitoring\RevenueImpactEstimator;
 use App\Services\PlanPolicy;
 use Illuminate\Http\Request;
 
@@ -20,7 +21,7 @@ class MonitoringController extends Controller
      * the metric that actually answers "how long until this feels loaded"
      * to a real shopper; FCP/Speed Index ride along as secondary context.
      */
-    public function beforeAfter(Request $request)
+    public function beforeAfter(Request $request, RevenueImpactEstimator $estimator)
     {
         /** @var ShopInstallation $shop */
         $shop = $request->attributes->get('shop');
@@ -47,6 +48,13 @@ class MonitoringController extends Controller
         return response()->json([
             'before' => $summarize($before),
             'after' => $summarize($after),
+            'estimated_impact' => ($before && $after)
+                ? $estimator->estimate(
+                    $shop,
+                    $before->lcp !== null ? (float) $before->lcp : null,
+                    $after->lcp !== null ? (float) $after->lcp : null,
+                )
+                : null,
         ]);
     }
 

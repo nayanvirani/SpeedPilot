@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Badge, BlockStack, Card, InlineStack, SkeletonBodyText, Text } from '@shopify/polaris';
+import { Badge, BlockStack, Box, Card, InlineStack, SkeletonBodyText, Text } from '@shopify/polaris';
 import { api } from '../api';
 
 function formatSeconds(value) {
@@ -14,6 +14,46 @@ function SecondaryStat({ label, before, after }) {
             <Text as="span" tone="subdued">→</Text>
             <Text as="span" fontWeight="medium">{formatSeconds(after)}</Text>
         </InlineStack>
+    );
+}
+
+function formatDollars(value) {
+    return `$${Math.abs(value).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+}
+
+/**
+ * The dollar range only ever appears when built on the merchant's own
+ * Settings > Revenue inputs - otherwise this shows the percentage estimate
+ * alone plus a prompt, rather than a fabricated-looking dollar figure.
+ */
+function RevenueImpact({ impact }) {
+    if (!impact || Math.abs(impact.conversion_change_pct) < 0.1) {
+        return null;
+    }
+
+    const improved = impact.conversion_change_pct > 0;
+    const hasDollarRange = impact.monthly_revenue_low !== null && impact.monthly_revenue_high !== null;
+
+    return (
+        <Box paddingBlockStart="200" borderBlockStartWidth="025" borderColor="border-secondary">
+            <BlockStack gap="100">
+                <Text as="p">
+                    Estimated conversion {improved ? 'lift' : 'impact'}:{' '}
+                    <Text as="span" fontWeight="semibold" tone={improved ? 'success' : 'critical'}>
+                        {improved ? '+' : ''}{impact.conversion_change_pct}%
+                    </Text>
+                    {hasDollarRange && (
+                        <>
+                            {' '}(roughly {formatDollars(impact.monthly_revenue_low)}–{formatDollars(impact.monthly_revenue_high)}/month)
+                        </>
+                    )}
+                </Text>
+                <Text as="p" tone="subdued">
+                    Industry-average estimate based on your load-time change, not a guarantee.
+                    {!hasDollarRange && ' Add your average order value in Settings for a personalized dollar estimate.'}
+                </Text>
+            </BlockStack>
+        </Box>
     );
 }
 
@@ -39,7 +79,7 @@ export default function PageLoadBeforeAfter() {
         return null;
     }
 
-    const { before, after } = data;
+    const { before, after, estimated_impact: estimatedImpact } = data;
 
     if (!after || before.lcp === null || after.lcp === null) {
         return (
@@ -94,6 +134,7 @@ export default function PageLoadBeforeAfter() {
                     <SecondaryStat label="First paint" before={before.fcp} after={after.fcp} />
                     <SecondaryStat label="Speed Index" before={before.speed_index} after={after.speed_index} />
                 </InlineStack>
+                <RevenueImpact impact={estimatedImpact} />
             </BlockStack>
         </Card>
     );
