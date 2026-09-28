@@ -27,6 +27,16 @@ class RevenueImpactEstimator
 {
     private const CONVERSION_CHANGE_PER_SECOND = 0.07; // 7% per second of LCP
 
+    // The underlying studies measure conversion sensitivity within a normal
+    // few-hundred-ms-to-low-seconds range - linearly extrapolating that
+    // straight through a large delta (e.g. a first-ever scan against a
+    // since-heavily-optimized store, 6+ seconds of LCP improvement) produces
+    // an implausible number (confirmed live: a 6s delta computed as "42%
+    // conversion lift", which would undermine trust in this figure rather
+    // than build it). Capping keeps every shown number inside a range the
+    // cited studies actually support.
+    private const MAX_CONVERSION_CHANGE_PCT = 0.30;
+
     /**
      * @return array{
      *   lcp_delta_seconds: float,
@@ -42,7 +52,10 @@ class RevenueImpactEstimator
         }
 
         $lcpDeltaSeconds = $beforeLcp - $afterLcp; // positive = faster = improvement
-        $conversionChangePct = $lcpDeltaSeconds * self::CONVERSION_CHANGE_PER_SECOND;
+        $conversionChangePct = max(
+            -self::MAX_CONVERSION_CHANGE_PCT,
+            min(self::MAX_CONVERSION_CHANGE_PCT, $lcpDeltaSeconds * self::CONVERSION_CHANGE_PER_SECOND),
+        );
 
         $result = [
             'lcp_delta_seconds' => round($lcpDeltaSeconds, 2),
