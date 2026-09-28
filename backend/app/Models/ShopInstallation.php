@@ -16,6 +16,8 @@ class ShopInstallation extends Model
         'shop_domain',
         'access_token',
         'access_token_expires_at',
+        'refresh_token',
+        'refresh_token_expires_at',
         'storefront_password',
         'target_theme_id',
         'target_theme_mode',
@@ -38,6 +40,7 @@ class ShopInstallation extends Model
 
     protected $hidden = [
         'access_token',
+        'refresh_token',
         'storefront_password',
         'slack_webhook_url',
     ];
@@ -46,9 +49,11 @@ class ShopInstallation extends Model
     {
         return [
             'access_token' => SafeEncrypted::class,
+            'refresh_token' => SafeEncrypted::class,
             'storefront_password' => SafeEncrypted::class,
             'slack_webhook_url' => SafeEncrypted::class,
             'access_token_expires_at' => 'datetime',
+            'refresh_token_expires_at' => 'datetime',
             'installed_at' => 'datetime',
             'uninstalled_at' => 'datetime',
             'theme_write_blocked_at' => 'datetime',

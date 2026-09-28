@@ -6,16 +6,15 @@ use RuntimeException;
 
 /**
  * Shopify's offline access tokens now expire (see ShopifyOAuthService's
- * `'expiring' => 1` requirement) and only get refreshed via Token Exchange,
- * which needs a live App Bridge session token - VerifyShopifySessionToken
- * does this automatically on every authenticated HTTP request, so a shop
- * stays fresh as long as the merchant opens the embedded app periodically.
- * A background job (the daily monitoring schedule, or any queued job with
- * no live request behind it) has no session token to exchange and can't
- * self-heal this the way a live request can - distinct from
- * ThemeWriteAccessDeniedException (a permanent, account-wide approval gate)
- * because this one resolves itself the next time the merchant opens the app,
- * with no action needed from us beyond not crashing in the meantime.
+ * `'expiring' => 1` requirement) - RefreshExpiringAccessTokensJob renews
+ * them proactively via the stored refresh_token on a schedule, independent
+ * of whether the merchant opens the embedded app, so this should now be rare
+ * (a token that expired in the gap between scheduled refreshes, or a shop
+ * whose refresh_token itself already died - see that job for the 401 case).
+ * Distinct from ThemeWriteAccessDeniedException (a permanent, account-wide
+ * approval gate): this one self-heals on the next scheduled refresh tick, or
+ * failing that, the next time the merchant opens the app re-provisions a
+ * fresh token+refresh_token pair via VerifyShopifySessionToken.
  */
 class AccessTokenExpiredException extends RuntimeException
 {

@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\RefreshExpiringAccessTokensJob;
 use App\Jobs\RunMonitoringJob;
 use App\Models\ShopInstallation;
 use App\Services\Monitoring\MonthlyReportService;
@@ -12,6 +13,22 @@ use Illuminate\Support\Facades\Schedule;
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+// An offline access token only lasts 1 hour - refresh it well before that,
+// using the stored refresh_token (no merchant session needed), so every
+// other background job below (and any queued job in between) never hits a
+// dead token just because nobody happened to open the embedded app
+// recently. A 20-minute lookahead against a 15-minute tick always leaves
+// margin before the real 60-minute expiry.
+Schedule::call(function () {
+    ShopInstallation::whereNull('uninstalled_at')
+        ->whereNotNull('refresh_token')
+        ->where(function ($q) {
+            $q->whereNull('access_token_expires_at')
+                ->orWhere('access_token_expires_at', '<', now()->addMinutes(20));
+        })
+        ->each(fn (ShopInstallation $shop) => RefreshExpiringAccessTokensJob::dispatch($shop->id));
+})->everyFifteenMinutes()->name('speedpilot:refresh-offline-tokens')->withoutOverlapping();
 
 // Phase 3 monitoring: daily re-audit for every active, still-installed shop.
 // Growth/Pro get "advanced" monitoring (still daily here - the cadence

@@ -104,4 +104,32 @@ class ShopifyOAuthService
 
         return json_decode((string) $response->getBody(), true);
     }
+
+    /**
+     * Renews an expiring offline access token using the refresh_token
+     * issued alongside it - no merchant session or ID token involved, so
+     * this runs from a scheduled job for every installed shop regardless of
+     * whether anyone has opened the embedded app recently. Per Shopify's
+     * docs ("Refresh an expiring offline token"): every refresh returns a
+     * new access_token AND a new refresh_token - the old refresh_token is
+     * spent and must be replaced with the new one, not reused.
+     *
+     * Throws on any HTTP error - RefreshExpiringAccessTokensJob distinguishes
+     * a final 401 (dead refresh_token, needs a merchant to reopen the app)
+     * from a transient failure (network/5xx/429, safe to retry next tick)
+     * by inspecting the exception there.
+     */
+    public function refreshOfflineToken(string $shop, string $refreshToken): array
+    {
+        $response = $this->http->post("https://{$shop}/admin/oauth/access_token", [
+            'json' => [
+                'client_id' => config('shopify.api_key'),
+                'client_secret' => config('shopify.api_secret'),
+                'grant_type' => 'refresh_token',
+                'refresh_token' => $refreshToken,
+            ],
+        ]);
+
+        return json_decode((string) $response->getBody(), true);
+    }
 }
