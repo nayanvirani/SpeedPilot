@@ -157,18 +157,29 @@ class ApplySafeFixesJob implements ShouldQueue
 
                 // A re-scan reports the same underlying issue again on a
                 // fresh AuditIssue row - without this, re-running (the
-                // automatic post-scan pass and the on-demand "Fix Safe
-                // Issues" button can both target the same audit) would
-                // rewrite an already-fixed file from the pristine original
-                // every time, silently re-deferring an already-deferred
-                // script on every call.
+                // bulk "Fix Safe Issues" button, or a per-issue "Auto fix on
+                // theme" click on that new issue) would rewrite an
+                // already-fixed file from the pristine original every time,
+                // silently re-deferring an already-deferred script on every
+                // call.
                 $alreadyApplied = $shop->optimizations()
                     ->where('asset_key', $assetKey)
                     ->where('type', $fixType ?? $issue->category)
                     ->where('status', 'applied')
-                    ->exists();
+                    ->first();
 
                 if ($alreadyApplied) {
+                    // Relink to whichever issue this call is actually about
+                    // - otherwise a per-issue "Auto fix on theme" click for
+                    // a *new* scan's issue on an already-fixed file found no
+                    // optimization row to report back (still linked to
+                    // whichever older audit first applied it), and the
+                    // single-issue endpoint wrongly reported "couldn't
+                    // apply this" for a file that's already fixed.
+                    if ($alreadyApplied->audit_issue_id !== $issue->id) {
+                        $alreadyApplied->update(['audit_issue_id' => $issue->id]);
+                    }
+
                     continue;
                 }
 
@@ -278,7 +289,25 @@ class ApplySafeFixesJob implements ShouldQueue
             // apart on jewel-nests) instead of recognizing it was already
             // done - the same already-applied guard every other fix type
             // gets below, just missing here until now.
-            if ($shop->optimizations()->where('type', 'lazy_load')->where('asset_key', $filename)->where('status', 'applied')->exists()) {
+            $alreadyApplied = $shop->optimizations()
+                ->where('type', 'lazy_load')
+                ->where('asset_key', $filename)
+                ->where('status', 'applied')
+                ->first();
+
+            if ($alreadyApplied) {
+                // Relink to whichever issue this call is actually about -
+                // without this, clicking "Auto fix on theme" on a *new*
+                // scan's issue for an already-fixed file found nothing to
+                // return (the applied row was still linked to whichever
+                // older audit first applied it), so the per-issue endpoint
+                // reported "couldn't apply this" even though the file
+                // already has the fix (confirmed live on jewel-nests: a
+                // real theme-write-access shop, not a permissions problem).
+                if ($alreadyApplied->audit_issue_id !== $issue->id) {
+                    $alreadyApplied->update(['audit_issue_id' => $issue->id]);
+                }
+
                 continue;
             }
 
