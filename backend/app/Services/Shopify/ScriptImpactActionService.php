@@ -147,7 +147,18 @@ class ScriptImpactActionService
             return ['applied' => false, 'message' => "No script URL was recorded for this app, so it can't be targeted.", 'blocked' => false];
         }
 
-        $shop->interceptorDelayTargets()->firstOrCreate(['script_url' => $impact->script_url]);
+        // A single app is often more than one file - Lighthouse's report
+        // only ever elects one "biggest" URL as this row's script_url,
+        // silently leaving every other file the same app loads untargeted
+        // (confirmed live: Judge.me ships both cdn.judge.me/reviews/... and
+        // cdn.shopify.com/extensions/{uuid}/judgeme-762/assets/carousels.js
+        // in the same scan - only the first was ever being watched).
+        // related_script_urls (RunAuditJob) carries every other file
+        // observed under the same app in this scan, so turning delay on
+        // covers all of them, not just whichever won the "biggest" race.
+        foreach ([$impact->script_url, ...($impact->related_script_urls ?? [])] as $url) {
+            $shop->interceptorDelayTargets()->firstOrCreate(['script_url' => $url]);
+        }
 
         return [
             'applied' => true,
@@ -167,8 +178,13 @@ class ScriptImpactActionService
      */
     public function restoreInterceptor(ShopInstallation $shop, AppImpact $impact): array
     {
-        if ($impact->script_url) {
-            $shop->interceptorDelayTargets()->where('script_url', $impact->script_url)->delete();
+        // Symmetric with interceptorDelay() adding a target for every
+        // related URL, not just the primary one - turning delay off should
+        // release all of them, not leave the extras silently still watched.
+        $urls = array_filter([$impact->script_url, ...($impact->related_script_urls ?? [])]);
+
+        if (! empty($urls)) {
+            $shop->interceptorDelayTargets()->whereIn('script_url', $urls)->delete();
         }
 
         return ['applied' => true, 'message' => null, 'blocked' => false];
@@ -541,10 +557,39 @@ class ScriptImpactActionService
      * @param  array<int, string>  $urls
      * @param  'interaction'|'window_load'|'document_load'|'timeout_only'  $trigger
      */
+    /**
+     * A bare hostname is the right, safe match unit for an app on its own
+     * dedicated domain (static.klaviyo.com, js.klarna.com - nothing else
+     * ever shares those). It's wrong for cdn.shopify.com/extensions/
+     * {uuid}/{app-slug}/... - EVERY app's Theme App Extension assets share
+     * that one hostname (confirmed live: Judge.me ships real files there),
+     * so hostname-only matching there would either miss the file entirely
+     * (if excluded as platform) or catch every other app's extension
+     * assets too (if not). The {uuid}/{slug} segment is what actually,
+     * uniquely identifies one specific app's extension on this shop -
+     * matching client-side needs to know which kind of unit it's looking
+     * at, see the generated matches() function below.
+     */
+    private static function matchUnitFor(string $url): ?string
+    {
+        $parts = parse_url($url);
+        $host = $parts['host'] ?? null;
+
+        if (! $host) {
+            return null;
+        }
+
+        if ($host === 'cdn.shopify.com' && preg_match('#^/extensions/[^/]+/[^/]+#', $parts['path'] ?? '', $m)) {
+            return $host.$m[0];
+        }
+
+        return $host;
+    }
+
     public static function interceptorEngineJs(array $urls, int $delayMs = 5000, string $trigger = 'interaction'): string
     {
         $domains = collect($urls)
-            ->map(fn (string $url) => parse_url($url, PHP_URL_HOST))
+            ->map(fn (string $url) => self::matchUnitFor($url))
             ->filter()
             ->unique()
             ->values()
@@ -586,13 +631,27 @@ class ScriptImpactActionService
                 var STAGGER_MS = 60;
                 var released = false, pending = [];
                 console.log('[SpeedPilot] engine active, watching ' + DOMAINS.length + ' domain(s):', DOMAINS);
-                function hostnameOf(url) {
-                  try { return new URL(url, location.href).hostname; } catch (e) { return null; }
+                function parsedUrl(url) {
+                  try { return new URL(url, location.href); } catch (e) { return null; }
                 }
                 function matches(url) {
-                  var host = hostnameOf(url);
-                  if (!host) return false;
-                  return DOMAINS.some(function (d) { return host === d || host.slice(-(d.length + 1)) === '.' + d; });
+                  var parsed = parsedUrl(url);
+                  if (!parsed) return false;
+                  var host = parsed.hostname;
+                  return DOMAINS.some(function (d) {
+                    // A unit with a '/' is hostname+path-prefix (a shared
+                    // CDN path like cdn.shopify.com/extensions/{uuid}/
+                    // {slug} - see matchUnitFor() server-side) - exact host
+                    // match required, plus the path has to start with that
+                    // prefix. A bare unit is hostname-only, matched by
+                    // suffix so a subdomain still counts.
+                    var slash = d.indexOf('/');
+                    if (slash === -1) {
+                      return host === d || host.slice(-(d.length + 1)) === '.' + d;
+                    }
+                    var dHost = d.slice(0, slash), dPath = d.slice(slash);
+                    return host === dHost && parsed.pathname.indexOf(dPath) === 0;
+                  });
                 }
                 function restoreClone(node) {
                   var clone = document.createElement(node.tagName);

@@ -131,7 +131,15 @@ class RunAuditJob implements ShouldQueue
 
         foreach ($thirdPartyByApp as $app) {
             $url = $app['url'] ?? null;
-            $isInterceptorDelayed = $url !== null && in_array($url, $interceptorUrls, true);
+            // Checks every URL this app loaded this scan, not just the
+            // primary one - a merchant who turned delay on when a
+            // different file happened to be "the" script_url shouldn't see
+            // the badge silently flip back to "Active" just because a
+            // different file won this scan's byte-weight race.
+            $isInterceptorDelayed = ! empty(array_intersect(
+                array_filter([$url, ...($app['relatedUrls'] ?? [])]),
+                $interceptorUrls,
+            ));
             $stopTarget = $url !== null ? $contentStopTargets->get($url) : null;
 
             // Hashed asset filenames rotate between scans (observed live
@@ -146,6 +154,7 @@ class RunAuditJob implements ShouldQueue
             $audit->appImpacts()->create([
                 'app_name' => $app['name'],
                 'script_url' => $url,
+                'related_script_urls' => ! empty($app['relatedUrls']) ? array_values($app['relatedUrls']) : null,
                 'requests' => $app['requests'] ?? 0,
                 'size_bytes' => $app['bytes'] ?? 0,
                 'estimated_blocking_ms' => $app['blockingMs'] ?? null,
@@ -284,6 +293,15 @@ class RunAuditJob implements ShouldQueue
         // evidence, regardless of which page "won" on byte weight - a miss
         // on the winning page shouldn't hide a hit found on another one.
         $winner['staticMatch'] = $app['staticMatch'] ?? $existing['staticMatch'] ?? null;
+
+        // The LOSING page's own url would otherwise vanish entirely, not
+        // just its relatedUrls - if page A's biggest Judge.me file beats
+        // page B's, page B's file is still a real Judge.me file, just one
+        // this merge didn't pick as "the" url for this app.
+        $winner['relatedUrls'] = array_values(array_unique(array_filter([
+            ...($existing['relatedUrls'] ?? []), $existing['url'] ?? null,
+            ...($app['relatedUrls'] ?? []), $app['url'] ?? null,
+        ], fn ($u) => $u !== null && $u !== $winner['url'])));
 
         $mergeInto[$key] = $winner;
     }

@@ -27,13 +27,29 @@ function isPlatformUrl(url) {
   if (!url) return false;
 
   try {
-    const host = new URL(url).hostname;
+    const parsed = new URL(url);
+    const host = parsed.hostname;
+    const matchesPlatformHost = PLATFORM_HOSTS.some((platformHost) => host === platformHost || host.endsWith(`.${platformHost}`));
 
-    return PLATFORM_HOSTS.some((platformHost) => host === platformHost || host.endsWith(`.${platformHost}`));
+    if (!matchesPlatformHost) return false;
+
+    // cdn.shopify.com/extensions/{uuid}/... is Shopify's shared CDN for
+    // EVERY app's Theme App Extension assets, not Shopify's own platform
+    // code - confirmed live, Judge.me ships real files there
+    // (extensions/{uuid}/judgeme-762/assets/carousels.js). Hostname alone
+    // can't tell "Shopify's own core JS" apart from "a third-party app's
+    // file that happens to be hosted on Shopify's CDN" - only this path
+    // prefix can.
+    if (host === 'cdn.shopify.com' && parsed.pathname.startsWith('/extensions/')) {
+      return false;
+    }
+
+    return true;
   } catch {
     return false;
   }
 }
+
 
 // SpeedPilot's own interceptor delivery script (see InterceptorController /
 // the "SpeedPilot Advanced Delay" app embed) is itself fetched by the
@@ -124,9 +140,26 @@ function thirdPartyImpacts(lhr, rawHtml) {
       const rawUrl = item.subItems?.items?.[0]?.url ?? null;
       const url = stripVolatileParams(rawUrl);
 
+      // "Judge.me" (or any app) isn't always one file - Lighthouse groups
+      // every request under this entity into subItems, but only the single
+      // biggest one (item.subItems.items[0]) ever became this app's
+      // script_url, silently dropping every other file the same app also
+      // loads (confirmed live: Judge.me ships both cdn.judge.me/reviews/...
+      // AND cdn.shopify.com/extensions/{uuid}/judgeme-762/assets/
+      // carousels.js in the same scan). Turning on "Advanced delay" for an
+      // app needs to watch all of them, not just whichever happened to be
+      // biggest this run - persisted here so ScriptImpactActionService can
+      // create a target for each.
+      const relatedUrls = [...new Set(
+        (item.subItems?.items ?? [])
+          .map((sub) => stripVolatileParams(sub.url))
+          .filter((u) => u && u !== url),
+      )];
+
       return {
         name: item.entity?.text ?? item.entity ?? 'Unknown script',
         url,
+        relatedUrls,
         requests: item.subItems?.items?.length ?? 1,
         bytes,
         blockingMs,

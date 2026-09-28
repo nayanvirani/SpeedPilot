@@ -15,6 +15,7 @@ class AppImpact extends Model
         'audit_page_id',
         'app_name',
         'script_url',
+        'related_script_urls',
         'requests',
         'size_bytes',
         'estimated_blocking_ms',
@@ -29,6 +30,7 @@ class AppImpact extends Model
     {
         return [
             'is_platform' => 'boolean',
+            'related_script_urls' => 'array',
         ];
     }
 
