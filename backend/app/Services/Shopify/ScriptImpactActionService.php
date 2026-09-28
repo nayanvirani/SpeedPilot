@@ -500,10 +500,9 @@ class ScriptImpactActionService
                   for (var i = 0; i < node.attributes.length; i++) clone.setAttribute(node.attributes[i].name, node.attributes[i].value);
                   return clone;
                 }
-                function releaseStopped() {
-                  var stopped = document.querySelectorAll('[data-speedpilot-src], [data-speedpilot-href]');
-                  if (stopped.length) console.log('[SpeedPilot] releasing ' + stopped.length + ' server-stopped element(s)');
-                  stopped.forEach(function (node) {
+                function releaseOne(item) {
+                  if (item.stopped) {
+                    var node = item.node;
                     if (node.hasAttribute('data-speedpilot-src')) {
                       node.setAttribute('src', node.getAttribute('data-speedpilot-src'));
                       node.removeAttribute('data-speedpilot-src');
@@ -513,30 +512,34 @@ class ScriptImpactActionService
                       node.removeAttribute('data-speedpilot-href');
                     }
                     if (node.parentNode) node.parentNode.replaceChild(restoreClone(node), node);
-                  });
+                    return;
+                  }
+                  var clone = restoreClone(item.node);
+                  if (item.next && item.next.parentNode === item.parent) {
+                    item.parent.insertBefore(clone, item.next);
+                  } else if (item.parent && item.parent.isConnected) {
+                    item.parent.appendChild(clone);
+                  } else {
+                    // Original parent isn't in the document any more (that
+                    // part of the page re-rendered while this was pending)
+                    // - <head> beats silently dropping the script entirely.
+                    document.head.appendChild(clone);
+                  }
                 }
                 function release(reason) {
                   if (released) return;
                   released = true;
-                  console.log('[SpeedPilot] releasing ' + pending.length + ' intercepted script(s), trigger: ' + reason);
-                  releaseStopped();
-                  var toRelease = pending;
+                  var stoppedItems = Array.prototype.slice.call(
+                    document.querySelectorAll('[data-speedpilot-src], [data-speedpilot-href]')
+                  ).map(function (node) { return { node: node, stopped: true }; });
+                  var toRelease = pending.concat(stoppedItems);
                   pending = [];
+                  console.log('[SpeedPilot] releasing ' + toRelease.length + ' item(s), trigger: ' + reason);
+                  // Staggered, not all in one frame - a page with several
+                  // delayed resources shouldn't execute all of them at once
+                  // right when the visitor just interacted.
                   toRelease.forEach(function (item, i) {
-                    setTimeout(function () {
-                      var clone = restoreClone(item.node);
-                      if (item.next && item.next.parentNode === item.parent) {
-                        item.parent.insertBefore(clone, item.next);
-                      } else if (item.parent && item.parent.isConnected) {
-                        item.parent.appendChild(clone);
-                      } else {
-                        // Original parent isn't in the document any more
-                        // (that part of the page re-rendered while this
-                        // was pending) - <head> beats silently dropping
-                        // the script entirely.
-                        document.head.appendChild(clone);
-                      }
-                    }, i * STAGGER_MS);
+                    setTimeout(function () { releaseOne(item); }, i * STAGGER_MS);
                   });
                 }
                 function targetUrl(node) {
