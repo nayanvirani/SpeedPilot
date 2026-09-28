@@ -17,12 +17,24 @@ class AppUninstalledController extends Controller
             return response('', 200);
         }
 
-        // Shopify Managed Pricing cancels the subscription itself on
-        // uninstall - nothing for us to call, just clear our local state.
+        // access_token is genuinely dead the moment the shop uninstalls -
+        // clearing it is a real security measure, not just bookkeeping.
+        //
+        // plan/shopify_subscription_id/plan_expires_at are deliberately
+        // left alone: Shopify Managed Pricing cancels the subscription
+        // itself around the same time (its own app_subscriptions/update
+        // webhook updates the Subscription history correctly, preserving
+        // plan_expires_at - see BillingService::applyPlan()), and a
+        // merchant who reinstalls before what they already paid for
+        // expires should get their access back immediately, not be forced
+        // through a fresh checkout for time they've already paid for.
+        // This data only ever fully disappears via the separate, mandatory
+        // shop/redact GDPR webhook (GdprController::shopRedact(), fired 48
+        // hours after uninstall) - that hard-deletes the whole row, which
+        // is the actual, legally-required point of no return here, not
+        // this webhook.
         $shop->update([
             'access_token' => null,
-            'plan' => null,
-            'shopify_subscription_id' => null,
             'uninstalled_at' => now(),
         ]);
 
