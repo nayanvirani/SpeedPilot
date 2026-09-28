@@ -28,7 +28,7 @@ const ACTION_CONFIRM = {
     disabled: (name) => `Remove ${name}'s script from your theme? This will stop it from working on your storefront until you re-enable it.`,
     delayed: (name) => `Delay ${name}'s script until the shopper first scrolls, clicks, or after 5 seconds? Some of its functionality (like a chat widget appearing instantly) may be affected.`,
     stopped_content: (name) => `Stop ${name}'s script until the shopper first scrolls, clicks, or after 5 seconds? SpeedPilot verified this scan that ${name}'s script appears as real code in your storefront's page, so this edits your theme to neutralize it server-side, then reloads it on interaction - stronger than "Advanced delay," but still stops working if you ever uninstall SpeedPilot (the release step needs it).`,
-    delayed_interceptor: (name) => `Try advanced delay for ${name}? This works by delaying resources ${name}'s own script loads dynamically after it starts - it can't guarantee delaying ${name}'s very first script tag, since that's loaded directly by Shopify and no app (including this one) can intercept it. Best-effort, not a guarantee like "Delayed (auto)." Some scripts (Shopify's own sandboxed marketing pixels) can't be delayed by any method, including this one. Requires pasting one tag near the top of your theme's <head> once (see "Advanced delay setup" above) - shared by every app, not pasted per app.`,
+    delayed_interceptor: (name) => `Try advanced delay for ${name}? This works by delaying resources ${name}'s own script loads dynamically after it starts - it can't guarantee delaying ${name}'s very first script tag, since that's loaded directly by Shopify and no app (including this one) can intercept it. Best-effort, not a guarantee like "Delayed (auto)." Some scripts (Shopify's own sandboxed marketing pixels) can't be delayed by any method, including this one. If ${name} also renders something visible on your storefront (a reviews widget, a chat button, a carousel), delaying it can make that specific widget show an error or fail to load - confirmed live with a reviews carousel that timed out waiting for its own script. Worth testing before leaving it on long-term. Requires "Advanced delay setup" above (Auto-fix or Manual fix) - shared by every app, not set up per app.`,
 };
 
 function currentActionKey(impact) {
@@ -53,6 +53,21 @@ function currentActionKey(impact) {
  */
 function AdvancedDelaySetup({ appImpacts }) {
     const delayed = appImpacts.filter((a) => a.status === 'delayed' && a.delay_method === 'interceptor');
+    const [installing, setInstalling] = useState(false);
+    const [installResult, setInstallResult] = useState(null);
+
+    async function autoInstall() {
+        setInstalling(true);
+        setInstallResult(null);
+        try {
+            const res = await api.post('/advanced-delay/install');
+            setInstallResult(res);
+        } catch (e) {
+            setInstallResult({ applied: false, message: e.body?.error || 'Could not install the tag right now.' });
+        } finally {
+            setInstalling(false);
+        }
+    }
 
     return (
         <Card>
@@ -62,10 +77,22 @@ function AdvancedDelaySetup({ appImpacts }) {
                     {delayed.length > 0
                         ? `Active for ${delayed.length} app${delayed.length === 1 ? '' : 's'}: ${delayed.map((a) => a.app_name).join(', ')}. `
                         : ''}
-                    One tag, pasted once, shared by every app you turn "Advanced delay" on for below - toggling
-                    it per app never needs the theme touched again.
+                    One tag, shared by every app you turn "Advanced delay" on for below - toggling it per app
+                    never needs the theme touched again once it's added.
                 </Text>
-                <FixCodeViewer fetchPath="/advanced-delay/fix-code" label="View advanced delay code" />
+                <InlineStack gap="200">
+                    <Button variant="primary" loading={installing} onClick={autoInstall}>
+                        Auto-fix - add to my theme
+                    </Button>
+                    <FixCodeViewer fetchPath="/advanced-delay/fix-code" label="Manual fix - view code" />
+                </InlineStack>
+                {installResult && (
+                    <Text as="span" tone={installResult.applied ? 'success' : 'critical'}>
+                        {installResult.applied
+                            ? 'Added to your theme - back it up or roll it back any time from the Optimizations page.'
+                            : installResult.message}
+                    </Text>
+                )}
             </BlockStack>
         </Card>
     );
@@ -225,8 +252,11 @@ export default function AppImpact() {
                                 loading dynamically and delays those, but some scripts (notably Shopify's own sandboxed
                                 marketing pixels - Facebook, TikTok, Klarna, Affirm, and similar) can't be delayed by
                                 any method, including this one, since they never appear as literal code anywhere in the
-                                page to begin with. It only works once its tag is pasted near the top of your theme's
-                                &lt;head&gt; (see <b>Advanced delay setup</b> above) - one tag total, not per app.{' '}
+                                page to begin with. Delaying an app that also renders something visible (a reviews
+                                widget, chat button, carousel) can make that widget show an error instead of just
+                                loading later - worth testing per app. It only works once its tag is added near the top
+                                of your theme's &lt;head&gt; (see <b>Advanced delay setup</b> above - Auto-fix or Manual
+                                fix, one tag total, not per app).{' '}
                                 <b>Manual fix</b> shows
                                 you the exact code to paste yourself right now, no approval needed. <b>Excluded</b> just
                                 stops it from being flagged here - it doesn't change your storefront. Rows marked{' '}

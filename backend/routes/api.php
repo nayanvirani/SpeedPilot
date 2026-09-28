@@ -36,6 +36,7 @@ Route::middleware('shopify.session')->group(function () {
     // One global tag shared by every app, not per-app code - no impact ID
     // needed, unlike forAppImpact above.
     Route::get('/advanced-delay/fix-code', [FixCodeController::class, 'forAdvancedDelay']);
+    Route::post('/advanced-delay/install', [AppImpactController::class, 'installInterceptorTag']);
 
     Route::get('/optimizations', [OptimizationController::class, 'index']);
     Route::post('/optimizations/{id}/rollback', [OptimizationController::class, 'rollback']);

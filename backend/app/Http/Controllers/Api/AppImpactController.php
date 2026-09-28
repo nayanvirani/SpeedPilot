@@ -108,4 +108,25 @@ class AppImpactController extends Controller
             'message' => $result['message'],
         ]);
     }
+
+    /**
+     * "Auto-fix" half of Advanced Delay's setup - one global tag, not
+     * per-app, so this deliberately takes no impact ID (see
+     * ScriptImpactActionService::autoInstallInterceptorTag()).
+     */
+    public function installInterceptorTag(Request $request)
+    {
+        /** @var ShopInstallation $shop */
+        $shop = $request->attributes->get('shop');
+
+        $actions = new ScriptImpactActionService(
+            $themeAssets = new ThemeAssetService(new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token)),
+            new ThemeAssetLocatorService($themeAssets),
+            new AssetBackupService,
+        );
+
+        $result = $actions->autoInstallInterceptorTag($shop);
+
+        return response()->json($result);
+    }
 }

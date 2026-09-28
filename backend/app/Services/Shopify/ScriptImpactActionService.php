@@ -189,6 +189,88 @@ class ScriptImpactActionService
         return '<script src="'.$url.'" fetchpriority="high"></script>';
     }
 
+    private const INTERCEPTOR_TAG_START = '<!-- SpeedPilot:interceptor:start -->';
+
+    private const INTERCEPTOR_TAG_END = '<!-- SpeedPilot:interceptor:end -->';
+
+    /**
+     * "Auto-fix" half of Advanced Delay's two-button choice - writes
+     * interceptorManualSnippet() directly into the target theme instead of
+     * asking the merchant to paste it, now that write_themes is confirmed
+     * approved. Idempotent (checks for the marker first) and backed up via
+     * the same Optimization/AssetBackup pattern every other theme-write
+     * action in this app uses, so rollback is a single click on the
+     * Optimizations page like everything else - no special-casing this one
+     * because it happens to be a global, not per-app, install.
+     *
+     * @return array{applied: bool, message: ?string, blocked: bool}
+     */
+    public function autoInstallInterceptorTag(ShopInstallation $shop): array
+    {
+        if (! $shop->target_theme_id) {
+            return ['applied' => false, 'message' => 'Pick which theme SpeedPilot should apply changes to first (Dashboard > Target theme).', 'blocked' => false];
+        }
+
+        $themeId = $shop->target_theme_id;
+        $assetKey = 'layout/theme.liquid';
+
+        $original = $this->themeAssets->read($themeId, $assetKey);
+
+        if ($original === null) {
+            return ['applied' => false, 'message' => 'Could not read your theme.liquid file.', 'blocked' => false];
+        }
+
+        if (str_contains($original, self::INTERCEPTOR_TAG_START)) {
+            return ['applied' => true, 'message' => null, 'blocked' => false];
+        }
+
+        $block = self::INTERCEPTOR_TAG_START."\n".self::interceptorManualSnippet()."\n".self::INTERCEPTOR_TAG_END;
+        $updated = preg_replace('/(<head[^>]*>)/i', '$1'."\n".$block, $original, 1);
+
+        if ($updated === null || $updated === $original) {
+            return ['applied' => false, 'message' => "Couldn't find a <head> tag to add this to in your theme.liquid - contact SpeedPilot support.", 'blocked' => false];
+        }
+
+        // Reuse a still-pending attempt from an earlier blocked try instead
+        // of creating a new one every time - same reasoning as every other
+        // dedup guard in this file: a merchant retrying while write_themes
+        // was still unapproved shouldn't pile up duplicate "recommended,
+        // never applied" rows.
+        $optimization = $shop->optimizations()
+            ->where('type', 'interceptor_install')
+            ->where('status', 'recommended')
+            ->first();
+
+        if (! $optimization) {
+            $optimization = $shop->optimizations()->create([
+                'type' => 'interceptor_install',
+                'risk_tier' => 'medium',
+                'status' => 'recommended',
+                'theme_id' => $themeId,
+                'asset_key' => $assetKey,
+            ]);
+        }
+
+        $this->backups->backup($optimization, $themeId, $assetKey, $original, $updated);
+
+        try {
+            $this->themeAssets->write($themeId, $assetKey, $updated);
+        } catch (ThemeWriteAccessDeniedException) {
+            $shop->update(['theme_write_blocked_at' => now()]);
+
+            return [
+                'applied' => false,
+                'message' => "Couldn't update your theme automatically right now - try again once SpeedPilot's theme-editing access is approved, or use \"View advanced delay code\" to paste it yourself.",
+                'blocked' => true,
+            ];
+        }
+
+        $shop->update(['theme_write_blocked_at' => null]);
+        $optimization->update(['status' => 'applied', 'applied_at' => now()]);
+
+        return ['applied' => true, 'message' => null, 'blocked' => false];
+    }
+
     private const CONTENT_STOP_START = '<!-- SpeedPilot:content-stop:start -->';
 
     private const CONTENT_STOP_END = '<!-- SpeedPilot:content-stop:end -->';
