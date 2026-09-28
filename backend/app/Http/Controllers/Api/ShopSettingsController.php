@@ -42,6 +42,8 @@ class ShopSettingsController extends Controller
             'scan_frequency' => $shop->scan_frequency,
             'scan_devices' => $shop->scan_devices,
             'has_slack_webhook' => ! empty($shop->slack_webhook_url),
+            'interceptor_delay_ms' => $shop->interceptor_delay_ms,
+            'interceptor_trigger' => $shop->interceptor_trigger,
             // Shopify gates actually writing theme files behind a separate,
             // app-level "protected scope" exemption it grants (or doesn't) -
             // this is never a per-merchant setting, and no button in this
@@ -71,6 +73,31 @@ class ShopSettingsController extends Controller
         return response()->json([
             'scan_frequency' => $shop->scan_frequency,
             'scan_devices' => $shop->scan_devices,
+        ]);
+    }
+
+    /**
+     * "Advanced delay (experimental)"'s release timing - was hardcoded
+     * (5s, first interaction) with no way for a merchant to see or change
+     * it. delay_ms always applies as the hard fallback regardless of
+     * trigger, so a merchant picking e.g. window_load isn't stuck forever
+     * if that event never fires for some reason.
+     */
+    public function updateInterceptorTiming(Request $request)
+    {
+        /** @var ShopInstallation $shop */
+        $shop = $request->attributes->get('shop');
+
+        $data = $request->validate([
+            'interceptor_delay_ms' => 'required|integer|min:500|max:30000',
+            'interceptor_trigger' => ['required', Rule::in(['interaction', 'window_load', 'document_load', 'timeout_only'])],
+        ]);
+
+        $shop->update($data);
+
+        return response()->json([
+            'interceptor_delay_ms' => $shop->interceptor_delay_ms,
+            'interceptor_trigger' => $shop->interceptor_trigger,
         ]);
     }
 

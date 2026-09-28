@@ -405,17 +405,25 @@ class ScriptImpactActionService
      * The actual watcher engine - lives here so InterceptorController can
      * render it per-request with a shop's live delay list, never as a
      * static file. Best-effort, not guaranteed: catches scripts/
-     * stylesheets/iframes *dynamically inserted* into the DOM by other JS
-     * after page load (how most heavy third-party trackers actually load
-     * their real payload) via MutationObserver, and delays them the same
-     * way delayedLoaderSnippet() below does - same trigger set, for a
-     * consistent merchant-facing experience regardless of which mechanism
-     * ends up handling a given resource. Cannot intercept a resource that's
-     * static markup in the initial HTML response (Shopify's own ScriptTag
-     * rendering) - the browser dispatches that fetch as it parses the tag,
-     * before any JS callback (including this one) gets a chance to run.
+     * stylesheets/iframes/images *dynamically inserted* into the DOM by
+     * other JS after page load (how most heavy third-party trackers
+     * actually load their real payload) via MutationObserver, and delays
+     * them the same way delayedLoaderSnippet() below does. Cannot intercept
+     * a resource that's static markup in the initial HTML response
+     * (Shopify's own ScriptTag rendering) - the browser dispatches that
+     * fetch as it parses the tag, before any JS callback (including this
+     * one) gets a chance to run. Also can't intercept a beacon fired via
+     * fetch()/XHR/sendBeacon() directly (no script src involved at all,
+     * nothing for a MutationObserver to see) - only DOM-inserted elements.
      *
-     * Watches two distinct patterns real loaders use, not just one:
+     * Matched by HOSTNAME, not exact path - a tracker's own bundle
+     * filenames routinely carry a content hash that rotates on every
+     * deploy (confirmed live: Klaviyo's own onsite.js filename changed
+     * between two points in the same session), so matching the literal
+     * stored path silently stops working the moment that happens. The
+     * domain itself is stable.
+     *
+     * Watches three distinct patterns real loaders use, not just one:
      * - src/href already set when the node is inserted (the common case -
      *   e.g. Google Tag Manager's own snippet sets j.src before
      *   insertBefore(j, f)) - caught via the childList mutation.
@@ -425,9 +433,8 @@ class ScriptImpactActionService
      *   attribute change fires (same fundamental timing limit as anything
      *   client-side), but removing the node before it executes still has
      *   value even then.
-     * Also matches iframes, not just script/link - several trackers
-     * (Facebook Pixel, TikTok, some ad networks) load via iframe, not a
-     * plain script tag.
+     * - a 1x1 tracking pixel via <img src="...">, not just script/link/
+     *   iframe - several beacon-style trackers still use this.
      *
      * The whole thing is wrapped in try/catch: a bug here, or a DOM shape
      * this doesn't expect, must never be able to break anything else on the
@@ -438,26 +445,61 @@ class ScriptImpactActionService
      * sit in the initial DOM with a `data-speedpilot-src`/`-href` attribute
      * instead of `src`/`href` (never fetched by the browser at all, unlike
      * the MutationObserver case above), so releasing them is just restoring
-     * that attribute name on the SAME trigger set, no pattern matching
-     * needed. This is deliberately the only place that release ever
-     * happens - the stop itself is static theme code that survives an
-     * uninstall, but since this script goes no-op the moment a shop is
-     * inactive, an uninstalled shop's previously-stopped scripts stay
-     * stopped rather than silently resuming, exactly as intended.
+     * that attribute name on the SAME trigger. This is deliberately the
+     * only place that release ever happens - the stop itself is static
+     * theme code that survives an uninstall, but since this script goes
+     * no-op the moment a shop is inactive, an uninstalled shop's previously
+     * -stopped scripts stay stopped rather than silently resuming.
+     *
+     * Release is staggered (a small gap between each restored node, not all
+     * synchronously in one frame) so a page with several delayed scripts
+     * doesn't execute all of them in the same burst right when the visitor
+     * just interacted - the moment jank is most noticeable.
      *
      * @param  array<int, string>  $urls
+     * @param  'interaction'|'window_load'|'document_load'|'timeout_only'  $trigger
      */
-    public static function interceptorEngineJs(array $urls): string
+    public static function interceptorEngineJs(array $urls, int $delayMs = 5000, string $trigger = 'interaction'): string
     {
-        $json = json_encode(array_values(array_unique($urls)), JSON_UNESCAPED_SLASHES);
+        $domains = collect($urls)
+            ->map(fn (string $url) => parse_url($url, PHP_URL_HOST))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+        $domainsJson = json_encode($domains, JSON_UNESCAPED_SLASHES);
+
+        $earlyTrigger = match ($trigger) {
+            'window_load' => "window.addEventListener('load', function () { release('window_load'); });",
+            'document_load' => "document.addEventListener('DOMContentLoaded', function () { release('document_load'); });",
+            'timeout_only' => '',
+            default => <<<'JS'
+                ['mousemove', 'scroll', 'touchstart', 'keydown'].forEach(function (evt) {
+                  window.addEventListener(evt, function () { release(evt); }, { once: true, passive: true });
+                });
+                JS,
+        };
 
         return <<<JS
             (function () {
               try {
-                var PATTERNS = {$json};
+                var DOMAINS = {$domainsJson};
+                var STAGGER_MS = 60;
                 var released = false, pending = [];
-                console.log('[SpeedPilot] engine active, watching ' + PATTERNS.length + ' pattern(s):', PATTERNS);
-                function matches(url) { return url && PATTERNS.some(function (p) { return url.indexOf(p) !== -1; }); }
+                console.log('[SpeedPilot] engine active, watching ' + DOMAINS.length + ' domain(s):', DOMAINS);
+                function hostnameOf(url) {
+                  try { return new URL(url, location.href).hostname; } catch (e) { return null; }
+                }
+                function matches(url) {
+                  var host = hostnameOf(url);
+                  if (!host) return false;
+                  return DOMAINS.some(function (d) { return host === d || host.slice(-(d.length + 1)) === '.' + d; });
+                }
+                function restoreClone(node) {
+                  var clone = document.createElement(node.tagName);
+                  for (var i = 0; i < node.attributes.length; i++) clone.setAttribute(node.attributes[i].name, node.attributes[i].value);
+                  return clone;
+                }
                 function releaseStopped() {
                   var stopped = document.querySelectorAll('[data-speedpilot-src], [data-speedpilot-href]');
                   if (stopped.length) console.log('[SpeedPilot] releasing ' + stopped.length + ' server-stopped element(s)');
@@ -470,9 +512,7 @@ class ScriptImpactActionService
                       node.setAttribute('href', node.getAttribute('data-speedpilot-href'));
                       node.removeAttribute('data-speedpilot-href');
                     }
-                    var clone = document.createElement(node.tagName);
-                    for (var i = 0; i < node.attributes.length; i++) clone.setAttribute(node.attributes[i].name, node.attributes[i].value);
-                    if (node.parentNode) node.parentNode.replaceChild(clone, node);
+                    if (node.parentNode) node.parentNode.replaceChild(restoreClone(node), node);
                   });
                 }
                 function release(reason) {
@@ -480,34 +520,44 @@ class ScriptImpactActionService
                   released = true;
                   console.log('[SpeedPilot] releasing ' + pending.length + ' intercepted script(s), trigger: ' + reason);
                   releaseStopped();
-                  pending.forEach(function (node) {
-                    if (!node.parentNode) return;
-                    var clone = document.createElement(node.tagName);
-                    for (var i = 0; i < node.attributes.length; i++) clone.setAttribute(node.attributes[i].name, node.attributes[i].value);
-                    node.parentNode.replaceChild(clone, node);
-                  });
+                  var toRelease = pending;
                   pending = [];
+                  toRelease.forEach(function (item, i) {
+                    setTimeout(function () {
+                      var clone = restoreClone(item.node);
+                      if (item.next && item.next.parentNode === item.parent) {
+                        item.parent.insertBefore(clone, item.next);
+                      } else if (item.parent && item.parent.isConnected) {
+                        item.parent.appendChild(clone);
+                      } else {
+                        // Original parent isn't in the document any more
+                        // (that part of the page re-rendered while this
+                        // was pending) - <head> beats silently dropping
+                        // the script entirely.
+                        document.head.appendChild(clone);
+                      }
+                    }, i * STAGGER_MS);
+                  });
                 }
                 function targetUrl(node) {
-                  if (node.tagName === 'SCRIPT' || node.tagName === 'IFRAME') return node.src;
+                  if (node.tagName === 'SCRIPT' || node.tagName === 'IFRAME' || node.tagName === 'IMG') return node.src;
                   if (node.tagName === 'LINK' && node.rel === 'stylesheet') return node.href;
                   return null;
                 }
                 function handle(node) {
                   if (released || !node || !node.tagName || !node.parentNode) return;
-                  if (pending.indexOf(node) !== -1) return;
+                  if (pending.some(function (p) { return p.node === node; })) return;
                   var url = targetUrl(node);
                   if (matches(url)) {
                     console.log('[SpeedPilot] intercepted, marked data-speedpilot-delayed:', url);
                     node.setAttribute('data-speedpilot-delayed', 'true');
+                    var parent = node.parentNode, next = node.nextSibling;
                     node.remove();
-                    pending.push(node);
+                    pending.push({ node: node, parent: parent, next: next });
                   }
                 }
-                ['mousemove', 'scroll', 'touchstart', 'keydown'].forEach(function (evt) {
-                  window.addEventListener(evt, function () { release(evt); }, { once: true, passive: true });
-                });
-                setTimeout(function () { release('timeout'); }, 5000);
+                {$earlyTrigger}
+                setTimeout(function () { release('timeout'); }, {$delayMs});
                 new MutationObserver(function (mutations) {
                   if (released) return;
                   mutations.forEach(function (m) {

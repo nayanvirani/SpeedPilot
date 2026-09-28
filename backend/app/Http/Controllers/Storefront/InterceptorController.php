@@ -54,7 +54,11 @@ class InterceptorController extends Controller
             return $this->jsResponse("console.log('[SpeedPilot] tag loaded, shop active, but no apps currently targeted for Advanced Delay - no-op');");
         }
 
-        return $this->jsResponse(ScriptImpactActionService::interceptorEngineJs($urls));
+        return $this->jsResponse(ScriptImpactActionService::interceptorEngineJs(
+            $urls,
+            $shop->interceptor_delay_ms,
+            $shop->interceptor_trigger,
+        ));
     }
 
     private function jsResponse(string $body): Response

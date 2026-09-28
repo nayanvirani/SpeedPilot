@@ -245,6 +245,79 @@ function ScanPreferencesSettings() {
     );
 }
 
+const TRIGGER_OPTIONS = [
+    { label: 'Scroll, click, or key press (recommended)', value: 'interaction' },
+    { label: 'Page fully loaded (window load)', value: 'window_load' },
+    { label: 'HTML parsed (document load)', value: 'document_load' },
+    { label: 'Timer only, no early trigger', value: 'timeout_only' },
+];
+const DELAY_OPTIONS = [3000, 5000, 8000, 10000, 15000, 20000].map((ms) => ({
+    label: `${ms / 1000} seconds`,
+    value: String(ms),
+}));
+
+function AdvancedDelayTimingSettings() {
+    const [prefs, setPrefs] = useState(null);
+    const [saving, setSaving] = useState(false);
+    const [saved, setSaved] = useState(false);
+
+    useEffect(() => {
+        api.get('/settings').then((res) => setPrefs({
+            interceptor_delay_ms: res.interceptor_delay_ms ?? 5000,
+            interceptor_trigger: res.interceptor_trigger ?? 'interaction',
+        }));
+    }, []);
+
+    async function save(next) {
+        setPrefs(next);
+        setSaving(true);
+        setSaved(false);
+        try {
+            await api.put('/settings/interceptor-timing', next);
+            setSaved(true);
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    if (!prefs) {
+        return null;
+    }
+
+    return (
+        <Card>
+            <BlockStack gap="300">
+                <Text as="h3" variant="headingSm"><span className="sp-heading">Advanced delay timing</span></Text>
+                <Text as="p" tone="subdued">
+                    Controls when "Advanced delay (experimental)" releases a script it's holding back, on
+                    the App &amp; Script Impact page. The timer below always applies as a fallback, even if
+                    you pick an early trigger that never fires for some reason.
+                </Text>
+                <InlineStack gap="300" wrap>
+                    <div style={{ minWidth: '260px' }}>
+                        <Select
+                            label="Release early on"
+                            options={TRIGGER_OPTIONS}
+                            value={prefs.interceptor_trigger}
+                            onChange={(v) => save({ ...prefs, interceptor_trigger: v })}
+                        />
+                    </div>
+                    <div style={{ minWidth: '200px' }}>
+                        <Select
+                            label="Release after (fallback timer)"
+                            options={DELAY_OPTIONS}
+                            value={String(prefs.interceptor_delay_ms)}
+                            onChange={(v) => save({ ...prefs, interceptor_delay_ms: Number(v) })}
+                        />
+                    </div>
+                </InlineStack>
+                {saving && <Text as="span" tone="subdued">Saving…</Text>}
+                {!saving && saved && <Text as="span" tone="success">Saved</Text>}
+            </BlockStack>
+        </Card>
+    );
+}
+
 function SlackNotificationSettings() {
     const [hasWebhook, setHasWebhook] = useState(null);
     const [value, setValue] = useState('');
@@ -327,6 +400,7 @@ export default function Settings() {
             <BlockStack gap="400">
                 <ScanPreferencesSettings />
                 <TargetThemeSettings />
+                <AdvancedDelayTimingSettings />
                 <StorefrontPasswordSettings />
                 <SlackNotificationSettings />
             </BlockStack>

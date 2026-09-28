@@ -23,6 +23,8 @@ class ShopInstallation extends Model
         'needs_reauth_at',
         'storefront_locked_at',
         'interceptor_token',
+        'interceptor_delay_ms',
+        'interceptor_trigger',
         'scan_frequency',
         'scan_devices',
         'slack_webhook_url',
@@ -51,6 +53,7 @@ class ShopInstallation extends Model
             'theme_write_blocked_at' => 'datetime',
             'needs_reauth_at' => 'datetime',
             'storefront_locked_at' => 'datetime',
+            'interceptor_delay_ms' => 'integer',
         ];
     }
 
