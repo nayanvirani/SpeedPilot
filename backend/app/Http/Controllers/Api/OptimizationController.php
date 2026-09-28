@@ -41,4 +41,24 @@ class OptimizationController extends Controller
 
         return response()->json(['optimization' => $optimization->refresh()]);
     }
+
+    public function reapply(Request $request, int $id, AssetBackupService $backups)
+    {
+        /** @var ShopInstallation $shop */
+        $shop = $request->attributes->get('shop');
+
+        $optimization = Optimization::where('shop_installation_id', $shop->id)->findOrFail($id);
+
+        $themeAssets = new ThemeAssetService(
+            new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token)
+        );
+
+        $reapplied = $backups->reapply($optimization, $themeAssets);
+
+        if (! $reapplied) {
+            return response()->json(['error' => 'Nothing to re-apply'], 422);
+        }
+
+        return response()->json(['optimization' => $optimization->refresh()]);
+    }
 }

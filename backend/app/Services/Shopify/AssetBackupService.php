@@ -43,4 +43,27 @@ class AssetBackupService
 
         return true;
     }
+
+    /**
+     * The inverse of restore() - writes the same fixed content back after a
+     * rollback, instead of making the merchant hunt down the original issue
+     * on the audit page and click "Auto fix on theme" again to get the same
+     * result. Reuses the most recently rolled-back backup row rather than
+     * creating a new one, since nothing about the fix itself changed.
+     */
+    public function reapply(Optimization $optimization, ThemeAssetService $themeAssets): bool
+    {
+        $backup = $optimization->backups()->whereNotNull('restored_at')->latest('restored_at')->first();
+
+        if (! $backup || $backup->updated_content === null) {
+            return false;
+        }
+
+        $themeAssets->write($backup->theme_id, $backup->asset_key, $backup->updated_content);
+
+        $backup->update(['restored_at' => null]);
+        $optimization->update(['status' => 'applied', 'applied_at' => now()]);
+
+        return true;
+    }
 }

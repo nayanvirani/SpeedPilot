@@ -41,6 +41,7 @@ Route::middleware('shopify.session')->group(function () {
 
     Route::get('/optimizations', [OptimizationController::class, 'index']);
     Route::post('/optimizations/{id}/rollback', [OptimizationController::class, 'rollback']);
+    Route::post('/optimizations/{id}/reapply', [OptimizationController::class, 'reapply']);
 
     Route::get('/monitoring/before-after', [MonitoringController::class, 'beforeAfter']);
     Route::get('/monitoring/trend', [MonitoringController::class, 'trend']);

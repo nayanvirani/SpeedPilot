@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Badge, BlockStack, Box, Button, Card, DataTable, InlineStack, Modal, Page, SkeletonBodyText, Text } from '@shopify/polaris';
 import { api } from '../api';
 import ThemeAccessStatus from '../components/ThemeAccessStatus';
@@ -19,6 +20,7 @@ function CodeBlock({ label, content, tone }) {
 }
 
 export default function Optimizations() {
+    const navigate = useNavigate();
     const [optimizations, setOptimizations] = useState([]);
     const [loading, setLoading] = useState(true);
     const [pendingId, setPendingId] = useState(null);
@@ -44,6 +46,16 @@ export default function Optimizations() {
         }
     }
 
+    async function reapply(id) {
+        setPendingId(id);
+        try {
+            await api.post(`/optimizations/${id}/reapply`);
+            await load();
+        } finally {
+            setPendingId(null);
+        }
+    }
+
     const rows = optimizations.map((opt) => {
         const backup = opt.backups?.[0];
 
@@ -62,6 +74,11 @@ export default function Optimizations() {
                         Rollback
                     </Button>
                 )}
+                {opt.status === 'rolled_back' && (
+                    <Button size="micro" variant="primary" loading={pendingId === opt.id} onClick={() => reapply(opt.id)}>
+                        Re-apply
+                    </Button>
+                )}
             </div>,
         ];
     });
@@ -73,6 +90,15 @@ export default function Optimizations() {
         <Page title="Optimizations">
             <BlockStack gap="400">
                 <ThemeAccessStatus />
+                <Card>
+                    <InlineStack align="space-between" blockAlign="center" wrap>
+                        <Text as="p" tone="subdued">
+                            This is a history of what's already been applied or rolled back - to choose new
+                            fixes to apply, go to a scan's full report instead.
+                        </Text>
+                        <Button onClick={() => navigate('/')}>Go to Dashboard</Button>
+                    </InlineStack>
+                </Card>
                 <Card>
                     {loading ? (
                         <SkeletonBodyText lines={4} />
