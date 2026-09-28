@@ -23,7 +23,16 @@ class PlanPolicy
         // monitoring, etc. until it has a usable plan. There is no billable
         // "Free" tier. A cancelled-but-not-yet-expired shop still resolves
         // normally here - hasPlanAccess() is what grants the grace period.
-        $this->plan = $shop->hasPlanAccess() ? Plan::findByKey($shop->plan) : null;
+        //
+        // A test-shop-allowlisted shop passes hasPlanAccess() even with no
+        // real $shop->plan key at all (e.g. Shopify never created a
+        // subscription for it) - falling back to whatever plan actually
+        // exists is what makes that access mean anything, since
+        // Plan::findByKey(null) alone would still resolve to null and
+        // every feature gate below would behave as unsubscribed anyway.
+        $this->plan = $shop->hasPlanAccess()
+            ? Plan::findByKey($shop->plan) ?? Plan::where('active', true)->orderBy('sort_order')->first()
+            : null;
     }
 
     public function canAutoFix(): bool

@@ -73,9 +73,21 @@ class ShopInstallation extends Model
      * or if a sync ever legitimately can't determine a period end. Only an
      * expiry date that's actually in the past ever revokes access; the
      * absence of one never does.
+     *
+     * An explicit, env-configured allowlist (config('shopify.test_shops'))
+     * of our own test/dev stores always passes, independent of any of the
+     * above - exists because Shopify Managed Pricing itself can get stuck
+     * (confirmed live: confirming a plan creates no subscription and fires
+     * no webhook for a specific shop+app pairing), which must never be able
+     * to block testing the app we're building. A real shop's access always
+     * still depends on a real subscription.
      */
     public function hasPlanAccess(): bool
     {
+        if (in_array($this->shop_domain, config('shopify.test_shops'), true)) {
+            return true;
+        }
+
         return $this->plan !== null
             && ($this->plan_expires_at === null || $this->plan_expires_at->isFuture());
     }

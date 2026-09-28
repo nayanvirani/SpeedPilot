@@ -47,7 +47,13 @@ class BillingController extends Controller
         }
 
         $hasAccess = $shop->hasPlanAccess();
-        $plan = $hasAccess ? Plan::findByKey($shop->plan) : null;
+        // A test-shop-allowlisted shop (see ShopInstallation::hasPlanAccess())
+        // can have access with no real plan key at all - fall back to
+        // whatever plan exists so the dashboard actually unlocks instead of
+        // showing the paywall with "access" but no plan to render.
+        $plan = $hasAccess
+            ? Plan::findByKey($shop->plan) ?? Plan::where('active', true)->orderBy('sort_order')->first()
+            : null;
 
         return response()->json([
             'plan' => $plan,
