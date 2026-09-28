@@ -207,12 +207,19 @@ function scriptIssues(audits) {
       category: 'js',
       severity: severityForBytes(item.wastedBytes, { critical: 150_000, high: 50_000 }),
       title: `Unused JS: ${shortUrl(item.url)}`,
-      description: `${Math.round((item.wastedBytes ?? 0) / 1024)}KB unused.`,
+      description: `${Math.round((item.wastedBytes ?? 0) / 1024)}KB unused out of `
+        + `${Math.round((item.totalBytes ?? item.wastedBytes ?? 0) / 1024)}KB downloaded.`,
       why: 'Shoppers download and parse code that never actually runs on this page, which '
         + 'delays everything else competing for the same bandwidth and CPU time.',
       riskTier: 'medium',
       fixAvailable: false,
-      meta: { evidence: { wasted_bytes: item.wastedBytes ?? null } },
+      // The full URL used to only back the (sometimes-meaningless, see
+      // shortUrl()) display title, then get discarded - persisted here so
+      // this issue can actually be traced back to a real file, and (in
+      // RunAuditJob) cross-referenced against App & Script Impact when it's
+      // a third-party app's own script, which is the only real "fix" for
+      // unused JS in a file SpeedPilot doesn't own the contents of.
+      meta: { url: item.url ?? null, evidence: { wasted_bytes: item.wastedBytes ?? null, total_bytes: item.totalBytes ?? null } },
     });
   }
 
@@ -409,7 +416,19 @@ function shortUrl(url) {
   if (!url) return 'unknown';
   try {
     const u = new URL(url);
-    return u.pathname.split('/').pop() || u.hostname;
+    const lastSegment = u.pathname.split('/').filter(Boolean).pop();
+
+    // A bare "js" (Google Tag Manager's own gtag/js?id=X, for one - the
+    // path itself is generic, the actual identifying part is in the query
+    // string) or an all-digits segment (Facebook Pixel's signals/config/
+    // {pixel_id}) isn't a meaningful filename on its own - fall back to
+    // hostname+pathname, which always identifies the real source, instead
+    // of showing a single word or a bare number with no context.
+    if (!lastSegment || lastSegment === 'js' || /^\d+$/.test(lastSegment)) {
+      return u.hostname + u.pathname;
+    }
+
+    return lastSegment;
   } catch {
     return url;
   }

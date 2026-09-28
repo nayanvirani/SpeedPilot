@@ -165,6 +165,36 @@ class RunAuditJob implements ShouldQueue
             ]);
         }
 
+        // "Unused JS" (and similar) issues can only ever be reviewed
+        // manually - SpeedPilot doesn't own the contents of a third-party
+        // app's own file, so there's no minify/tree-shake fix to offer.
+        // The one real "fix" is the same Disable/Delay/Advanced Delay
+        // already on the App & Script Impact page for that same app, which
+        // this issue's raw URL (see domAnalyzer.js's scriptIssues()) can be
+        // matched to by hostname - done here, once, after every app_impact
+        // for this audit already exists, rather than per-page during
+        // persistPageReport() where they don't yet.
+        $nonPlatformImpacts = $audit->appImpacts()->where('is_platform', false)->get();
+
+        $audit->issues()->where('category', 'js')->get()->each(function ($issue) use ($nonPlatformImpacts) {
+            $url = $issue->meta['url'] ?? null;
+            $host = $url ? parse_url($url, PHP_URL_HOST) : null;
+
+            if (! $host) {
+                return;
+            }
+
+            $matched = $nonPlatformImpacts->first(function ($impact) use ($host) {
+                $impactHost = $impact->script_url ? parse_url($impact->script_url, PHP_URL_HOST) : null;
+
+                return $impactHost && ($impactHost === $host || str_ends_with($host, ".{$impactHost}") || str_ends_with($impactHost, ".{$host}"));
+            });
+
+            if ($matched) {
+                $issue->update(['meta' => [...$issue->meta, 'matched_app_impact_id' => $matched->id, 'matched_app_name' => $matched->app_name]]);
+            }
+        });
+
         $primaryUrl = $completedPages[0]->url;
 
         $psiReport = $psi->underQuota($shop->shop_domain)

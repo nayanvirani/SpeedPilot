@@ -202,10 +202,12 @@ function SafeFixControls({ issue }) {
 }
 
 function IssueRow({ issue, page }) {
+    const navigate = useNavigate();
     const [recommendation, setRecommendation] = useState(null);
     const [loadingRec, setLoadingRec] = useState(false);
     const [recError, setRecError] = useState(null);
     const confidence = fixConfidence(issue);
+    const matchedAppName = issue.meta?.matched_app_name;
 
     async function getRecommendation() {
         setLoadingRec(true);
@@ -231,12 +233,29 @@ function IssueRow({ issue, page }) {
             </InlineStack>
             {issue.why && <Text as="p">{issue.why}</Text>}
             {issue.description && <Text as="p" tone="subdued">{issue.description}</Text>}
+            {issue.meta?.url && (
+                <Text as="span" tone="subdued" breakWord>File: <span className="sp-mono">{issue.meta.url}</span></Text>
+            )}
             <EvidenceCard meta={issue.meta} />
             <InlineStack gap="400">
                 <Text as="span" tone="subdued">Category: {ISSUE_CATEGORY_LABEL[issue.category] ?? issue.category}</Text>
                 <Text as="span" tone="subdued">{confidence.blurb}</Text>
                 {page && <Text as="span" tone="subdued">Found on: {PAGE_TYPE_LABEL[page.page_type] ?? page.page_type}</Text>}
             </InlineStack>
+            {matchedAppName && (
+                <Banner tone="info">
+                    <BlockStack gap="150">
+                        <Text as="p">
+                            This is {matchedAppName}'s own file - SpeedPilot doesn't control what's inside a
+                            third-party app's code, so there's no minify/cleanup fix to offer here. Disabling or
+                            delaying {matchedAppName} on App &amp; Script Impact is the real fix for this.
+                        </Text>
+                        <InlineStack>
+                            <Button size="micro" onClick={() => navigate('/impact')}>Go to App &amp; Script Impact</Button>
+                        </InlineStack>
+                    </BlockStack>
+                </Banner>
+            )}
             {issue.risk_tier === 'medium' && issue.fix_available && <MediumFixControls issue={issue} />}
             {issue.risk_tier === 'safe' && issue.fix_available && <SafeFixControls issue={issue} />}
             {recommendation ? (
