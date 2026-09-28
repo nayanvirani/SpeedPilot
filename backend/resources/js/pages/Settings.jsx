@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Banner, BlockStack, Button, Card, InlineStack, Page, Select, Text, TextField } from '@shopify/polaris';
 import { api } from '../api';
-import FixCodeViewer from '../components/FixCodeViewer';
 
 function StorefrontPasswordSettings() {
     const [hasPassword, setHasPassword] = useState(null);
@@ -517,47 +516,6 @@ function InstantNavigationSettings() {
     );
 }
 
-function LlmsTxtSettings() {
-    const [applying, setApplying] = useState(false);
-    const [applied, setApplied] = useState(null);
-    const [error, setError] = useState(null);
-
-    async function apply() {
-        setApplying(true);
-        setError(null);
-        try {
-            const res = await api.post('/settings/llms-txt/apply', {});
-            setApplied(res.optimization);
-        } catch (e) {
-            setError(e.body?.error || 'Could not apply this right now.');
-        } finally {
-            setApplying(false);
-        }
-    }
-
-    return (
-        <Card>
-            <BlockStack gap="200">
-                <Text as="h3" variant="headingSm"><span className="sp-heading">AI/LLM discoverability (llms.txt)</span></Text>
-                <Text as="p" tone="subdued">
-                    Generates /llms.txt - a short plain-text summary of your store that AI agents and LLM
-                    crawlers look for, the same emerging convention as robots.txt. Safe to re-run any time
-                    your collections change.
-                </Text>
-                {applied ? (
-                    <Text as="span" tone="success">Applied to {applied.asset_key} - roll back anytime from the Optimizations page.</Text>
-                ) : (
-                    <InlineStack gap="200" blockAlign="center">
-                        <Button variant="primary" loading={applying} onClick={apply}>Generate llms.txt</Button>
-                        <FixCodeViewer fetchPath="/settings/llms-txt/code" />
-                        {error && <Text as="span" tone="critical">{error}</Text>}
-                    </InlineStack>
-                )}
-            </BlockStack>
-        </Card>
-    );
-}
-
 function SlackNotificationSettings() {
     const [hasWebhook, setHasWebhook] = useState(null);
     const [value, setValue] = useState('');
@@ -645,7 +603,6 @@ export default function Settings() {
                 <RevenueInputsSettings />
                 <SpeedBudgetSettings />
                 <InstantNavigationSettings />
-                <LlmsTxtSettings />
                 <SlackNotificationSettings />
             </BlockStack>
         </Page>
