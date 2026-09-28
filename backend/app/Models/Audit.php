@@ -33,6 +33,7 @@ class Audit extends Model
         'raw_report',
         'status',
         'url',
+        'url_page_type',
     ];
 
     protected function casts(): array

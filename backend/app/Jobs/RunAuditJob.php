@@ -61,7 +61,7 @@ class RunAuditJob implements ShouldQueue
         $audit->update(['source' => 'lab', 'status' => 'running']);
 
         $pageSpecs = $audit->url
-            ? [['type' => 'custom', 'url' => $audit->url]]
+            ? [['type' => $audit->url_page_type ?? 'custom', 'url' => $audit->url]]
             : $discovery->discover($shop, (new PlanPolicy($shop))->pagesPerScan());
 
         $devices = $this->devicesFor($shop);

@@ -230,6 +230,11 @@ class ApplySafeFixesJob implements ShouldQueue
             $verificationAudit = $shop->audits()->create([
                 'verifies_audit_id' => $audit->id,
                 'url' => $verifyUrl,
+                // It's really the homepage (on the preview theme when
+                // duplicating) being re-checked, not a merchant-chosen
+                // custom URL - without this, the Dashboard's "Score by page"
+                // mislabels it "Custom URL" (confirmed live on jewel-nests).
+                'url_page_type' => $verifyUrl ? 'home' : null,
                 'status' => 'pending',
             ]);
 
