@@ -47,8 +47,8 @@ class FixCodeController extends Controller
                 $preview = $service->preview($issue, $shop);
 
                 return response()->json(['code' => self::withSnippets([
-                    'fix_type' => 'minify_css',
-                    'files' => [['asset_key' => $preview['asset_key'], 'original' => $preview['original_content'], 'fixed' => $preview['minified_content']]],
+                    'fix_type' => $preview['fix_type'],
+                    'files' => [['asset_key' => $preview['asset_key'], 'original' => $preview['original_content'], 'fixed' => $preview['fixed_content']]],
                     'truncated_count' => 0,
                 ])]);
             }

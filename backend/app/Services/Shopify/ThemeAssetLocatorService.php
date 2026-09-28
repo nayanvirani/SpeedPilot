@@ -5,14 +5,15 @@ namespace App\Services\Shopify;
 /**
  * The scanner (Lighthouse) only sees the rendered page, not which theme file
  * produced a given element - it has no Shopify API access to look. This
- * resolves a flagged render-blocking script's rendered <script src> back to
- * the actual theme file that hardcodes it, so ApplySafeFixesJob has a real
- * asset_key to edit instead of skipping the fix entirely. Dynamically
- * generated image URLs (Liquid's image_url filter) aren't searchable this
- * way - a rendered CDN URL for an image essentially never appears verbatim
- * in the theme's own source - so this is scoped to scripts, which are almost
- * always a literal hardcoded external URL when an app embeds one directly
- * in the theme rather than via the Script Tag API.
+ * resolves a flagged render-blocking resource's rendered URL (a <script src>
+ * or a <link href>) back to the actual theme file that hardcodes it, so
+ * ApplySafeFixesJob/MediumFixService have a real asset_key to edit instead of
+ * skipping the fix entirely. Dynamically generated image URLs (Liquid's
+ * image_url filter) aren't searchable this way - a rendered CDN URL for an
+ * image essentially never appears verbatim in the theme's own source - so
+ * this is scoped to scripts and stylesheets, which are almost always a
+ * literal hardcoded external URL when an app or theme embeds one directly
+ * rather than generating it at render time.
  */
 class ThemeAssetLocatorService
 {
@@ -22,9 +23,9 @@ class ThemeAssetLocatorService
     {
     }
 
-    public function findScriptSource(string $themeId, string $scriptSrc): ?string
+    public function findTagSource(string $themeId, string $url): ?string
     {
-        $needle = self::needleFor($scriptSrc);
+        $needle = self::needleFor($url);
 
         if ($needle === '') {
             return null;
@@ -135,6 +136,37 @@ class ThemeAssetLocatorService
         return preg_replace(
             '/<script([^>]*src=["\'][^"\']*'.$needle.'[^"\']*["\'][^>]*)>/i',
             '<script$1 defer>',
+            $content,
+            1,
+        ) ?? $content;
+    }
+
+    /**
+     * The standard, well-documented async-CSS pattern (also Lighthouse's own
+     * "Eliminate render-blocking resources" guidance): media="print" makes
+     * the browser fetch it without blocking render, onload swaps it to "all"
+     * once loaded so the styles actually apply, and the <noscript> fallback
+     * keeps the original blocking tag for clients with JS disabled. Never
+     * removes the stylesheet or its styles - only delays when it takes
+     * effect, same trade-off already accepted for deferred scripts.
+     *
+     * Matches via lookaheads for both rel="stylesheet" and an href
+     * containing the needle, in either order - real theme markup isn't
+     * consistent about which attribute comes first.
+     */
+    public static function deferStylesheetTag(string $content, string $cssUrl): string
+    {
+        $needle = preg_quote(self::needleFor($cssUrl), '/');
+
+        return preg_replace_callback(
+            '/<link\b(?=[^>]*\brel=["\']stylesheet["\'])(?=[^>]*\bhref=["\'][^"\']*'.$needle.'[^"\']*["\'])([^>]*)>/i',
+            function (array $m) {
+                $original = '<link'.$m[1].'>';
+                $async = preg_replace('/\smedia=["\'][^"\']*["\']/i', '', $original);
+                $async = rtrim(substr($async, 0, -1)).' media="print" onload="this.media=\'all\'">';
+
+                return $async."\n<noscript>{$original}</noscript>";
+            },
             $content,
             1,
         ) ?? $content;

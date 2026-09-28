@@ -165,7 +165,7 @@ class ApplySafeFixesJob implements ShouldQueue
                 $assetKey = $issue->meta['asset_key'] ?? null;
 
                 if (! $assetKey && $fixType === 'defer_script' && isset($issue->meta['script_src'])) {
-                    $assetKey = $locator->findScriptSource($liveThemeId, $issue->meta['script_src']);
+                    $assetKey = $locator->findTagSource($liveThemeId, $issue->meta['script_src']);
                 }
 
                 if (! $assetKey) {

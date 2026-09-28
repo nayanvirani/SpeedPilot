@@ -287,15 +287,19 @@ function cssIssues(audits) {
       category: 'css',
       severity: 'high',
       title: `Render-blocking stylesheet: ${shortUrl(item.url)}`,
-      description: 'Blocks rendering until it downloads. Making it non-blocking (e.g. '
-        + 'loading it async then swapping the media type) is a theme change worth '
-        + 'reviewing rather than an automatic one, since it can affect how quickly '
-        + "styled content becomes visible.",
+      description: 'Blocks rendering until it downloads. Preview loading it async instead '
+        + '(swapping the media type once it loads) before applying - it can affect how '
+        + 'quickly styled content becomes visible, so this needs your confirmation, not '
+        + 'an automatic change.',
       why: 'The browser holds off showing any styled content at all until this stylesheet '
         + 'finishes downloading, even content that never depends on it.',
       riskTier: 'medium',
-      fixAvailable: false,
-      meta: { evidence: { wasted_ms: item.wastedMs ?? null, estimated_impact: 'HIGH' } },
+      fixAvailable: true,
+      meta: {
+        fix_type: 'defer_css',
+        css_url: item.url,
+        evidence: { wasted_ms: item.wastedMs ?? null, estimated_impact: 'HIGH' },
+      },
     });
   }
 

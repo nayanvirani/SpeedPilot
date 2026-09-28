@@ -814,7 +814,7 @@ class ScriptImpactActionService
             return [...$empty, 'error' => 'Could not access your theme right now - try again shortly.'];
         }
 
-        $assetKey = $this->locator->findScriptSource($liveThemeId, $impact->script_url);
+        $assetKey = $this->locator->findTagSource($liveThemeId, $impact->script_url);
 
         if (! $assetKey) {
             return [...$empty, 'error' => "Couldn't find this script directly in your theme's files - it's most likely "
@@ -828,7 +828,7 @@ class ScriptImpactActionService
             return [...$empty, 'asset_key' => $assetKey, 'error' => 'Could not read the theme file.'];
         }
 
-        // Must match the needle findScriptSource() used to locate $assetKey
+        // Must match the needle findTagSource() used to locate $assetKey
         // in the first place - a different needle here risks "found the
         // file but not the tag inside it."
         $needle = preg_quote(ThemeAssetLocatorService::needleFor($impact->script_url), '/');

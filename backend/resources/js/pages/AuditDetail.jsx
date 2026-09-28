@@ -171,9 +171,19 @@ function MediumFixControls({ issue }) {
             ) : (
                 <BlockStack gap="150">
                     <Text as="p" tone="subdued">
-                        Minifying <b>{preview.asset_key}</b> would shrink it from {Math.round(preview.original_bytes / 1024)}KB
-                        to {Math.round(preview.minified_bytes / 1024)}KB
-                        ({Math.round(preview.savings_bytes / 1024)}KB saved). Nothing has been changed yet.
+                        {preview.fix_type === 'defer_css' ? (
+                            <>
+                                Would load <b>{preview.asset_key}</b>'s stylesheet without blocking rendering -
+                                page styling ends up the same, it just applies slightly later instead of
+                                holding up the whole page. Nothing has been changed yet.
+                            </>
+                        ) : (
+                            <>
+                                Minifying <b>{preview.asset_key}</b> would shrink it from {Math.round(preview.original_bytes / 1024)}KB
+                                to {Math.round(preview.fixed_bytes / 1024)}KB
+                                ({Math.round((preview.original_bytes - preview.fixed_bytes) / 1024)}KB saved). Nothing has been changed yet.
+                            </>
+                        )}
                     </Text>
                     <InlineStack gap="200" blockAlign="center">
                         <Button size="micro" variant="primary" loading={loading} onClick={apply}>

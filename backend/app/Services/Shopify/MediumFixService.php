@@ -10,9 +10,11 @@ use RuntimeException;
 /**
  * Spec 4.12's medium tier ("Preview + explicit merchant approval") - unlike
  * safe-tier fixes, nothing here ever writes without a merchant first calling
- * preview() and then separately, explicitly, calling apply(). Currently
- * covers CSS minification only; other medium-risk issue types stay
- * recommendation-only until a fix worth automating exists for them too.
+ * preview() and then separately, explicitly, calling apply(). Two fix types
+ * so far: minifying a stylesheet's own content, and deferring a
+ * render-blocking <link> tag so it stops blocking render - other medium-risk
+ * issue types stay recommendation-only until a fix worth automating exists
+ * for them too.
  */
 class MediumFixService
 {
@@ -24,20 +26,24 @@ class MediumFixService
     }
 
     /**
-     * @return array{asset_key: string, original_bytes: int, minified_bytes: int, savings_bytes: int, original_content: string, minified_content: string}
+     * @return array{fix_type: string, asset_key: string, original_bytes: int, fixed_bytes: int, original_content: string, fixed_content: string}
      */
     public function preview(AuditIssue $issue, ShopInstallation $shop): array
     {
-        [$assetKey, $original] = $this->resolve($issue, $shop);
-        $minified = CssMinifier::minify($original);
+        $fixType = $issue->meta['fix_type'] ?? null;
+        [$assetKey, $original, $fixed] = match ($fixType) {
+            'minify_css' => $this->resolveMinify($issue, $shop),
+            'defer_css' => $this->resolveDeferCss($issue, $shop),
+            default => throw new RuntimeException('This issue has no medium-risk fix available.'),
+        };
 
         return [
+            'fix_type' => $fixType,
             'asset_key' => $assetKey,
             'original_bytes' => strlen($original),
-            'minified_bytes' => strlen($minified),
-            'savings_bytes' => strlen($original) - strlen($minified),
+            'fixed_bytes' => strlen($fixed),
             'original_content' => $original,
-            'minified_content' => $minified,
+            'fixed_content' => $fixed,
         ];
     }
 
@@ -47,21 +53,26 @@ class MediumFixService
             throw new RuntimeException('No target theme selected - choose one on the Dashboard first.');
         }
 
-        [$assetKey, $original] = $this->resolve($issue, $shop);
-        $minified = CssMinifier::minify($original);
+        $fixType = $issue->meta['fix_type'] ?? null;
+        [$assetKey, $original, $fixed] = match ($fixType) {
+            'minify_css' => $this->resolveMinify($issue, $shop),
+            'defer_css' => $this->resolveDeferCss($issue, $shop),
+            default => throw new RuntimeException('This issue has no medium-risk fix available.'),
+        };
+
         $writeThemeId = $shop->target_theme_id;
 
         $optimization = $shop->optimizations()->create([
             'audit_issue_id' => $issue->id,
-            'type' => 'minify_css',
+            'type' => $fixType,
             'risk_tier' => 'medium',
             'status' => 'recommended',
             'theme_id' => $writeThemeId,
             'asset_key' => $assetKey,
         ]);
 
-        $this->backups->backup($optimization, $writeThemeId, $assetKey, $original, $minified);
-        $this->themeAssets->write($writeThemeId, $assetKey, $minified);
+        $this->backups->backup($optimization, $writeThemeId, $assetKey, $original, $fixed);
+        $this->themeAssets->write($writeThemeId, $assetKey, $fixed);
 
         $optimization->update(['status' => 'applied', 'applied_at' => now()]);
 
@@ -69,21 +80,15 @@ class MediumFixService
     }
 
     /**
-     * @return array{0: string, 1: string} [assetKey, originalContent]
+     * @return array{0: string, 1: string, 2: string} [assetKey, originalContent, fixedContent]
      */
-    private function resolve(AuditIssue $issue, ShopInstallation $shop): array
+    private function resolveMinify(AuditIssue $issue, ShopInstallation $shop): array
     {
         if (($issue->meta['fix_type'] ?? null) !== 'minify_css') {
             throw new RuntimeException('This issue has no medium-risk fix available.');
         }
 
-        // Read from the live theme - that's what was actually scanned - even
-        // when writing lands on a preview duplicate instead.
-        $liveThemeId = $this->themeAssets->activeThemeId();
-
-        if (! $liveThemeId) {
-            throw new RuntimeException('Could not access your theme right now.');
-        }
+        $liveThemeId = $this->activeThemeIdOrFail($shop);
 
         $assetKey = $this->locator->findAssetByBasename($liveThemeId, $issue->meta['css_url'] ?? '');
 
@@ -97,6 +102,58 @@ class MediumFixService
             throw new RuntimeException('Could not read this stylesheet.');
         }
 
-        return [$assetKey, $original];
+        return [$assetKey, $original, CssMinifier::minify($original)];
+    }
+
+    /**
+     * Unlike minify_css, the fix here isn't the stylesheet's own content -
+     * it's the <link> tag referencing it, wherever that tag actually lives
+     * in the theme (a section, snippet, or layout file). findTagSource()
+     * text-searches for that file the same way it already does for a
+     * render-blocking <script src>.
+     *
+     * @return array{0: string, 1: string, 2: string} [assetKey, originalContent, fixedContent]
+     */
+    private function resolveDeferCss(AuditIssue $issue, ShopInstallation $shop): array
+    {
+        if (($issue->meta['fix_type'] ?? null) !== 'defer_css') {
+            throw new RuntimeException('This issue has no medium-risk fix available.');
+        }
+
+        $cssUrl = $issue->meta['css_url'] ?? '';
+        $liveThemeId = $this->activeThemeIdOrFail($shop);
+
+        $assetKey = $this->locator->findTagSource($liveThemeId, $cssUrl);
+
+        if (! $assetKey) {
+            throw new RuntimeException('Could not find this stylesheet\'s <link> tag in your theme\'s files.');
+        }
+
+        $original = $this->themeAssets->read($liveThemeId, $assetKey);
+
+        if ($original === null) {
+            throw new RuntimeException('Could not read this theme file.');
+        }
+
+        $fixed = ThemeAssetLocatorService::deferStylesheetTag($original, $cssUrl);
+
+        if ($fixed === $original) {
+            throw new RuntimeException('Found the file but could not locate the exact <link> tag to change.');
+        }
+
+        return [$assetKey, $original, $fixed];
+    }
+
+    private function activeThemeIdOrFail(ShopInstallation $shop): string
+    {
+        // Read from the live theme - that's what was actually scanned - even
+        // when writing lands on a preview duplicate instead.
+        $liveThemeId = $this->themeAssets->activeThemeId();
+
+        if (! $liveThemeId) {
+            throw new RuntimeException('Could not access your theme right now.');
+        }
+
+        return $liveThemeId;
     }
 }

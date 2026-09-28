@@ -51,7 +51,7 @@ class SafeFixCodeService
             throw new RuntimeException('Could not access your theme right now.');
         }
 
-        $assetKey = $this->locator->findScriptSource($liveThemeId, $scriptSrc);
+        $assetKey = $this->locator->findTagSource($liveThemeId, $scriptSrc);
 
         if (! $assetKey) {
             throw new RuntimeException(
