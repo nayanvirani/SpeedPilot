@@ -98,6 +98,51 @@ function AdvancedDelaySetup({ appImpacts }) {
     );
 }
 
+/**
+ * Answers "what would my score be without this app" with a real second
+ * scan (the app's URLs blocked via Lighthouse's own native option, not a
+ * theme write) instead of a guess - never touches the live theme, so this
+ * is safe to run before deciding whether to actually disable anything.
+ */
+function ProjectRemovalButton({ impact }) {
+    const [loading, setLoading] = useState(false);
+    const [result, setResult] = useState(null);
+    const [error, setError] = useState(null);
+
+    async function run() {
+        setLoading(true);
+        setError(null);
+        try {
+            const res = await api.post(`/app-impacts/${impact.id}/project-removal`, {});
+            setResult(res);
+        } catch (e) {
+            setError(e.body?.error || 'Could not run this projection right now.');
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    if (result) {
+        const improved = result.delta > 0;
+
+        return (
+            <Text as="span" tone={improved ? 'success' : 'subdued'}>
+                Homepage score: {result.current_score} → without {impact.app_name}: {result.projected_score}
+                {result.delta !== null && ` (${improved ? '+' : ''}${result.delta})`}
+            </Text>
+        );
+    }
+
+    return (
+        <BlockStack gap="100">
+            <Button size="micro" loading={loading} onClick={run}>
+                {loading ? 'Running two scans (~1 min)…' : 'See projected impact'}
+            </Button>
+            {error && <Text as="span" tone="critical">{error}</Text>}
+        </BlockStack>
+    );
+}
+
 function ImpactRow({ impact, pending, onSetStatus }) {
     // Shopify's own platform scripts (Shop Pay, checkout, core analytics)
     // are injected by Shopify itself, never present as literal text in the
@@ -149,7 +194,7 @@ function ImpactRow({ impact, pending, onSetStatus }) {
                 </ButtonGroup>
             </InlineStack>
             {!impact.is_platform && (impact.status ?? 'active') === 'active' && (
-                <InlineStack gap="200">
+                <InlineStack gap="200" blockAlign="center">
                     <FixCodeViewer
                         key={`disabled-${impact.id}`}
                         fetchPath={`/app-impacts/${impact.id}/fix-code?action=disabled`}
@@ -160,9 +205,51 @@ function ImpactRow({ impact, pending, onSetStatus }) {
                         fetchPath={`/app-impacts/${impact.id}/fix-code?action=delayed`}
                         label="Manual fix - view code to delay"
                     />
+                    <ProjectRemovalButton impact={impact} />
                 </InlineStack>
             )}
         </BlockStack>
+    );
+}
+
+/**
+ * Purely informational - overlap_category/overlap_with come from the
+ * backend's curated category list (reviews, chat, popups, etc.), never
+ * analytics/tracking apps, since running several of those simultaneously is
+ * normal, not redundant. No action attached; this just gives the merchant
+ * something to consider, since removing either app is their call.
+ */
+function OverlapBanner({ appImpacts }) {
+    const seen = new Set();
+    const groups = [];
+
+    for (const impact of appImpacts) {
+        if (!impact.overlap_category || seen.has(impact.overlap_category)) {
+            continue;
+        }
+
+        seen.add(impact.overlap_category);
+        groups.push({
+            category: impact.overlap_category,
+            names: [impact.app_name, ...impact.overlap_with],
+        });
+    }
+
+    if (groups.length === 0) {
+        return null;
+    }
+
+    return (
+        <Banner tone="info" title="Possible overlap between installed apps">
+            <BlockStack gap="150">
+                {groups.map((g) => (
+                    <Text as="p" key={g.category}>
+                        You have {g.names.length} apps that all handle {g.category.replace('/', ' / ')}:{' '}
+                        <b>{g.names.join(', ')}</b> - consider whether you need all of them.
+                    </Text>
+                ))}
+            </BlockStack>
+        </Banner>
     );
 }
 
@@ -230,6 +317,7 @@ export default function AppImpact() {
                     </Banner>
                 )}
                 <ThemeAccessStatus />
+                <OverlapBanner appImpacts={appImpacts} />
                 <AdvancedDelaySetup appImpacts={appImpacts} />
                 <Card>
                     {loading ? (

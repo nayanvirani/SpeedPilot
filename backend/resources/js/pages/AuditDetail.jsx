@@ -10,7 +10,7 @@ const PAGE_TYPE_LABEL = {
     home: 'Homepage', product: 'Product page', collection: 'Collection page',
     cart: 'Cart', search: 'Search', blog: 'Blog article', custom: 'Custom URL',
 };
-const ISSUE_CATEGORY_LABEL = { image: 'Images', js: 'JavaScript', css: 'CSS', cls: 'Layout shift (CLS)', theme: 'Theme' };
+const ISSUE_CATEGORY_LABEL = { image: 'Images', js: 'JavaScript', css: 'CSS', font: 'Fonts', cls: 'Layout shift (CLS)', theme: 'Theme' };
 const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low'];
 
 function scoreClass(score) {

@@ -18,6 +18,7 @@ function issuesFromLighthouse(lhr) {
   issues.push(...cssIssues(audits));
   issues.push(...domIssues(audits));
   issues.push(...clsIssues(audits));
+  issues.push(...fontIssues(audits));
 
   return issues;
 }
@@ -317,6 +318,38 @@ function cssIssues(audits) {
       riskTier: 'medium',
       fixAvailable: true,
       meta: { fix_type: 'minify_css', css_url: item.url, evidence: { wasted_bytes: item.wastedBytes ?? null } },
+    });
+  }
+
+  return issues;
+}
+
+/**
+ * Lighthouse's font-display audit - a standard performance audit (no
+ * accessibility category needed, unlike alt-text detection). Flags fonts
+ * loaded without font-display:swap, which leaves text invisible while the
+ * font downloads. Same multi-row/single-fix_type pattern offscreen-images
+ * already uses for lazy_load_sweep: one issue per flagged font, all sharing
+ * fix_type so ApplySafeFixesJob's existing dedup collapses them into one
+ * sweep instead of one fix per font file.
+ */
+function fontIssues(audits) {
+  const issues = [];
+  const fontDisplay = audits['font-display'];
+
+  for (const item of fontDisplay?.details?.items ?? []) {
+    issues.push({
+      category: 'font',
+      severity: (item.wastedMs ?? 0) > 300 ? 'medium' : 'low',
+      title: `Font loads without font-display: ${shortUrl(item.url)}`,
+      description: 'Text using this font stays invisible while it downloads instead of showing '
+        + 'a fallback font immediately. Adding font-display: swap to every font declaration in '
+        + 'the theme is a safe, standard fix with no visual downside.',
+      why: 'Without font-display: swap, the browser hides text using this font for up to 3 '
+        + "seconds while it downloads, even though a fallback font is available immediately.",
+      riskTier: 'safe',
+      fixAvailable: true,
+      meta: { fix_type: 'font_display_sweep', evidence: { wasted_ms: item.wastedMs ?? null } },
     });
   }
 

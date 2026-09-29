@@ -463,6 +463,69 @@ function SpeedBudgetSettings() {
     );
 }
 
+/**
+ * Manual-only, deliberately no "Auto fix on theme" button - badge
+ * placement is the merchant's choice, not a safe mechanical default the
+ * way a <head> script tag is, so this only ever shows the snippet.
+ */
+function TrustBadgeSettings() {
+    const [snippet, setSnippet] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [copied, setCopied] = useState(false);
+    const [error, setError] = useState(null);
+
+    async function load() {
+        setLoading(true);
+        setError(null);
+        try {
+            const res = await api.get('/settings/trust-badge/code');
+            setSnippet(res.snippet);
+        } catch (e) {
+            setError(e.body?.error || 'Could not load the badge code right now.');
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    async function copy() {
+        try {
+            await navigator.clipboard.writeText(snippet);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch {
+            // Clipboard access can be denied by the browser - still
+            // selectable by hand from the block below.
+        }
+    }
+
+    return (
+        <Card>
+            <BlockStack gap="200">
+                <Text as="h3" variant="headingSm"><span className="sp-heading">Trust badge</span></Text>
+                <Text as="p" tone="subdued">
+                    A small "Optimized by SpeedPilot" badge you can add anywhere on your storefront - your
+                    footer, an about page, wherever you'd like. No external scripts or styles, safe to paste
+                    as-is. Placement is your choice, so this isn't auto-installed.
+                </Text>
+                {!snippet ? (
+                    <InlineStack gap="200" blockAlign="center">
+                        <Button loading={loading} onClick={load}>View badge code</Button>
+                        {error && <Text as="span" tone="critical">{error}</Text>}
+                    </InlineStack>
+                ) : (
+                    <BlockStack gap="150">
+                        <InlineStack align="space-between" blockAlign="center">
+                            <Text as="span" fontWeight="medium">Paste this wherever you'd like it to appear</Text>
+                            <Button size="micro" onClick={copy}>{copied ? 'Copied' : 'Copy'}</Button>
+                        </InlineStack>
+                        <pre className="sp-mono sp-code-block">{snippet}</pre>
+                    </BlockStack>
+                )}
+            </BlockStack>
+        </Card>
+    );
+}
+
 function InstantNavigationSettings() {
     const [hasTag, setHasTag] = useState(null);
     const [installing, setInstalling] = useState(false);
@@ -603,6 +666,7 @@ export default function Settings() {
                 <RevenueInputsSettings />
                 <SpeedBudgetSettings />
                 <InstantNavigationSettings />
+                <TrustBadgeSettings />
                 <SlackNotificationSettings />
             </BlockStack>
         </Page>

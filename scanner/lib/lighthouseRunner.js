@@ -56,7 +56,7 @@ const DEVICE_PRESETS = {
 };
 
 async function runLighthouse(url, options = {}) {
-  const { storefrontPassword, device = 'mobile' } = options;
+  const { storefrontPassword, device = 'mobile', blockedUrlPatterns } = options;
   const preset = DEVICE_PRESETS[device] ?? DEVICE_PRESETS.mobile;
   const lighthouse = (await import('lighthouse')).default;
 
@@ -92,6 +92,13 @@ async function runLighthouse(url, options = {}) {
       formFactor: preset.formFactor,
       screenEmulation: preset.screenEmulation,
       extraHeaders: cookieHeader ? { Cookie: cookieHeader } : undefined,
+      // Native Lighthouse option (not a custom Playwright route hook) - the
+      // "what would my score be without this app" projection passes the
+      // app's own URLs here so the whole run happens with them blocked,
+      // entirely inside this one throwaway browser session. Nothing is
+      // ever written to the merchant's theme for this - the live site is
+      // never touched.
+      blockedUrlPatterns: blockedUrlPatterns?.length ? blockedUrlPatterns : undefined,
     });
 
     const lhr = runnerResult.lhr;

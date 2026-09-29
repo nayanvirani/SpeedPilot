@@ -64,7 +64,7 @@ app.post('/scan', async (req, res) => {
     return res.status(503).json({ error: 'Scanner is restarting, please retry.', code: 'RECYCLING' });
   }
 
-  const { url, storefrontPassword, device } = req.body || {};
+  const { url, storefrontPassword, device, blockedUrlPatterns } = req.body || {};
 
   if (!url || typeof url !== 'string') {
     return res.status(400).json({ error: 'Missing "url" in request body' });
@@ -72,7 +72,7 @@ app.post('/scan', async (req, res) => {
 
   try {
     const [lhr, rawHtml] = await Promise.all([
-      runLighthouse(url, { storefrontPassword, device }),
+      runLighthouse(url, { storefrontPassword, device, blockedUrlPatterns }),
       fetchRawHtml(url, storefrontPassword),
     ]);
     res.json(buildReport(lhr, rawHtml));

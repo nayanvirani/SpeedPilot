@@ -34,6 +34,7 @@ Route::middleware('shopify.session')->group(function () {
     Route::get('/app-impacts', [AppImpactController::class, 'index']);
     Route::patch('/app-impacts/{id}', [AppImpactController::class, 'updateStatus']);
     Route::get('/app-impacts/{id}/fix-code', [FixCodeController::class, 'forAppImpact']);
+    Route::post('/app-impacts/{id}/project-removal', [AppImpactController::class, 'projectRemoval']);
     // One global tag shared by every app, not per-app code - no impact ID
     // needed, unlike forAppImpact above.
     Route::get('/advanced-delay/fix-code', [FixCodeController::class, 'forAdvancedDelay']);
@@ -61,6 +62,7 @@ Route::middleware('shopify.session')->group(function () {
     Route::put('/settings/revenue-inputs', [ShopSettingsController::class, 'updateRevenueInputs']);
     Route::put('/settings/speed-budget', [ShopSettingsController::class, 'updateSpeedBudget']);
     Route::post('/settings/prefetch-tag/install', [ShopSettingsController::class, 'installPrefetchTag']);
+    Route::get('/settings/trust-badge/code', [ShopSettingsController::class, 'trustBadgeCode']);
     Route::get('/themes', [ShopSettingsController::class, 'listThemes']);
     Route::put('/settings/target-theme', [ShopSettingsController::class, 'updateTargetTheme']);
 });

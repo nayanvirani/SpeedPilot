@@ -20,6 +20,7 @@ class SafeFixCodeService
         private readonly ThemeAssetService $themeAssets,
         private readonly ThemeAssetLocatorService $locator,
         private readonly ImageLazyLoadSweeper $sweeper,
+        private readonly FontDisplaySweeper $fontSweeper,
     ) {
     }
 
@@ -32,7 +33,8 @@ class SafeFixCodeService
 
         return match ($fixType) {
             'defer_script' => $this->deferScriptCode($issue),
-            'lazy_load_sweep' => $this->lazyLoadCode(),
+            'lazy_load_sweep' => $this->sweepCode($this->sweeper, 'lazy_load_sweep', 'No plain <img> tags without loading="lazy" were found in your theme right now.'),
+            'font_display_sweep' => $this->sweepCode($this->fontSweeper, 'font_display_sweep', "No font_face calls missing font-display: 'swap' were found in your theme right now."),
             default => throw new RuntimeException('This issue has no manual fix code available.'),
         };
     }
@@ -79,7 +81,7 @@ class SafeFixCodeService
         ];
     }
 
-    private function lazyLoadCode(): array
+    private function sweepCode(ImageLazyLoadSweeper|FontDisplaySweeper $sweeper, string $fixType, string $emptyMessage): array
     {
         $liveThemeId = $this->themeAssets->activeThemeId();
 
@@ -87,19 +89,19 @@ class SafeFixCodeService
             throw new RuntimeException('Could not access your theme right now.');
         }
 
-        $changed = $this->sweeper->sweep($liveThemeId);
+        $changed = $sweeper->sweep($liveThemeId);
 
         if (empty($changed)) {
-            throw new RuntimeException('No plain <img> tags without loading="lazy" were found in your theme right now.');
+            throw new RuntimeException($emptyMessage);
         }
 
-        // A lazy-load sweep can touch dozens of section/snippet files at
+        // A theme-wide sweep can touch dozens of section/snippet files at
         // once - showing all of them as copy-paste blocks would be
         // unusable, so cap the display and say how many more there are.
         $shown = array_slice($changed, 0, 5, preserve_keys: true);
 
         return [
-            'fix_type' => 'lazy_load_sweep',
+            'fix_type' => $fixType,
             'files' => array_map(
                 fn (string $assetKey, array $change) => ['asset_key' => $assetKey, 'original' => $change['original'], 'fixed' => $change['updated']],
                 array_keys($shown),

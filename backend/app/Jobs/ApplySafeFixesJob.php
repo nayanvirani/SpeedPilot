@@ -8,6 +8,7 @@ use App\Models\ShopInstallation;
 use App\Services\PlanPolicy;
 use App\Services\Shopify\AccessTokenExpiredException;
 use App\Services\Shopify\AssetBackupService;
+use App\Services\Shopify\FontDisplaySweeper;
 use App\Services\Shopify\ImageLazyLoadSweeper;
 use App\Services\Shopify\ShopifyGraphQLClient;
 use App\Models\OptimizedTheme;
@@ -80,6 +81,7 @@ class ApplySafeFixesJob implements ShouldQueue
         );
         $locator = new ThemeAssetLocatorService($themeAssets);
         $sweeper = new ImageLazyLoadSweeper($themeAssets);
+        $fontSweeper = new FontDisplaySweeper($themeAssets);
 
         // Issues were found by scanning the live, rendered storefront, so
         // locating/reading the flagged files has to happen against the live
@@ -157,7 +159,13 @@ class ApplySafeFixesJob implements ShouldQueue
                 $fixType = $issue->meta['fix_type'] ?? null;
 
                 if ($fixType === 'lazy_load_sweep') {
-                    $appliedCount += $this->applyLazyLoadSweep($shop, $issue, $liveThemeId, $writeThemeId, $themeAssets, $backups, $sweeper);
+                    $appliedCount += $this->applySweep($shop, $issue, $liveThemeId, $writeThemeId, $themeAssets, $backups, $sweeper, 'lazy_load');
+
+                    continue;
+                }
+
+                if ($fixType === 'font_display_sweep') {
+                    $appliedCount += $this->applySweep($shop, $issue, $liveThemeId, $writeThemeId, $themeAssets, $backups, $fontSweeper, 'font_display_sweep');
 
                     continue;
                 }
@@ -285,14 +293,20 @@ class ApplySafeFixesJob implements ShouldQueue
      *
      * @return int number of files actually changed
      */
-    private function applyLazyLoadSweep(
+    /**
+     * Shared by every "sweep the whole theme, no single locatable asset_key"
+     * fix type (lazy-load images, font-display) - the sweeper differs, but
+     * the dedup/reuse/backup logic around it is identical.
+     */
+    private function applySweep(
         ShopInstallation $shop,
         AuditIssue $issue,
         string $liveThemeId,
         string $writeThemeId,
         ThemeAssetService $themeAssets,
         AssetBackupService $backups,
-        ImageLazyLoadSweeper $sweeper,
+        ImageLazyLoadSweeper|FontDisplaySweeper $sweeper,
+        string $type,
     ): int {
         $changedCount = 0;
 
@@ -307,7 +321,7 @@ class ApplySafeFixesJob implements ShouldQueue
             // done - the same already-applied guard every other fix type
             // gets below, just missing here until now.
             $alreadyApplied = $shop->optimizations()
-                ->where('type', 'lazy_load')
+                ->where('type', $type)
                 ->where('asset_key', $filename)
                 ->where('status', 'applied')
                 ->first();
@@ -338,7 +352,7 @@ class ApplySafeFixesJob implements ShouldQueue
             // diff from a since-fixed bug in the fix logic itself instead
             // of what would actually be applied today.
             $optimization = $shop->optimizations()
-                ->where('type', 'lazy_load')
+                ->where('type', $type)
                 ->where('asset_key', $filename)
                 ->where('status', 'recommended')
                 ->first();
@@ -348,7 +362,7 @@ class ApplySafeFixesJob implements ShouldQueue
             } else {
                 $optimization = $shop->optimizations()->create([
                     'audit_issue_id' => $issue->id,
-                    'type' => 'lazy_load',
+                    'type' => $type,
                     'risk_tier' => 'safe',
                     'status' => 'recommended',
                     'theme_id' => $writeThemeId,

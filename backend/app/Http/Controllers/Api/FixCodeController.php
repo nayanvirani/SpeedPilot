@@ -8,6 +8,7 @@ use App\Models\AuditIssue;
 use App\Models\ShopInstallation;
 use App\Services\CodeSnippetExtractor;
 use App\Services\Shopify\AssetBackupService;
+use App\Services\Shopify\FontDisplaySweeper;
 use App\Services\Shopify\ImageLazyLoadSweeper;
 use App\Services\Shopify\MediumFixService;
 use App\Services\Shopify\SafeFixCodeService;
@@ -53,7 +54,7 @@ class FixCodeController extends Controller
                 ])]);
             }
 
-            $service = new SafeFixCodeService($themeAssets, $locator, new ImageLazyLoadSweeper($themeAssets));
+            $service = new SafeFixCodeService($themeAssets, $locator, new ImageLazyLoadSweeper($themeAssets), new FontDisplaySweeper($themeAssets));
 
             return response()->json(['code' => self::withSnippets($service->code($issue))]);
         } catch (ThemeWriteAccessDeniedException) {

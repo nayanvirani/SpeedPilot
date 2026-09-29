@@ -170,6 +170,29 @@ class ShopSettingsController extends Controller
     }
 
     /**
+     * Manual-fix only, deliberately no "Auto fix on theme" button - unlike
+     * every other fix in this app, badge *placement* is a design choice
+     * (footer, about page, wherever), not a mechanical safe default the way
+     * a <head> script tag is. There's no reliable universal anchor point in
+     * an arbitrary theme's footer, and blindly regex-inserting visible
+     * markup risks breaking a merchant's layout - so this hands back a
+     * small, self-contained, dependency-free snippet for the merchant to
+     * place themselves, same as every other "can't safely automate this"
+     * case already handled this way.
+     */
+    public function trustBadgeCode(Request $request)
+    {
+        $badge = <<<'HTML'
+            <div style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid #e1e1e1;border-radius:20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;color:#555;background:#fafafa;">
+              <span style="font-size:14px;line-height:1;">⚡</span>
+              <span>Optimized by SpeedPilot</span>
+            </div>
+            HTML;
+
+        return response()->json(['snippet' => $badge]);
+    }
+
+    /**
      * "Instant navigation" - independent of Advanced Delay's tag, its own
      * global toggle (see ScriptImpactActionService::autoInstallPrefetchTag()).
      */

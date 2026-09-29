@@ -39,9 +39,14 @@ class ScannerClient
     }
 
     /**
+     * @param  array<int, string>  $blockedUrlPatterns  Wildcard patterns (Lighthouse's
+     *         own native blockedUrlPatterns syntax) to block for this scan only - used
+     *         by the "what would my score be without this app" projection. Never
+     *         touches the merchant's theme; the block only exists inside that one
+     *         throwaway browser session.
      * @return array<string, mixed> Lighthouse scores, CWV, and resource breakdown.
      */
-    public function scan(string $url, ?string $storefrontPassword = null, string $device = 'mobile'): array
+    public function scan(string $url, ?string $storefrontPassword = null, string $device = 'mobile', array $blockedUrlPatterns = []): array
     {
         for ($attempt = 1; $attempt <= self::MAX_ATTEMPTS; $attempt++) {
             try {
@@ -50,6 +55,7 @@ class ScannerClient
                         'url' => $url,
                         'storefrontPassword' => $storefrontPassword,
                         'device' => $device,
+                        'blockedUrlPatterns' => $blockedUrlPatterns ?: null,
                     ]),
                 ]);
 
