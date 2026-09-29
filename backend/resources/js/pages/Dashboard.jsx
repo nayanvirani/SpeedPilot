@@ -4,6 +4,7 @@ import { Badge, Banner, BlockStack, Button, Card, InlineStack, Page, SkeletonBod
 import { api } from '../api';
 import CategoryScores from '../components/CategoryScores';
 import PerformanceHealth from '../components/PerformanceHealth';
+import WeeklyRollup from '../components/WeeklyRollup';
 import PageLoadBeforeAfter from '../components/PageLoadBeforeAfter';
 
 function statusTone(status) {
@@ -53,6 +54,45 @@ const PAGE_TYPE_LABEL = {
     cart: 'Cart', search: 'Search', blog: 'Blog article', custom: 'Custom URL',
 };
 
+function formatBytes(bytes) {
+    if (bytes === null || bytes === undefined) return null;
+    if (bytes < 1024) return `${bytes} B`;
+    const kb = bytes / 1024;
+    if (kb < 1024) return `${Math.round(kb)} KB`;
+    return `${(kb / 1024).toFixed(1)} MB`;
+}
+
+// Merchants only ever saw one aggregate "N requests" number before this -
+// this breaks it into where the weight actually comes from (JS/CSS/images
+// vs. everything else), using fields the scanner already records per page
+// but nothing rendered until now.
+function PageWeightBreakdown({ page }) {
+    const total = page.page_weight_bytes;
+    if (!total) {
+        return null;
+    }
+
+    const parts = [
+        { label: 'JS', bytes: page.js_weight_bytes },
+        { label: 'CSS', bytes: page.css_weight_bytes },
+        { label: 'Images', bytes: page.image_weight_bytes },
+    ].filter((p) => p.bytes);
+
+    return (
+        <BlockStack gap="050">
+            <InlineStack align="space-between">
+                <Text as="span" tone="subdued">Page weight</Text>
+                <Text as="span" tone="subdued">{formatBytes(total)}{page.request_count ? ` · ${page.request_count} requests` : ''}</Text>
+            </InlineStack>
+            {parts.length > 0 && (
+                <Text as="span" tone="subdued">
+                    {parts.map((p) => `${p.label} ${formatBytes(p.bytes)}`).join(' · ')}
+                </Text>
+            )}
+        </BlockStack>
+    );
+}
+
 function PageScoreCards({ pages }) {
     if (!pages || pages.length === 0) {
         return null;
@@ -79,6 +119,7 @@ function PageScoreCards({ pages }) {
                         {page.status === 'failed' && page.error_message && (
                             <Text as="span" tone="critical">{page.error_message}</Text>
                         )}
+                        <PageWeightBreakdown page={page} />
                     </div>
                 ))}
             </InlineStack>
@@ -162,6 +203,7 @@ export default function Dashboard() {
         >
             <BlockStack gap="400">
                 <PerformanceHealth />
+                <WeeklyRollup />
                 <PageLoadBeforeAfter />
                 {!loading && storefrontLocked && (
                     <Banner tone="critical" title="Your storefront is password-protected" action={{ content: 'Add storefront password', onAction: () => navigate('/settings') }}>

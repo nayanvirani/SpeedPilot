@@ -47,6 +47,7 @@ Route::middleware('shopify.session')->group(function () {
     Route::get('/monitoring/before-after', [MonitoringController::class, 'beforeAfter']);
     Route::get('/monitoring/trend', [MonitoringController::class, 'trend']);
     Route::get('/monitoring/health', [MonitoringController::class, 'health']);
+    Route::get('/monitoring/weekly-rollup', [MonitoringController::class, 'weeklyRollup']);
     Route::get('/monitoring/page-trend', [MonitoringController::class, 'pageTrend']);
     Route::get('/monitoring/report', [MonitoringController::class, 'report']);
     Route::get('/rum-events/summary', [RumEventController::class, 'summary']);

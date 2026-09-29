@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Audit;
 use App\Models\AuditPage;
 use App\Models\ShopInstallation;
+use App\Services\Monitoring\AuditDiffService;
 use App\Services\Monitoring\MonthlyReportService;
 use App\Services\Monitoring\RevenueImpactEstimator;
 use App\Services\PlanPolicy;
@@ -109,6 +110,60 @@ class MonitoringController extends Controller
             'run_at' => $lastRun->run_at,
             'new_third_party_scripts' => count($lastRun->diff_summary['new_third_party_scripts'] ?? []),
             'new_issues' => count($lastRun->diff_summary['new_issues'] ?? []),
+        ]);
+    }
+
+    /**
+     * The Dashboard headline: "you lost/gained N points this week, here's
+     * why" - the same regression-detection diff MonitoringRecorder already
+     * sends to Slack on a day-to-day drop, but rolled up over 7 days and
+     * surfaced prominently in the app itself, not only as a Slack message a
+     * merchant might miss. Compares the latest run against whichever run is
+     * oldest within the last 7 days (not a straight sum of daily diffs) -
+     * one clean before/after over the week, not compounding noise across
+     * several runs.
+     */
+    public function weeklyRollup(Request $request, AuditDiffService $diffService)
+    {
+        /** @var ShopInstallation $shop */
+        $shop = $request->attributes->get('shop');
+
+        $latestRun = $shop->monitoringRuns()->with('audit')->latest('run_at')->first();
+
+        if (! $latestRun || ! $latestRun->audit?->isComplete()) {
+            return response()->json(['has_data' => false]);
+        }
+
+        // The oldest run still within the last 7 days - not "exactly 7 days
+        // ago", since monitoring runs don't land on exact daily boundaries
+        // (a weekly-frequency shop, a manual scan mid-week, a skipped day).
+        $weekAgoRun = $shop->monitoringRuns()->with('audit')
+            ->where('run_at', '<=', now()->subDays(7))
+            ->where('id', '!=', $latestRun->id)
+            ->latest('run_at')
+            ->first();
+
+        if (! $weekAgoRun || ! $weekAgoRun->audit?->isComplete()) {
+            // Not enough history yet - a shop that installed this week has
+            // nothing honest to compare against.
+            return response()->json(['has_data' => false]);
+        }
+
+        $baselineScore = $weekAgoRun->audit->score;
+        $currentScore = $latestRun->audit->score;
+
+        $diff = $diffService->diff(
+            $weekAgoRun->audit->load('appImpacts', 'issues', 'pages'),
+            $latestRun->audit->load('appImpacts', 'issues', 'pages'),
+        );
+
+        return response()->json([
+            'has_data' => true,
+            'baseline_score' => $baselineScore,
+            'current_score' => $currentScore,
+            'delta' => ($baselineScore !== null && $currentScore !== null) ? $currentScore - $baselineScore : null,
+            'baseline_run_at' => $weekAgoRun->run_at,
+            'diff' => $diff,
         ]);
     }
 
