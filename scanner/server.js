@@ -10,9 +10,51 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 4000;
 
-app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+/**
+ * Confirmed live (not assumed): this process genuinely runs out of memory
+ * and crashes - "FATAL ERROR: ... JavaScript heap out of memory" in the
+ * logs - after enough sequential scans, taking down whatever request was
+ * in-flight at that moment ("Connection closed" / Railway's "Application
+ * failed to respond" for the merchant). A full audit is up to ~24 page
+ * scans (12 pages x 2 devices); Lighthouse + a fresh Chromium launch per
+ * scan is inherently memory-heavy, and this single long-running process
+ * never gets a chance to fully release what accumulates.
+ *
+ * Rather than chase down every possible leak inside Lighthouse/Playwright's
+ * own internals, this recycles the whole process proactively, between
+ * scans - never mid-request - once it's done enough work that an OOM crash
+ * would otherwise become likely. Railway's restartPolicyType=ON_FAILURE
+ * (confirmed via `railway deployment list`) restarts a fresh process
+ * automatically on a non-zero exit, so this trades an unpredictable,
+ * request-destroying crash for a short, predictable gap between scans
+ * instead.
+ */
+const MAX_SCANS_BEFORE_RECYCLE = 15;
+// Conservative on purpose - the actual container memory limit isn't known
+// precisely, and the confirmed failure was Node's own V8 heap running out,
+// not a generic container OOM-kill, so this needs real margin under
+// whatever that ceiling turns out to be rather than cutting it close.
+const MEMORY_RSS_LIMIT_MB = 500;
+
+let scanCount = 0;
+let recycling = false;
+
+app.get('/health', (_req, res) => {
+  if (recycling) {
+    return res.status(503).json({ status: 'recycling' });
+  }
+
+  res.json({ status: 'ok' });
+});
 
 app.post('/scan', async (req, res) => {
+  if (recycling) {
+    // Distinct from a real scan failure - ScannerClient/RunAuditJob should
+    // treat this as worth a fresh attempt, not report it to the merchant as
+    // a broken page.
+    return res.status(503).json({ error: 'Scanner is restarting, please retry.', code: 'RECYCLING' });
+  }
+
   const { url, storefrontPassword, device } = req.body || {};
 
   if (!url || typeof url !== 'string') {
@@ -28,8 +70,27 @@ app.post('/scan', async (req, res) => {
   } catch (err) {
     console.error(`Scan failed for ${url}:`, err);
     res.status(502).json({ error: 'Scan failed', message: err.message, code: err.code || null });
+  } finally {
+    maybeRecycle();
   }
 });
+
+function maybeRecycle() {
+  scanCount++;
+  const rssMb = process.memoryUsage().rss / 1024 / 1024;
+
+  if (scanCount < MAX_SCANS_BEFORE_RECYCLE && rssMb < MEMORY_RSS_LIMIT_MB) {
+    return;
+  }
+
+  recycling = true;
+  console.log(`[scanner] recycling after ${scanCount} scan(s), ${rssMb.toFixed(0)}MB RSS`);
+
+  // The response for this request has already been sent above - this
+  // delay is just headroom for Node to actually flush it to the socket
+  // before the process exits, not a wait for anything else to finish.
+  setTimeout(() => process.exit(1), 250);
+}
 
 /**
  * A plain, unauthenticated GET of the same URl Lighthouse audits - not a
