@@ -168,6 +168,84 @@ class MonitoringController extends Controller
     }
 
     /**
+     * Performance Change Timeline: "why did my score change" as a
+     * chronological log, not just a line chart - merges applied/reverted
+     * optimizations with monitoring runs worth calling out (a real
+     * regression, a meaningful swing either way, or a newly-detected
+     * third-party script), all built from rows already persisted elsewhere
+     * (Optimization, MonitoringRun) rather than a new event log table.
+     */
+    public function timeline(Request $request)
+    {
+        /** @var ShopInstallation $shop */
+        $shop = $request->attributes->get('shop');
+        $policy = new PlanPolicy($shop);
+
+        $since = now()->subDays($policy->historyDays() ?: 30);
+
+        $optimizationEvents = $shop->optimizations()
+            ->where(function ($q) use ($since) {
+                $q->where('applied_at', '>=', $since)->orWhere('reverted_at', '>=', $since);
+            })
+            ->get()
+            ->flatMap(function ($opt) {
+                $events = [];
+                if ($opt->applied_at) {
+                    $events[] = [
+                        'at' => $opt->applied_at,
+                        'title' => 'Applied: '.str_replace('_', ' ', $opt->type),
+                        'detail' => null,
+                        'kind' => 'optimization_applied',
+                    ];
+                }
+                if ($opt->reverted_at) {
+                    $events[] = [
+                        'at' => $opt->reverted_at,
+                        'title' => 'Reverted: '.str_replace('_', ' ', $opt->type),
+                        'detail' => 'A theme change after this fix was applied overwrote it.',
+                        'kind' => 'optimization_reverted',
+                    ];
+                }
+
+                return $events;
+            });
+
+        $runEvents = $shop->monitoringRuns()
+            ->where('run_at', '>=', $since)
+            ->get()
+            ->filter(fn ($run) => $run->is_regression || abs($run->trend_delta ?? 0) >= 3 || ! empty($run->diff_summary['new_third_party_scripts'] ?? []))
+            ->map(function ($run) {
+                $newScripts = $run->diff_summary['new_third_party_scripts'] ?? [];
+                $delta = $run->trend_delta;
+                $title = $run->is_regression
+                    ? 'Performance regression detected'
+                    : ($delta !== null && $delta > 0 ? 'Performance improved' : 'Performance changed');
+
+                $detailParts = [];
+                if ($delta !== null) {
+                    $detailParts[] = ($delta >= 0 ? '+' : '').$delta.' points';
+                }
+                if (! empty($newScripts)) {
+                    $detailParts[] = 'New script(s): '.collect($newScripts)->pluck('app_name')->implode(', ');
+                }
+
+                return [
+                    'at' => $run->run_at,
+                    'title' => $title,
+                    'detail' => implode(' - ', $detailParts) ?: null,
+                    'kind' => $run->is_regression ? 'regression' : 'notable_change',
+                ];
+            });
+
+        $timeline = $optimizationEvents->concat($runEvents)
+            ->sortByDesc('at')
+            ->values()
+            ->take(50);
+
+        return response()->json(['timeline' => $timeline]);
+    }
+
+    /**
      * Per-page-type score trend (Homepage, Product, Collection, ...) across
      * audits, instead of just the one aggregate line trend() already gives -
      * lets a merchant see "collection pages got worse" even when the

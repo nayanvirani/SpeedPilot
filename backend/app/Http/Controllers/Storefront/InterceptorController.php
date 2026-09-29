@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Storefront;
 
 use App\Http\Controllers\Controller;
+use App\Models\ScriptPageRule;
 use App\Models\ShopInstallation;
 use App\Services\JsMinifier;
 use App\Services\Shopify\ScriptImpactActionService;
@@ -49,17 +50,79 @@ class InterceptorController extends Controller
             return $this->jsResponse("console.log('[SpeedPilot] tag loaded, but shop not found or inactive - no-op');");
         }
 
-        $urls = $shop->interceptorDelayTargets()->pluck('script_url')->all();
+        $legacyUrls = $shop->interceptorDelayTargets()->pluck('script_url')->all();
+        $pageType = $this->resolvePageType($request->query('page_type'));
+        $rulesByApp = $shop->scriptPageRules()->get()->groupBy('app_name');
 
-        if (empty($urls)) {
-            return $this->jsResponse("console.log('[SpeedPilot] tag loaded, shop active, but no apps currently targeted for Advanced Delay - no-op');");
+        $managedGroups = [];
+        $legacyTargetUrls = [];
+
+        if ($rulesByApp->isNotEmpty()) {
+            // Smart Script Manager rules are keyed by app_name (stable
+            // across scans), so they're resolved against this shop's
+            // latest audit's app_impacts, not the legacy per-URL list -
+            // see ScriptPageRule's migration docblock for why.
+            $appImpacts = $shop->latestAudit()?->appImpacts()->where('is_platform', false)->get() ?? collect();
+
+            foreach ($appImpacts as $impact) {
+                $urls = array_values(array_filter([$impact->script_url, ...($impact->related_script_urls ?? [])]));
+                if (empty($urls)) {
+                    continue;
+                }
+
+                $appRules = $rulesByApp->get($impact->app_name) ?? collect();
+                $rule = $appRules->firstWhere('page_type', $pageType)
+                    ?? $appRules->firstWhere('page_type', ScriptPageRule::DEFAULT_PAGE_TYPE);
+
+                if ($rule) {
+                    $managedGroups[] = ['urls' => $urls, 'trigger' => $rule->trigger, 'delaySeconds' => $rule->delay_seconds];
+                } elseif (! empty(array_intersect($urls, $legacyUrls))) {
+                    $legacyTargetUrls = [...$legacyTargetUrls, ...$urls];
+                }
+            }
+        } else {
+            $legacyTargetUrls = $legacyUrls;
         }
 
-        return $this->jsResponse(ScriptImpactActionService::interceptorEngineJs(
-            $urls,
-            $shop->interceptor_delay_ms,
-            $shop->interceptor_trigger,
-        ));
+        $scripts = [];
+
+        if (! empty($managedGroups)) {
+            $scripts[] = ScriptImpactActionService::interceptorEngineJsGrouped($managedGroups);
+        }
+
+        if (! empty($legacyTargetUrls)) {
+            $scripts[] = ScriptImpactActionService::interceptorEngineJs(
+                array_values(array_unique($legacyTargetUrls)),
+                $shop->interceptor_delay_ms,
+                $shop->interceptor_trigger,
+            );
+        }
+
+        if (empty($scripts)) {
+            return $this->jsResponse("console.log('[SpeedPilot] tag loaded, shop active, but no apps currently targeted - no-op');");
+        }
+
+        return $this->jsResponse(implode("\n", $scripts));
+    }
+
+    /**
+     * Shopify's `request.page_type` Liquid values (index/article/blog/...)
+     * mapped onto this app's own vocabulary (home/product/collection/cart/
+     * search/blog/custom) - the same values PageDiscoveryService assigns
+     * when scanning, so a merchant setting a "collection pages" rule in
+     * Smart Script Manager matches what they see everywhere else in the app.
+     */
+    private function resolvePageType(?string $shopifyPageType): string
+    {
+        return match ($shopifyPageType) {
+            'index' => 'home',
+            'product' => 'product',
+            'collection' => 'collection',
+            'cart' => 'cart',
+            'search' => 'search',
+            'article', 'blog' => 'blog',
+            default => 'custom',
+        };
     }
 
     private function jsResponse(string $body): Response

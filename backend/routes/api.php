@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\MediumFixController;
 use App\Http\Controllers\Api\MonitoringController;
 use App\Http\Controllers\Api\OptimizationController;
 use App\Http\Controllers\Api\RumEventController;
+use App\Http\Controllers\Api\ScriptManagerController;
 use App\Http\Controllers\Api\ShopSettingsController;
 use Illuminate\Support\Facades\Route;
 
@@ -27,6 +28,7 @@ Route::middleware('shopify.session')->group(function () {
     Route::post('/audit-issues/{id}/safe-fix/apply', [AuditController::class, 'applySingleSafeFix']);
     Route::get('/audit-issues/{id}/recommendation', [AiRecommendationController::class, 'show']);
     Route::get('/audits/{id}/priority-plan', [AiRecommendationController::class, 'prioritize']);
+    Route::post('/audits/{id}/ask', [AiRecommendationController::class, 'ask']);
     Route::post('/audit-issues/{id}/medium-fix/preview', [MediumFixController::class, 'preview']);
     Route::post('/audit-issues/{id}/medium-fix/apply', [MediumFixController::class, 'apply']);
     Route::get('/audit-issues/{id}/fix-code', [FixCodeController::class, 'forIssue']);
@@ -40,6 +42,10 @@ Route::middleware('shopify.session')->group(function () {
     Route::get('/advanced-delay/fix-code', [FixCodeController::class, 'forAdvancedDelay']);
     Route::post('/advanced-delay/install', [AppImpactController::class, 'installInterceptorTag']);
 
+    Route::get('/script-manager', [ScriptManagerController::class, 'index']);
+    Route::put('/script-manager', [ScriptManagerController::class, 'upsert']);
+    Route::delete('/script-manager/{id}', [ScriptManagerController::class, 'destroy']);
+
     Route::get('/optimizations', [OptimizationController::class, 'index']);
     Route::post('/optimizations/{id}/rollback', [OptimizationController::class, 'rollback']);
     Route::post('/optimizations/{id}/reapply', [OptimizationController::class, 'reapply']);
@@ -49,6 +55,7 @@ Route::middleware('shopify.session')->group(function () {
     Route::get('/monitoring/health', [MonitoringController::class, 'health']);
     Route::get('/monitoring/weekly-rollup', [MonitoringController::class, 'weeklyRollup']);
     Route::get('/monitoring/page-trend', [MonitoringController::class, 'pageTrend']);
+    Route::get('/monitoring/timeline', [MonitoringController::class, 'timeline']);
     Route::get('/monitoring/report', [MonitoringController::class, 'report']);
     Route::get('/rum-events/summary', [RumEventController::class, 'summary']);
 

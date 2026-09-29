@@ -20,4 +20,9 @@ class AiRecommendationService
     {
         return $this->provider->prioritize($audit);
     }
+
+    public function ask(Audit $audit, string $question): string
+    {
+        return $this->provider->ask($audit, $question);
+    }
 }

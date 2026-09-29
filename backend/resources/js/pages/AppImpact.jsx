@@ -1,8 +1,17 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Badge, Banner, BlockStack, Button, ButtonGroup, Card, InlineStack, Page, SkeletonBodyText, Text, Toast } from '@shopify/polaris';
+import { Badge, Banner, BlockStack, Button, ButtonGroup, Card, InlineStack, Page, Select, SkeletonBodyText, Text, TextField, Toast } from '@shopify/polaris';
 import { api } from '../api';
 import FixCodeViewer from '../components/FixCodeViewer';
 import ThemeAccessStatus from '../components/ThemeAccessStatus';
+
+const PAGE_TYPE_LABEL = {
+    home: 'Homepage', product: 'Product pages', collection: 'Collection pages',
+    cart: 'Cart', search: 'Search', blog: 'Blog articles', custom: 'Custom pages', default: 'All pages (default)',
+};
+const TRIGGER_LABEL = {
+    never: 'Off on this page', immediate: 'Load immediately', interaction: 'After interaction (scroll/click)',
+    timeout: 'After N seconds', scroll: 'After scroll',
+};
 
 const IMPACT_TONE = { high: 'critical', medium: 'warning', low: 'success' };
 const STATUS_TONE = { active: 'success', disabled: 'critical', delayed: 'warning', excluded: 'new' };
@@ -143,7 +152,84 @@ function ProjectRemovalButton({ impact }) {
     );
 }
 
-function ImpactRow({ impact, pending, onSetStatus }) {
+/**
+ * Smart Script Manager for one app: "Chat widget on product pages -> off,
+ * collection -> after scroll" - additive to the blunt global Disable/Delay
+ * buttons above. Rules for this app_name are resolved server-side against
+ * whichever page a shopper is actually on (InterceptorController::serve()),
+ * not applied here - this panel only edits the rule rows.
+ */
+function ScriptPageRulesPanel({ appName, manager, onChange }) {
+    const [pageType, setPageType] = useState('default');
+    const [trigger, setTrigger] = useState('interaction');
+    const [delaySeconds, setDelaySeconds] = useState('5');
+    const [saving, setSaving] = useState(false);
+
+    const rules = (manager?.rules ?? []).filter((r) => r.app_name === appName);
+    const pageTypeOptions = (manager?.page_types ?? []).concat(manager?.default_page_type ? [manager.default_page_type] : [])
+        .map((pt) => ({ label: PAGE_TYPE_LABEL[pt] ?? pt, value: pt }));
+    const triggerOptions = (manager?.triggers ?? []).map((t) => ({ label: TRIGGER_LABEL[t] ?? t, value: t }));
+
+    async function addRule() {
+        setSaving(true);
+        try {
+            await api.put('/script-manager', {
+                app_name: appName,
+                page_type: pageType,
+                trigger,
+                delay_seconds: ['timeout', 'scroll'].includes(trigger) ? Number(delaySeconds) || 5 : null,
+            });
+            await onChange();
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    async function removeRule(id) {
+        setSaving(true);
+        try {
+            await api.delete(`/script-manager/${id}`);
+            await onChange();
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    return (
+        <BlockStack gap="200">
+            {rules.length > 0 && (
+                <BlockStack gap="100">
+                    {rules.map((r) => (
+                        <InlineStack key={r.id} gap="200" blockAlign="center">
+                            <Text as="span" fontWeight="medium">{PAGE_TYPE_LABEL[r.page_type] ?? r.page_type}:</Text>
+                            <Text as="span" tone="subdued">
+                                {TRIGGER_LABEL[r.trigger] ?? r.trigger}{r.delay_seconds ? ` (${r.delay_seconds}s)` : ''}
+                            </Text>
+                            <Button size="micro" variant="plain" tone="critical" loading={saving} onClick={() => removeRule(r.id)}>Remove</Button>
+                        </InlineStack>
+                    ))}
+                </BlockStack>
+            )}
+            <InlineStack gap="200" blockAlign="end" wrap>
+                <div style={{ minWidth: '170px' }}>
+                    <Select label="Page" options={pageTypeOptions} value={pageType} onChange={setPageType} />
+                </div>
+                <div style={{ minWidth: '210px' }}>
+                    <Select label="Behavior" options={triggerOptions} value={trigger} onChange={setTrigger} />
+                </div>
+                {['timeout', 'scroll'].includes(trigger) && (
+                    <div style={{ width: '90px' }}>
+                        <TextField label="Seconds" type="number" value={delaySeconds} onChange={setDelaySeconds} autoComplete="off" />
+                    </div>
+                )}
+                <Button size="slim" loading={saving} onClick={addRule}>Save rule</Button>
+            </InlineStack>
+        </BlockStack>
+    );
+}
+
+function ImpactRow({ impact, pending, onSetStatus, scriptManager, onScriptManagerChange }) {
+    const [rulesOpen, setRulesOpen] = useState(false);
     // Shopify's own platform scripts (Shop Pay, checkout, core analytics)
     // are injected by Shopify itself, never present as literal text in the
     // theme's own files - no app, including this one, can disable, delay,
@@ -206,7 +292,13 @@ function ImpactRow({ impact, pending, onSetStatus }) {
                         label="Manual fix - view code to delay"
                     />
                     <ProjectRemovalButton impact={impact} />
+                    <Button size="micro" variant="plain" onClick={() => setRulesOpen((v) => !v)}>
+                        {rulesOpen ? 'Hide page rules' : 'Manage page rules'}
+                    </Button>
                 </InlineStack>
+            )}
+            {!impact.is_platform && rulesOpen && (
+                <ScriptPageRulesPanel appName={impact.app_name} manager={scriptManager} onChange={onScriptManagerChange} />
             )}
         </BlockStack>
     );
@@ -258,6 +350,7 @@ export default function AppImpact() {
     const [loading, setLoading] = useState(true);
     const [pendingId, setPendingId] = useState(null);
     const [notice, setNotice] = useState(null);
+    const [scriptManager, setScriptManager] = useState(null);
 
     const load = useCallback(() => {
         setLoading(true);
@@ -266,7 +359,12 @@ export default function AppImpact() {
             .finally(() => setLoading(false));
     }, []);
 
+    const loadScriptManager = useCallback(() => (
+        api.get('/script-manager').then(setScriptManager)
+    ), []);
+
     useEffect(() => { load(); }, [load]);
+    useEffect(() => { loadScriptManager(); }, [loadScriptManager]);
 
     async function setStatus(impact, actionKey) {
         if (ACTION_CONFIRM[actionKey] && !window.confirm(ACTION_CONFIRM[actionKey](impact.app_name))) {
@@ -354,7 +452,13 @@ export default function AppImpact() {
                             {appImpacts.map((impact, i) => (
                                 <React.Fragment key={impact.id}>
                                     {i > 0 && <div style={{ borderTop: '1px solid var(--p-color-border-secondary)' }} />}
-                                    <ImpactRow impact={impact} pending={pendingId === impact.id} onSetStatus={setStatus} />
+                                    <ImpactRow
+                                        impact={impact}
+                                        pending={pendingId === impact.id}
+                                        onSetStatus={setStatus}
+                                        scriptManager={scriptManager}
+                                        onScriptManagerChange={loadScriptManager}
+                                    />
                                 </React.Fragment>
                             ))}
                         </BlockStack>

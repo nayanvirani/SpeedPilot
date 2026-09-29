@@ -156,6 +156,11 @@ class ShopInstallation extends Model
         return $this->hasMany(ContentStopTarget::class);
     }
 
+    public function scriptPageRules(): HasMany
+    {
+        return $this->hasMany(ScriptPageRule::class);
+    }
+
     public function subscriptions(): HasMany
     {
         return $this->hasMany(Subscription::class, 'shop_installation_id');

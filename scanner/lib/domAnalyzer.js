@@ -19,6 +19,9 @@ function issuesFromLighthouse(lhr) {
   issues.push(...domIssues(audits));
   issues.push(...clsIssues(audits));
   issues.push(...fontIssues(audits));
+  issues.push(...imageAltIssues(audits));
+  issues.push(...hugeGifIssues(audits));
+  issues.push(...duplicateAssetIssues(audits));
 
   return issues;
 }
@@ -354,6 +357,124 @@ function fontIssues(audits) {
   }
 
   return issues;
+}
+
+/**
+ * Image Health Center: missing ALT text. Lighthouse's own 'image-alt'
+ * audit (accessibility category, enabled in lighthouseRunner.js
+ * specifically for this) - not auto-fixable, since a real alt description
+ * needs to describe what's actually in the image, not a guessed default;
+ * same reasoning that scoped AI-generated alt text out as its own future
+ * feature rather than bolting a vision-model call onto this sweep.
+ */
+function imageAltIssues(audits) {
+  const missingAlt = audits['image-alt'];
+
+  return (missingAlt?.details?.items ?? []).map((item) => ({
+    category: 'image',
+    severity: 'medium',
+    title: `Missing alt text: ${shortUrl(item.node?.snippet ?? item.url ?? 'an image')}`,
+    description: 'This image has no alt attribute. Add a short, specific description of '
+      + "what's in the image via the theme editor or product/media settings - this can't "
+      + 'be auto-generated safely without knowing what the image actually shows.',
+    why: 'Alt text is what screen readers announce in place of the image, and what search '
+      + "engines use to understand it - without it, both are guessing.",
+    riskTier: 'medium',
+    fixAvailable: false,
+    meta: {},
+  }));
+}
+
+/**
+ * Image Health Center: oversized GIFs. Lighthouse has no dedicated audit for
+ * this, so it's read straight from network-requests (already captured
+ * regardless of onlyCategories - see totalRequestCount() in server.js for
+ * the same pattern) rather than a new Lighthouse audit category.
+ */
+function hugeGifIssues(audits) {
+  const HUGE_GIF_BYTES = 1_000_000;
+  const items = audits['network-requests']?.details?.items ?? [];
+
+  return items
+    .filter((item) => (item.mimeType ?? '').includes('gif') && (item.transferSize ?? 0) > HUGE_GIF_BYTES)
+    .map((item) => ({
+      category: 'image',
+      severity: (item.transferSize ?? 0) > 3_000_000 ? 'high' : 'medium',
+      title: `Large GIF: ${shortUrl(item.url)}`,
+      description: `${Math.round((item.transferSize ?? 0) / 1024 / 1024 * 10) / 10}MB animated GIF. `
+        + 'Convert to an MP4/WebM video or a lightweight looping video embed - the same '
+        + 'animation typically costs a fraction of the bytes.',
+      why: 'Animated GIFs are a very inefficient format for video-like content - every frame '
+        + 'is stored with none of the compression a real video codec would use.',
+      riskTier: 'medium',
+      fixAvailable: false,
+      meta: { evidence: { size_bytes: item.transferSize ?? null } },
+    }));
+}
+
+/**
+ * Theme Performance Analyzer: duplicate assets - the same library (jQuery,
+ * Slick, a carousel lib) shipped more than once under different URLs,
+ * usually because two apps each bundle their own copy. Detected by
+ * filename (with hashes/versions stripped) repeating across distinct URLs -
+ * a heuristic, not a byte-for-byte match (network-requests carries no
+ * content hash), so this is deliberately labeled "possible duplicate."
+ */
+function duplicateAssetIssues(audits) {
+  const items = (audits['network-requests']?.details?.items ?? [])
+    .filter((item) => /\.(js|css)(\?|$)/i.test(item.url ?? '') && (item.resourceType === 'Script' || item.resourceType === 'Stylesheet'));
+
+  const byBasename = new Map();
+  for (const item of items) {
+    const basename = normalizedBasename(item.url);
+    if (!basename) continue;
+    if (!byBasename.has(basename)) byBasename.set(basename, []);
+    byBasename.get(basename).push(item);
+  }
+
+  const issues = [];
+  for (const [basename, group] of byBasename) {
+    const distinctUrls = [...new Set(group.map((g) => g.url))];
+    if (distinctUrls.length < 2) continue;
+
+    const totalBytes = group.reduce((sum, g) => sum + (g.transferSize ?? 0), 0);
+    issues.push({
+      category: 'theme',
+      severity: totalBytes > 100_000 ? 'high' : 'medium',
+      title: `Possible duplicate asset: ${basename}`,
+      description: `${distinctUrls.length} different files all named "${basename}" were loaded on `
+        + 'this page - likely the same library bundled separately by more than one app or theme '
+        + 'section. Review whether all copies are actually needed.',
+      why: 'Shoppers download and parse the same code more than once, with no benefit over '
+        + 'loading it a single time.',
+      riskTier: 'high',
+      fixAvailable: false,
+      meta: { evidence: { urls: distinctUrls, total_bytes: totalBytes } },
+    });
+  }
+
+  return issues;
+}
+
+/**
+ * Strips hashes/version numbers/query strings from a URL's filename so
+ * "jquery.min.js?v=3.6.0" and "jquery-3.6.1.a1b2c3.min.js" both normalize
+ * to a comparable "jquery.min.js" - imperfect, but catches the common
+ * "two apps both bundle jQuery" case without needing real content hashing.
+ */
+function normalizedBasename(url) {
+  try {
+    const path = new URL(url).pathname;
+    const last = path.split('/').filter(Boolean).pop();
+    if (!last) return null;
+
+    return last
+      .replace(/[.-][a-f0-9]{6,}(?=\.[a-z]+$)/i, '')
+      .replace(/[.-]v?\d+(\.\d+)*(?=\.[a-z]+$)/i, '')
+      .toLowerCase();
+  } catch {
+    return null;
+  }
 }
 
 /**

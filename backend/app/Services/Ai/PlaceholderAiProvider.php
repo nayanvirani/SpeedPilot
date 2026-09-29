@@ -40,6 +40,29 @@ class PlaceholderAiProvider implements AiProviderInterface
         return "Recommended order, highest-impact and easiest wins first:\n".$lines->implode("\n");
     }
 
+    public function ask(Audit $audit, string $question): string
+    {
+        $issues = $audit->issues()->get();
+
+        if ($issues->isEmpty()) {
+            return "This scan found no issues, so there's nothing specific to point to for that - the store's "
+                .'in good shape on this audit.';
+        }
+
+        $topByCategory = $issues
+            ->sortByDesc(fn (AuditIssue $i) => self::SEVERITY_WEIGHT[$i->severity] ?? 0)
+            ->groupBy('category')
+            ->map(fn ($group) => $group->first())
+            ->values()
+            ->take(3);
+
+        $lines = $topByCategory->map(fn (AuditIssue $i) => "- {$i->title} ({$i->severity} severity)");
+
+        return "A real AI answer needs an API key configured - here's what this scan's own data shows "
+            ."that's most likely relevant:\n".$lines->implode("\n")
+            ."\nCheck the issues list below for full detail on each.";
+    }
+
     public function recommend(AuditIssue $issue): string
     {
         return match ($issue->category) {

@@ -23,6 +23,8 @@ class RumEventController extends Controller
             'lcp' => 'nullable|numeric',
             'inp' => 'nullable|numeric',
             'cls' => 'nullable|numeric',
+            'device_type' => 'nullable|string|in:mobile,desktop',
+            'browser' => 'nullable|string|max:32',
         ]);
 
         $shop = ShopInstallation::where('shop_domain', $data['shop_domain'])
@@ -38,6 +40,8 @@ class RumEventController extends Controller
             'lcp' => $data['lcp'] ?? null,
             'inp' => $data['inp'] ?? null,
             'cls' => $data['cls'] ?? null,
+            'device_type' => $data['device_type'] ?? null,
+            'browser' => $data['browser'] ?? null,
             'recorded_at' => now(),
         ]);
 
@@ -68,12 +72,41 @@ class RumEventController extends Controller
             ')
             ->first();
 
+        $byDevice = DB::table('rum_events')
+            ->where('shop_installation_id', $shop->id)
+            ->where('recorded_at', '>=', $since)
+            ->whereNotNull('device_type')
+            ->selectRaw('device_type, percentile_cont(0.75) within group (order by lcp) as p75_lcp, count(*) as sample_count')
+            ->groupBy('device_type')
+            ->get()
+            ->map(fn ($row) => [
+                'device_type' => $row->device_type,
+                'p75_lcp' => $row->p75_lcp !== null ? (float) $row->p75_lcp : null,
+                'sample_count' => (int) $row->sample_count,
+            ]);
+
+        $byBrowser = DB::table('rum_events')
+            ->where('shop_installation_id', $shop->id)
+            ->where('recorded_at', '>=', $since)
+            ->whereNotNull('browser')
+            ->selectRaw('browser, percentile_cont(0.75) within group (order by lcp) as p75_lcp, count(*) as sample_count')
+            ->groupBy('browser')
+            ->orderByDesc('sample_count')
+            ->get()
+            ->map(fn ($row) => [
+                'browser' => $row->browser,
+                'p75_lcp' => $row->p75_lcp !== null ? (float) $row->p75_lcp : null,
+                'sample_count' => (int) $row->sample_count,
+            ]);
+
         return response()->json([
             'window_days' => 28,
             'sample_count' => (int) ($percentiles->sample_count ?? 0),
             'p75_lcp' => $percentiles->p75_lcp !== null ? (float) $percentiles->p75_lcp : null,
             'p75_inp' => $percentiles->p75_inp !== null ? (float) $percentiles->p75_inp : null,
             'p75_cls' => $percentiles->p75_cls !== null ? (float) $percentiles->p75_cls : null,
+            'by_device' => $byDevice,
+            'by_browser' => $byBrowser,
         ]);
     }
 }

@@ -200,7 +200,14 @@ class ScriptImpactActionService
      */
     public static function interceptorManualSnippet(): string
     {
-        $url = rtrim(config('app.url'), '/').'/storefront/interceptor.js?shop={{ shop.permanent_domain | url_encode }}';
+        // `request.page_type` is resolved by Shopify's own Liquid renderer at
+        // request time (server-side, same as shop.permanent_domain above) -
+        // this is what lets InterceptorController build Smart Script
+        // Manager's per-page-type rules without any client-side page-type
+        // detection or theme JS changes.
+        $url = rtrim(config('app.url'), '/')
+            .'/storefront/interceptor.js?shop={{ shop.permanent_domain | url_encode }}'
+            .'&page_type={{ request.page_type }}';
 
         return '<script src="'.$url.'" fetchpriority="high"></script>';
     }
@@ -760,6 +767,157 @@ JS;
         }
 
         return $host;
+    }
+
+    /**
+     * Smart Script Manager: the same interception mechanism as
+     * interceptorEngineJs() below, generalized to several independent
+     * groups instead of one uniform domain list + trigger - each app can
+     * have its own trigger (or 'never', for "off on this page entirely")
+     * without needing a separate <script> tag per app. Kept as a distinct
+     * method rather than folding into interceptorEngineJs() itself - the
+     * single-group engine stays the simple, well-tested path for shops that
+     * never touch Smart Script Manager at all.
+     *
+     * @param  array<int, array{urls: array<int, string>, trigger: string, delaySeconds: ?int}>  $groups
+     */
+    public static function interceptorEngineJsGrouped(array $groups): string
+    {
+        $jsGroups = collect($groups)
+            ->map(function (array $g) {
+                $domains = collect($g['urls'])
+                    ->map(fn (string $url) => self::matchUnitFor($url))
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                if (empty($domains)) {
+                    return null;
+                }
+
+                return [
+                    'domains' => $domains,
+                    'trigger' => $g['trigger'],
+                    'delayMs' => (int) (($g['delaySeconds'] ?? 5) * 1000),
+                ];
+            })
+            ->filter()
+            ->values();
+
+        if ($jsGroups->isEmpty()) {
+            return "console.log('[SpeedPilot] Smart Script Manager active, but no groups resolved to a real domain on this page - no-op');";
+        }
+
+        $groupsJson = $jsGroups->toJson(JSON_UNESCAPED_SLASHES);
+
+        return <<<JS
+            (function () {
+              try {
+                var GROUPS = {$groupsJson};
+                var STAGGER_MS = 60;
+                GROUPS.forEach(function (g) { g.released = false; g.pending = []; });
+                console.log('[SpeedPilot] Smart Script Manager active, ' + GROUPS.length + ' group(s)');
+                function parsedUrl(url) {
+                  try { return new URL(url, location.href); } catch (e) { return null; }
+                }
+                function matchGroupIndex(url) {
+                  var parsed = parsedUrl(url);
+                  if (!parsed) return -1;
+                  var host = parsed.hostname;
+                  for (var i = 0; i < GROUPS.length; i++) {
+                    var domains = GROUPS[i].domains;
+                    for (var j = 0; j < domains.length; j++) {
+                      var d = domains[j];
+                      var slash = d.indexOf('/');
+                      var isMatch = slash === -1
+                        ? (host === d || host.slice(-(d.length + 1)) === '.' + d)
+                        : (host === d.slice(0, slash) && parsed.pathname.indexOf(d.slice(slash)) === 0);
+                      if (isMatch) return i;
+                    }
+                  }
+                  return -1;
+                }
+                function restoreClone(node) {
+                  var clone = document.createElement(node.tagName);
+                  for (var i = 0; i < node.attributes.length; i++) clone.setAttribute(node.attributes[i].name, node.attributes[i].value);
+                  return clone;
+                }
+                function releaseOne(item) {
+                  var clone = restoreClone(item.node);
+                  if (item.next && item.next.parentNode === item.parent) {
+                    item.parent.insertBefore(clone, item.next);
+                  } else if (item.parent && item.parent.isConnected) {
+                    item.parent.appendChild(clone);
+                  } else {
+                    document.head.appendChild(clone);
+                  }
+                }
+                function release(idx, reason) {
+                  var g = GROUPS[idx];
+                  if (g.released) return;
+                  g.released = true;
+                  var toRelease = g.pending;
+                  g.pending = [];
+                  console.log('[SpeedPilot] releasing group ' + idx + ', ' + toRelease.length + ' item(s), trigger: ' + reason);
+                  toRelease.forEach(function (item, i) {
+                    setTimeout(function () { releaseOne(item); }, i * STAGGER_MS);
+                  });
+                }
+                function targetUrl(node) {
+                  if (node.tagName === 'SCRIPT' || node.tagName === 'IFRAME' || node.tagName === 'IMG') return node.src;
+                  if (node.tagName === 'LINK' && node.rel === 'stylesheet') return node.href;
+                  return null;
+                }
+                function handle(node) {
+                  if (!node || !node.tagName || !node.parentNode) return;
+                  var url = targetUrl(node);
+                  var idx = matchGroupIndex(url);
+                  if (idx === -1) return;
+                  var g = GROUPS[idx];
+                  if (g.released) return;
+                  if (g.pending.some(function (p) { return p.node === node; })) return;
+                  console.log('[SpeedPilot] intercepted into group ' + idx + ':', url);
+                  var parent = node.parentNode, next = node.nextSibling;
+                  node.remove();
+                  g.pending.push({ node: node, parent: parent, next: next });
+                }
+                GROUPS.forEach(function (g, idx) {
+                  if (g.trigger === 'never') return;
+                  if (g.trigger === 'immediate') { release(idx, 'immediate'); return; }
+                  if (g.trigger === 'timeout') {
+                    setTimeout(function () { release(idx, 'timeout'); }, g.delayMs);
+                    return;
+                  }
+                  if (g.trigger === 'scroll') {
+                    window.addEventListener('scroll', function () { release(idx, 'scroll'); }, { once: true, passive: true });
+                    setTimeout(function () { release(idx, 'fallback'); }, Math.max(g.delayMs, 20000));
+                    return;
+                  }
+                  ['mousemove', 'scroll', 'touchstart', 'keydown'].forEach(function (evt) {
+                    window.addEventListener(evt, function () { release(idx, evt); }, { once: true, passive: true });
+                  });
+                  setTimeout(function () { release(idx, 'timeout'); }, g.delayMs);
+                });
+                new MutationObserver(function (mutations) {
+                  mutations.forEach(function (m) {
+                    if (m.type === 'childList') {
+                      (m.addedNodes || []).forEach(handle);
+                    } else if (m.type === 'attributes') {
+                      handle(m.target);
+                    }
+                  });
+                }).observe(document.documentElement, {
+                  childList: true,
+                  subtree: true,
+                  attributes: true,
+                  attributeFilter: ['src', 'href'],
+                });
+              } catch (e) {
+                console.error('[SpeedPilot] Smart Script Manager engine error (safely caught, rest of the page is unaffected):', e);
+              }
+            })();
+            JS;
     }
 
     public static function interceptorEngineJs(array $urls, int $delayMs = 5000, string $trigger = 'interaction'): string

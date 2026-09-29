@@ -250,6 +250,47 @@ function formatDollars(value) {
  * overall", positive runs offsetting negative ones honestly rather than
  * only ever showing improvements.
  */
+// "Sep 29: New review app installed -> INP +180ms" - a chronological log
+// merging applied/reverted optimizations with monitoring runs worth calling
+// out, built server-side from rows this app already persists (no new event
+// log table - see MonitoringController::timeline()).
+function ChangeTimeline() {
+    const [timeline, setTimeline] = useState(null);
+
+    useEffect(() => {
+        api.get('/monitoring/timeline').then((res) => setTimeline(res.timeline)).catch(() => setTimeline([]));
+    }, []);
+
+    if (!timeline || timeline.length === 0) {
+        return null;
+    }
+
+    return (
+        <Card>
+            <BlockStack gap="300">
+                <Text as="h2" variant="headingSm">Performance change timeline</Text>
+                <BlockStack gap="250">
+                    {timeline.map((event, i) => (
+                        <InlineStack key={i} gap="300" blockAlign="start" wrap={false}>
+                            <div style={{ minWidth: '90px' }}>
+                                <Text as="span" tone="subdued">
+                                    {new Date(event.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                </Text>
+                            </div>
+                            <BlockStack gap="050">
+                                <InlineStack gap="150" blockAlign="center">
+                                    <Text as="span" fontWeight="medium">{event.title}</Text>
+                                </InlineStack>
+                                {event.detail && <Text as="span" tone="subdued">{event.detail}</Text>}
+                            </BlockStack>
+                        </InlineStack>
+                    ))}
+                </BlockStack>
+            </BlockStack>
+        </Card>
+    );
+}
+
 function RoiLedger({ runs }) {
     const withImpact = runs.filter((r) => r.revenue_impact && Math.abs(r.revenue_impact.conversion_change_pct) >= 0.1);
 
@@ -314,6 +355,30 @@ function RealVisitorData() {
                         <RumStat metric="cls" label="CLS (p75)" value={summary.p75_cls} />
                     </div>
                 )}
+                {summary.by_device?.length > 0 && (
+                    <BlockStack gap="150">
+                        <Text as="h3" variant="headingXs">LCP by device</Text>
+                        {summary.by_device.map((d) => (
+                            <InlineStack key={d.device_type} align="space-between">
+                                <Text as="span" tone="subdued">
+                                    {d.device_type === 'mobile' ? 'Mobile' : 'Desktop'} ({d.sample_count})
+                                </Text>
+                                <Text as="span">{d.p75_lcp !== null ? `${d.p75_lcp.toFixed(1)}s` : '—'}</Text>
+                            </InlineStack>
+                        ))}
+                    </BlockStack>
+                )}
+                {summary.by_browser?.length > 0 && (
+                    <BlockStack gap="150">
+                        <Text as="h3" variant="headingXs">LCP by browser</Text>
+                        {summary.by_browser.map((b) => (
+                            <InlineStack key={b.browser} align="space-between">
+                                <Text as="span" tone="subdued">{b.browser} ({b.sample_count})</Text>
+                                <Text as="span">{b.p75_lcp !== null ? `${b.p75_lcp.toFixed(1)}s` : '—'}</Text>
+                            </InlineStack>
+                        ))}
+                    </BlockStack>
+                )}
             </BlockStack>
         </Card>
     );
@@ -371,6 +436,7 @@ export default function Monitoring() {
                     </Card>
                 )}
                 <WhatChanged diff={runs[runs.length - 1]?.diff_summary} />
+                <ChangeTimeline />
                 <RoiLedger runs={runs} />
                 <PageTypeTrends />
                 <MonthlyReport />

@@ -39,6 +39,23 @@
     metrics.inp = maxInteractionDelay;
   });
 
+  // No extra request, no extra library - just a plain read of navigator.userAgent
+  // already present in every browser, for the device/browser breakdown the
+  // Performance by Device / RUM summary views need.
+  function deviceType() {
+    return /Mobi|Android/i.test(navigator.userAgent) ? 'mobile' : 'desktop';
+  }
+
+  function browserName() {
+    var ua = navigator.userAgent;
+    if (/Edg\//.test(ua)) return 'Edge';
+    if (/OPR\//.test(ua)) return 'Opera';
+    if (/Chrome\//.test(ua)) return 'Chrome';
+    if (/Firefox\//.test(ua)) return 'Firefox';
+    if (/Safari\//.test(ua)) return 'Safari';
+    return 'Other';
+  }
+
   function send() {
     if (metrics.lcp === null && metrics.cls === null && metrics.inp === null) return;
 
@@ -48,6 +65,8 @@
       lcp: metrics.lcp ? metrics.lcp / 1000 : null,
       inp: metrics.inp,
       cls: metrics.cls,
+      device_type: deviceType(),
+      browser: browserName(),
     });
 
     var url = (config.backendUrl || '') + '/api/rum-events';

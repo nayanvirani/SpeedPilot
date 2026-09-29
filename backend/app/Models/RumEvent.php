@@ -13,6 +13,8 @@ class RumEvent extends Model
     protected $fillable = [
         'shop_installation_id',
         'page_url',
+        'device_type',
+        'browser',
         'lcp',
         'inp',
         'cls',
