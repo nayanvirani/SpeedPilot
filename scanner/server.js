@@ -1,6 +1,7 @@
 'use strict';
 
 const express = require('express');
+const v8 = require('v8');
 const { runLighthouse } = require('./lib/lighthouseRunner');
 const { issuesFromLighthouse } = require('./lib/domAnalyzer');
 const { thirdPartyImpacts } = require('./lib/thirdPartyAnalyzer');
@@ -30,11 +31,19 @@ const PORT = process.env.PORT || 4000;
  * instead.
  */
 const MAX_SCANS_BEFORE_RECYCLE = 15;
-// Conservative on purpose - the actual container memory limit isn't known
-// precisely, and the confirmed failure was Node's own V8 heap running out,
-// not a generic container OOM-kill, so this needs real margin under
-// whatever that ceiling turns out to be rather than cutting it close.
-const MEMORY_RSS_LIMIT_MB = 500;
+
+// Checked against V8's own configured heap ceiling, not a guessed absolute
+// RSS number - a first attempt using a fixed 500MB RSS threshold was live-
+// verified WRONG: a single normal scan alone peaks at 576-792MB RSS (most
+// of that is Chromium/Lighthouse working memory, not a leak), so that
+// threshold tripped after literally every scan instead of only after real
+// accumulation - confirmed live, it made the restart-storm worse, not
+// better. The actual crash was V8's own heap allocator giving up
+// ("FATAL ERROR: ... JavaScript heap out of memory"), so checking usage
+// against V8's real limit self-calibrates to whatever this container
+// actually provides, instead of a number guessed from one sample.
+const HEAP_LIMIT_BYTES = v8.getHeapStatistics().heap_size_limit;
+const HEAP_RECYCLE_RATIO = 0.85;
 
 let scanCount = 0;
 let recycling = false;
@@ -77,14 +86,20 @@ app.post('/scan', async (req, res) => {
 
 function maybeRecycle() {
   scanCount++;
-  const rssMb = process.memoryUsage().rss / 1024 / 1024;
+  const mem = process.memoryUsage();
+  const heapRatio = mem.heapUsed / HEAP_LIMIT_BYTES;
 
-  if (scanCount < MAX_SCANS_BEFORE_RECYCLE && rssMb < MEMORY_RSS_LIMIT_MB) {
+  if (scanCount < MAX_SCANS_BEFORE_RECYCLE && heapRatio < HEAP_RECYCLE_RATIO) {
     return;
   }
 
   recycling = true;
-  console.log(`[scanner] recycling after ${scanCount} scan(s), ${rssMb.toFixed(0)}MB RSS`);
+  console.log(
+    `[scanner] recycling after ${scanCount} scan(s) - `
+      + `heapUsed ${(mem.heapUsed / 1024 / 1024).toFixed(0)}MB / `
+      + `${(HEAP_LIMIT_BYTES / 1024 / 1024).toFixed(0)}MB limit `
+      + `(${(heapRatio * 100).toFixed(0)}%), rss ${(mem.rss / 1024 / 1024).toFixed(0)}MB`,
+  );
 
   // The response for this request has already been sent above - this
   // delay is just headroom for Node to actually flush it to the socket
