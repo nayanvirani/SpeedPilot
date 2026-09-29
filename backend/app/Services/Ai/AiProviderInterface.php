@@ -15,11 +15,4 @@ interface AiProviderInterface
      * recommendation, a scan-wide plan.
      */
     public function prioritize(Audit $audit): string;
-
-    /**
-     * Free-form "why is my product page slow" Q&A grounded in this scan's
-     * real data (issues, app impacts, category scores) - the conversational
-     * counterpart to prioritize()'s fixed plan.
-     */
-    public function ask(Audit $audit, string $question): string;
 }

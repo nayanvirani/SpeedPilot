@@ -42,22 +42,4 @@ class AiRecommendationController extends Controller
 
         return response()->json(['plan' => $ai->prioritize($audit)]);
     }
-
-    public function ask(Request $request, int $auditId, AiRecommendationService $ai)
-    {
-        /** @var ShopInstallation $shop */
-        $shop = $request->attributes->get('shop');
-
-        if (! (new PlanPolicy($shop))->hasAiRecommendations()) {
-            return response()->json(['error' => 'AI recommendations are not available on this plan'], 403);
-        }
-
-        $data = $request->validate([
-            'question' => 'required|string|max:500',
-        ]);
-
-        $audit = Audit::where('shop_installation_id', $shop->id)->findOrFail($auditId);
-
-        return response()->json(['answer' => $ai->ask($audit, $data['question'])]);
-    }
 }

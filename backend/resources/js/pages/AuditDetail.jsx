@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Badge, Banner, BlockStack, Button, Card, InlineStack, Page, Select, SkeletonBodyText, Text, TextField } from '@shopify/polaris';
+import { Badge, Banner, BlockStack, Button, Card, InlineStack, Page, Select, SkeletonBodyText, Text } from '@shopify/polaris';
 import { api } from '../api';
 import CategoryScores from '../components/CategoryScores';
 import FixCodeViewer from '../components/FixCodeViewer';
@@ -346,59 +346,6 @@ function PriorityPlan({ auditId }) {
     );
 }
 
-// "Ask Performance AI" - a free-form question grounded in this scan's own
-// data (AnthropicAiProvider::ask() builds the prompt from the same issues/
-// app-impacts/category-scores already on this page), the conversational
-// counterpart to PriorityPlan's fixed 5-item list above.
-function AiAssistant({ auditId }) {
-    const [question, setQuestion] = useState('');
-    const [answer, setAnswer] = useState(null);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
-
-    async function ask() {
-        if (!question.trim()) return;
-        setLoading(true);
-        setError(null);
-        try {
-            const res = await api.post(`/audits/${auditId}/ask`, { question: question.trim() });
-            setAnswer(res.answer);
-        } catch (e) {
-            setError(e.body?.error || 'Could not get an answer right now.');
-        } finally {
-            setLoading(false);
-        }
-    }
-
-    return (
-        <Card>
-            <BlockStack gap="200">
-                <Text as="h3" variant="headingSm"><span className="sp-heading">Ask Performance AI</span></Text>
-                <Text as="p" tone="subdued">e.g. "Why is my product page slow?" or "What should I fix first?"</Text>
-                <InlineStack gap="200" blockAlign="center" wrap={false}>
-                    <div style={{ flex: 1 }}>
-                        <TextField
-                            label="Question"
-                            labelHidden
-                            value={question}
-                            onChange={setQuestion}
-                            placeholder="Ask a question about this scan…"
-                            autoComplete="off"
-                        />
-                    </div>
-                    <Button loading={loading} disabled={!question.trim()} onClick={ask}>Ask</Button>
-                </InlineStack>
-                {error && <Text as="span" tone="critical">{error}</Text>}
-                {answer && (
-                    <div style={{ whiteSpace: 'pre-line' }}>
-                        <Text as="p">{answer}</Text>
-                    </div>
-                )}
-            </BlockStack>
-        </Card>
-    );
-}
-
 function FixAllSafeIssues({ auditId, issues }) {
     const [applying, setApplying] = useState(false);
     const [result, setResult] = useState(null);
@@ -546,7 +493,6 @@ export default function AuditDetail() {
                 </Card>
                 {!loading && allIssues.length > 0 && <FixAllSafeIssues auditId={audit.id} issues={allIssues} />}
                 {!loading && allIssues.length > 0 && <PriorityPlan auditId={audit.id} />}
-                {!loading && audit && <AiAssistant auditId={audit.id} />}
                 {!loading && <ImageHealthCenter issues={allIssues} />}
                 <Card>
                     {loading ? <SkeletonBodyText lines={4} /> : allIssues.length === 0 ? (

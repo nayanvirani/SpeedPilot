@@ -90,68 +90,6 @@ class AnthropicAiProvider implements AiProviderInterface
         return (new PlaceholderAiProvider)->prioritize($audit);
     }
 
-    public function ask(Audit $audit, string $question): string
-    {
-        $issues = $audit->issues()->with('auditPage:id,page_type')->get();
-
-        try {
-            $message = $this->client->messages->create(
-                model: $this->model,
-                maxTokens: 400,
-                system: 'You are a Shopify theme performance expert answering a merchant\'s question about '
-                    .'their own store scan. Use only the scan data given to you - don\'t invent numbers or '
-                    .'claims not backed by it. If the data doesn\'t answer the question, say so plainly. '
-                    .'Answer in 2-4 sentences aimed at a merchant, not a developer. No preamble, no markdown.',
-                messages: [
-                    ['role' => 'user', 'content' => $this->askPromptFor($audit, $issues, $question)],
-                ],
-            );
-
-            foreach ($message->content as $block) {
-                if ($block->type === 'text') {
-                    return trim($block->text);
-                }
-            }
-        } catch (Throwable $e) {
-            Log::warning('Anthropic assistant question failed, falling back to placeholder', [
-                'audit_id' => $audit->id,
-                'message' => $e->getMessage(),
-            ]);
-        }
-
-        return (new PlaceholderAiProvider)->ask($audit, $question);
-    }
-
-    /**
-     * @param  \Illuminate\Support\Collection<int, AuditIssue>  $issues
-     */
-    private function askPromptFor(Audit $audit, $issues, string $question): string
-    {
-        $scores = $audit->category_scores ?? [];
-        $scoreLines = collect($scores)->map(fn ($v, $k) => "{$k}: {$v}/100")->implode(', ');
-
-        $issueLines = $issues->map(fn (AuditIssue $i) => sprintf(
-            '- [%s] %s (category: %s, page: %s)',
-            $i->severity,
-            $i->title,
-            $i->category,
-            $i->auditPage?->page_type ?? 'unspecified',
-        ));
-
-        $appLines = $audit->appImpacts()->where('is_platform', false)->get()->map(fn ($a) => sprintf(
-            '- %s: %dms blocking, %d requests, %s impact',
-            $a->app_name,
-            $a->estimated_blocking_ms ?? 0,
-            $a->requests ?? 0,
-            $a->impact_level,
-        ));
-
-        return "Overall score: {$audit->score}/100. Category scores: {$scoreLines}.\n"
-            ."Issues found:\n".($issueLines->isEmpty() ? '(none)' : $issueLines->implode("\n"))
-            ."\nThird-party apps detected:\n".($appLines->isEmpty() ? '(none)' : $appLines->implode("\n"))
-            ."\n\nMerchant's question: {$question}";
-    }
-
     /**
      * @param  \Illuminate\Support\Collection<int, AuditIssue>  $issues
      */
