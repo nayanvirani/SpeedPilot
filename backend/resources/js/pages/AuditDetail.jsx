@@ -5,6 +5,7 @@ import { api } from '../api';
 import CategoryScores from '../components/CategoryScores';
 import FixCodeViewer from '../components/FixCodeViewer';
 import ImageHealthCenter from '../components/ImageHealthCenter';
+import { usePlan } from '../PlanContext';
 
 const SEVERITY_TONE = { critical: 'critical-strong', high: 'critical', medium: 'warning', low: 'info' };
 const PAGE_TYPE_LABEL = {
@@ -240,6 +241,7 @@ function SafeFixControls({ issue }) {
 
 function IssueRow({ issue, page }) {
     const navigate = useNavigate();
+    const { isFree } = usePlan();
     const [recommendation, setRecommendation] = useState(null);
     const [loadingRec, setLoadingRec] = useState(false);
     const [recError, setRecError] = useState(null);
@@ -293,17 +295,27 @@ function IssueRow({ issue, page }) {
                     </BlockStack>
                 </Banner>
             )}
-            {issue.risk_tier === 'medium' && issue.fix_available && <MediumFixControls issue={issue} />}
-            {issue.risk_tier === 'safe' && issue.fix_available && <SafeFixControls issue={issue} />}
-            {recommendation ? (
-                <Text as="p">✨ {recommendation}</Text>
+            {isFree ? (
+                issue.fix_available && (
+                    <Text as="p" tone="subdued">
+                        Upgrade to apply this fix automatically or view the exact code change.
+                    </Text>
+                )
             ) : (
-                <InlineStack gap="200" blockAlign="center">
-                    <Button size="micro" loading={loadingRec} onClick={getRecommendation}>
-                        Get AI recommendation
-                    </Button>
-                    {recError && <Text as="span" tone="critical">{recError}</Text>}
-                </InlineStack>
+                <>
+                    {issue.risk_tier === 'medium' && issue.fix_available && <MediumFixControls issue={issue} />}
+                    {issue.risk_tier === 'safe' && issue.fix_available && <SafeFixControls issue={issue} />}
+                    {recommendation ? (
+                        <Text as="p">✨ {recommendation}</Text>
+                    ) : (
+                        <InlineStack gap="200" blockAlign="center">
+                            <Button size="micro" loading={loadingRec} onClick={getRecommendation}>
+                                Get AI recommendation
+                            </Button>
+                            {recError && <Text as="span" tone="critical">{recError}</Text>}
+                        </InlineStack>
+                    )}
+                </>
             )}
         </BlockStack>
     );
@@ -347,6 +359,7 @@ function PriorityPlan({ auditId }) {
 }
 
 function FixAllSafeIssues({ auditId, issues }) {
+    const { isFree } = usePlan();
     const [applying, setApplying] = useState(false);
     const [result, setResult] = useState(null);
     const [error, setError] = useState(null);
@@ -386,13 +399,21 @@ function FixAllSafeIssues({ auditId, issues }) {
                         {counts.high > 0 && <Badge tone="critical">{`🔴 ${counts.high} manual`}</Badge>}
                     </InlineStack>
                 </InlineStack>
-                {safeFixable.length > 0 && !result && (
-                    <InlineStack gap="200" blockAlign="center">
-                        <Button variant="primary" loading={applying} onClick={fixAll}>
-                            {applying ? 'Creating backup and applying…' : `Fix ${safeFixable.length} Safe Issue${safeFixable.length === 1 ? '' : 's'}`}
-                        </Button>
-                        {error && <Text as="span" tone="critical">{error}</Text>}
-                    </InlineStack>
+                {isFree ? (
+                    safeFixable.length > 0 && (
+                        <Text as="p" tone="subdued">
+                            {safeFixable.length} of these could be fixed automatically - upgrade to apply them.
+                        </Text>
+                    )
+                ) : (
+                    safeFixable.length > 0 && !result && (
+                        <InlineStack gap="200" blockAlign="center">
+                            <Button variant="primary" loading={applying} onClick={fixAll}>
+                                {applying ? 'Creating backup and applying…' : `Fix ${safeFixable.length} Safe Issue${safeFixable.length === 1 ? '' : 's'}`}
+                            </Button>
+                            {error && <Text as="span" tone="critical">{error}</Text>}
+                        </InlineStack>
+                    )
                 )}
                 {result && (
                     result.applied_count === 0 ? (
@@ -418,6 +439,7 @@ function FixAllSafeIssues({ auditId, issues }) {
 
 export default function AuditDetail() {
     const navigate = useNavigate();
+    const { isFree } = usePlan();
     const { id } = useParams();
     const [audit, setAudit] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -492,7 +514,7 @@ export default function AuditDetail() {
                     )}
                 </Card>
                 {!loading && allIssues.length > 0 && <FixAllSafeIssues auditId={audit.id} issues={allIssues} />}
-                {!loading && allIssues.length > 0 && <PriorityPlan auditId={audit.id} />}
+                {!loading && !isFree && allIssues.length > 0 && <PriorityPlan auditId={audit.id} />}
                 {!loading && <ImageHealthCenter issues={allIssues} />}
                 <Card>
                     {loading ? <SkeletonBodyText lines={4} /> : allIssues.length === 0 ? (
@@ -500,10 +522,15 @@ export default function AuditDetail() {
                     ) : (
                         <BlockStack gap="400">
                             <Text as="p" tone="subdued">
-                                Nothing changes your theme unless you click "Auto fix on theme" below - or use
-                                "Manual fix" to copy the change in yourself. 🟢 Safe fixes need one click. 🟡 Review
-                                shows a preview before it writes anything. 🔴 Manual is a recommendation only. Check
-                                the Optimizations page to see exactly which fixes went through and roll any of them back.
+                                {isFree ? (
+                                    'The Free plan shows every issue this scan found. Upgrade to apply fixes '
+                                    + 'automatically, preview medium-risk changes, or view the exact code yourself.'
+                                ) : (
+                                    'Nothing changes your theme unless you click "Auto fix on theme" below - or use '
+                                    + '"Manual fix" to copy the change in yourself. 🟢 Safe fixes need one click. 🟡 Review '
+                                    + 'shows a preview before it writes anything. 🔴 Manual is a recommendation only. Check '
+                                    + 'the Optimizations page to see exactly which fixes went through and roll any of them back.'
+                                )}
                             </Text>
                             <InlineStack gap="200" wrap>
                                 <div style={{ minWidth: '200px' }}>

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\OptimizedTheme;
 use App\Models\ShopInstallation;
+use App\Services\PlanPolicy;
 use App\Services\Scanner\StorefrontAccessChecker;
 use App\Services\Shopify\AssetBackupService;
 use App\Services\Shopify\ScriptImpactActionService;
@@ -182,6 +183,13 @@ class ShopSettingsController extends Controller
      */
     public function trustBadgeCode(Request $request)
     {
+        /** @var ShopInstallation $shop */
+        $shop = $request->attributes->get('shop');
+
+        if (! (new PlanPolicy($shop))->hasPaidPlan()) {
+            return response()->json(['error' => 'The trust badge is not available on the Free plan.'], 403);
+        }
+
         $badge = <<<'HTML'
             <div style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid #e1e1e1;border-radius:20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;color:#555;background:#fafafa;">
               <span style="font-size:14px;line-height:1;">⚡</span>
@@ -200,6 +208,10 @@ class ShopSettingsController extends Controller
     {
         /** @var ShopInstallation $shop */
         $shop = $request->attributes->get('shop');
+
+        if (! (new PlanPolicy($shop))->hasPaidPlan()) {
+            return response()->json(['error' => 'Instant navigation is not available on the Free plan.'], 403);
+        }
 
         $actions = new ScriptImpactActionService(
             $themeAssets = new ThemeAssetService(new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token)),

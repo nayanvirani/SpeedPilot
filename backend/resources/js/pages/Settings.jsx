@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Banner, BlockStack, Button, Card, InlineStack, Page, Select, Text, TextField } from '@shopify/polaris';
 import { api } from '../api';
+import { usePlan } from '../PlanContext';
 
 function StorefrontPasswordSettings() {
     const [hasPassword, setHasPassword] = useState(null);
@@ -469,6 +470,7 @@ function SpeedBudgetSettings() {
  * way a <head> script tag is, so this only ever shows the snippet.
  */
 function TrustBadgeSettings() {
+    const { isFree } = usePlan();
     const [snippet, setSnippet] = useState(null);
     const [loading, setLoading] = useState(false);
     const [copied, setCopied] = useState(false);
@@ -507,7 +509,9 @@ function TrustBadgeSettings() {
                     footer, an about page, wherever you'd like. No external scripts or styles, safe to paste
                     as-is. Placement is your choice, so this isn't auto-installed.
                 </Text>
-                {!snippet ? (
+                {isFree ? (
+                    <Text as="p" tone="subdued">Upgrade to view the badge code.</Text>
+                ) : !snippet ? (
                     <InlineStack gap="200" blockAlign="center">
                         <Button loading={loading} onClick={load}>View badge code</Button>
                         {error && <Text as="span" tone="critical">{error}</Text>}
@@ -527,6 +531,7 @@ function TrustBadgeSettings() {
 }
 
 function InstantNavigationSettings() {
+    const { isFree } = usePlan();
     const [hasTag, setHasTag] = useState(null);
     const [installing, setInstalling] = useState(false);
     const [error, setError] = useState(null);
@@ -568,6 +573,8 @@ function InstantNavigationSettings() {
                 </Text>
                 {hasTag ? (
                     <Text as="span" tone="success">Installed and active on your theme.</Text>
+                ) : isFree ? (
+                    <Text as="p" tone="subdued">Upgrade to enable instant navigation.</Text>
                 ) : (
                     <InlineStack gap="200" blockAlign="center">
                         <Button variant="primary" loading={installing} onClick={install}>Enable instant navigation</Button>

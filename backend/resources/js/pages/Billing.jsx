@@ -69,6 +69,12 @@ export default function Billing() {
                         without a gap.
                     </Banner>
                 )}
+                {current && current.is_free && (
+                    <Banner tone="info">
+                        You're on the Free plan - scans and your score are always free. Upgrade for
+                        automatic fixes, manual-fix code, app/script management, and monitoring.
+                    </Banner>
+                )}
 
                 {usage && (
                     <Card>
@@ -85,7 +91,7 @@ export default function Billing() {
                 {!plans ? (
                     <Card><SkeletonBodyText lines={6} /></Card>
                 ) : (
-                    <PlanPicker plans={plans} currentPlanKey={current?.plan?.key} manageUrl={current?.manage_url} />
+                    <PlanPicker plans={plans} currentPlanKey={current?.plan?.key ?? (current?.is_free ? 'free' : undefined)} manageUrl={current?.manage_url} />
                 )}
             </BlockStack>
         </Page>

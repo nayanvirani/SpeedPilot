@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ScriptPageRule;
 use App\Models\ShopInstallation;
+use App\Services\PlanPolicy;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -40,6 +41,10 @@ class ScriptManagerController extends Controller
     {
         /** @var ShopInstallation $shop */
         $shop = $request->attributes->get('shop');
+
+        if (! (new PlanPolicy($shop))->hasPaidPlan()) {
+            return response()->json(['error' => 'Smart Script Manager is not available on the Free plan.'], 403);
+        }
 
         $data = $request->validate([
             'app_name' => 'required|string',

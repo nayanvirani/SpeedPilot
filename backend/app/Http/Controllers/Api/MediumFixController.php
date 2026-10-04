@@ -24,7 +24,10 @@ class MediumFixController extends Controller
 {
     public function preview(Request $request, int $issueId)
     {
-        [$shop, $issue, $error] = $this->resolve($request, $issueId, requirePlan: false);
+        // Showing the exact before/after code is "a solution" the same way
+        // Manual fix is - gated the same as apply(), not left open as a
+        // free-tier teaser (see PlanPolicy::hasPaidPlan()).
+        [$shop, $issue, $error] = $this->resolve($request, $issueId, requirePlan: true);
 
         if ($error) {
             return $error;

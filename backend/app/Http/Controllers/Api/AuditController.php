@@ -9,6 +9,7 @@ use App\Models\AppSetting;
 use App\Models\Audit;
 use App\Models\AuditIssue;
 use App\Models\ShopInstallation;
+use App\Services\Monitoring\PotentialScoreEstimator;
 use App\Services\PlanPolicy;
 use App\Services\Scanner\StorefrontAccessChecker;
 use Illuminate\Http\Request;
@@ -82,7 +83,7 @@ class AuditController extends Controller
         ]);
     }
 
-    public function show(Request $request, int $id)
+    public function show(Request $request, int $id, PotentialScoreEstimator $potentialScore)
     {
         $shop = $request->attributes->get('shop');
 
@@ -90,7 +91,13 @@ class AuditController extends Controller
             ->with(['issues', 'appImpacts', 'pages', 'verifiesAudit:id,score', 'verificationAudit:id,score,verifies_audit_id,status'])
             ->findOrFail($id);
 
-        return response()->json(['audit' => $audit]);
+        return response()->json([
+            'audit' => $audit,
+            // The Free-plan upgrade hook only means anything for a shop
+            // that can't already act on these issues - a paid shop just
+            // fixes them instead of looking at a hypothetical number.
+            'potential_score' => (new PlanPolicy($shop))->hasPaidPlan() ? null : $potentialScore->estimate($audit),
+        ]);
     }
 
     /**

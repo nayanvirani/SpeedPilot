@@ -7,6 +7,7 @@ use App\Models\AppImpact;
 use App\Models\AuditIssue;
 use App\Models\ShopInstallation;
 use App\Services\CodeSnippetExtractor;
+use App\Services\PlanPolicy;
 use App\Services\Shopify\AssetBackupService;
 use App\Services\Shopify\FontDisplaySweeper;
 use App\Services\Shopify\ImageLazyLoadSweeper;
@@ -34,6 +35,10 @@ class FixCodeController extends Controller
     {
         /** @var ShopInstallation $shop */
         $shop = $request->attributes->get('shop');
+
+        if (! (new PlanPolicy($shop))->hasPaidPlan()) {
+            return response()->json(['error' => 'Manual fix code is not available on the Free plan.'], 403);
+        }
 
         $issue = AuditIssue::whereHas('audit', fn ($q) => $q->where('shop_installation_id', $shop->id))
             ->findOrFail($issueId);
@@ -71,6 +76,10 @@ class FixCodeController extends Controller
     {
         /** @var ShopInstallation $shop */
         $shop = $request->attributes->get('shop');
+
+        if (! (new PlanPolicy($shop))->hasPaidPlan()) {
+            return response()->json(['error' => 'Manual fix code is not available on the Free plan.'], 403);
+        }
 
         $data = $request->validate([
             'action' => 'required|in:disabled,delayed',
@@ -111,8 +120,15 @@ class FixCodeController extends Controller
      * ScriptImpactActionService::interceptorManualSnippet()). Shown once,
      * globally, rather than repeated identically on every app's row.
      */
-    public function forAdvancedDelay()
+    public function forAdvancedDelay(Request $request)
     {
+        /** @var ShopInstallation $shop */
+        $shop = $request->attributes->get('shop');
+
+        if (! (new PlanPolicy($shop))->hasPaidPlan()) {
+            return response()->json(['error' => 'Advanced delay is not available on the Free plan.'], 403);
+        }
+
         return response()->json(['code' => self::withSnippets([
             'fix_type' => 'delayed_interceptor',
             'files' => [['asset_key' => 'layout/theme.liquid', 'original' => null, 'fixed' => ScriptImpactActionService::interceptorManualSnippet()]],

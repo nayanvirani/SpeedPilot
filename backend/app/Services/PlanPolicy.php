@@ -30,9 +30,24 @@ class PlanPolicy
         // exists is what makes that access mean anything, since
         // Plan::findByKey(null) alone would still resolve to null and
         // every feature gate below would behave as unsubscribed anyway.
+        // A genuinely unsubscribed shop (hasPlanAccess() false) resolves to
+        // null here, same as always - but unlike before, null no longer
+        // means "blocked from the app" (see App.jsx), it means the Free
+        // tier's scan-and-display-only behavior, which every getter below
+        // already defaults to.
         $this->plan = $shop->hasPlanAccess()
-            ? Plan::findByKey($shop->plan) ?? Plan::where('active', true)->orderBy('sort_order')->first()
+            ? Plan::findByKey($shop->plan) ?? Plan::fallbackForUnrecognizedKey()
             : null;
+    }
+
+    /**
+     * Gates every "do something" feature at once - auto-fix, manual-fix
+     * code, app/script management actions, monitoring setup - as opposed
+     * to the scan-and-display core experience, which Free also gets.
+     */
+    public function hasPaidPlan(): bool
+    {
+        return $this->plan !== null && (float) $this->plan->price > 0;
     }
 
     public function canAutoFix(): bool

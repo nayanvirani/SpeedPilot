@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AppImpact;
 use App\Models\ShopInstallation;
+use App\Services\PlanPolicy;
 use App\Services\Scanner\ScannerClient;
 use App\Services\Shopify\AppCategoryClassifier;
 use App\Services\Shopify\AssetBackupService;
@@ -95,6 +96,12 @@ class AppImpactController extends Controller
             'method' => ['nullable', Rule::in(['theme_edit', 'interceptor', 'content_replace'])],
         ]);
 
+        // 'active'/'excluded' are dismiss/undo, not a new theme change -
+        // always allowed, same reasoning as rollback staying ungated.
+        if (in_array($data['status'], ['disabled', 'delayed'], true) && ! (new PlanPolicy($shop))->hasPaidPlan()) {
+            return response()->json(['error' => 'Disabling or delaying apps is not available on the Free plan.'], 403);
+        }
+
         $impact = AppImpact::whereHas(
             'audit',
             fn ($q) => $q->where('shop_installation_id', $shop->id)
@@ -162,6 +169,10 @@ class AppImpactController extends Controller
         /** @var ShopInstallation $shop */
         $shop = $request->attributes->get('shop');
 
+        if (! (new PlanPolicy($shop))->hasPaidPlan()) {
+            return response()->json(['error' => 'Advanced delay is not available on the Free plan.'], 403);
+        }
+
         $actions = new ScriptImpactActionService(
             $themeAssets = new ThemeAssetService(new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token)),
             new ThemeAssetLocatorService($themeAssets),
@@ -192,6 +203,10 @@ class AppImpactController extends Controller
 
         /** @var ShopInstallation $shop */
         $shop = $request->attributes->get('shop');
+
+        if (! (new PlanPolicy($shop))->hasPaidPlan()) {
+            return response()->json(['error' => 'Projected impact is not available on the Free plan.'], 403);
+        }
 
         $impact = AppImpact::whereHas(
             'audit',

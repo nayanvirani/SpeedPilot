@@ -52,11 +52,17 @@ class BillingController extends Controller
         // whatever plan exists so the dashboard actually unlocks instead of
         // showing the paywall with "access" but no plan to render.
         $plan = $hasAccess
-            ? Plan::findByKey($shop->plan) ?? Plan::where('active', true)->orderBy('sort_order')->first()
+            ? Plan::findByKey($shop->plan) ?? Plan::fallbackForUnrecognizedKey()
             : null;
 
         return response()->json([
             'plan' => $plan,
+            // Convenience flag for the frontend - true whenever this shop
+            // is on the free tier (either a real $0 'free' plan row, or no
+            // paid subscription at all, which behaves identically via
+            // PlanPolicy). Distinct from `!plan`, which used to mean
+            // "blocked from the app entirely" before Free existed.
+            'is_free' => $plan === null || (float) $plan->price === 0.0,
             // True when Shopify still shows this subscription active;
             // false while only the grace period (plan_expires_at) is
             // keeping access alive after a cancellation - Billing.jsx uses

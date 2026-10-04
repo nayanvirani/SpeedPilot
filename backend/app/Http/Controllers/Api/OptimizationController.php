@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Optimization;
 use App\Models\ShopInstallation;
+use App\Services\PlanPolicy;
 use App\Services\Shopify\AssetBackupService;
 use App\Services\Shopify\ShopifyGraphQLClient;
 use App\Services\Shopify\ThemeAssetService;
@@ -46,6 +47,10 @@ class OptimizationController extends Controller
     {
         /** @var ShopInstallation $shop */
         $shop = $request->attributes->get('shop');
+
+        if (! (new PlanPolicy($shop))->hasPaidPlan()) {
+            return response()->json(['error' => 'Re-applying a fix is not available on the Free plan.'], 403);
+        }
 
         $optimization = Optimization::where('shop_installation_id', $shop->id)->findOrFail($id);
 

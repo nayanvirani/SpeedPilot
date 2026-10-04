@@ -3,6 +3,7 @@ import { Badge, Banner, BlockStack, Button, ButtonGroup, Card, InlineStack, Page
 import { api } from '../api';
 import FixCodeViewer from '../components/FixCodeViewer';
 import ThemeAccessStatus from '../components/ThemeAccessStatus';
+import { usePlan } from '../PlanContext';
 
 const PAGE_TYPE_LABEL = {
     home: 'Homepage', product: 'Product pages', collection: 'Collection pages',
@@ -229,13 +230,17 @@ function ScriptPageRulesPanel({ appName, manager, onChange }) {
 }
 
 function ImpactRow({ impact, pending, onSetStatus, scriptManager, onScriptManagerChange }) {
+    const { isFree } = usePlan();
     const [rulesOpen, setRulesOpen] = useState(false);
     // Shopify's own platform scripts (Shop Pay, checkout, core analytics)
     // are injected by Shopify itself, never present as literal text in the
     // theme's own files - no app, including this one, can disable, delay,
     // or show "the code" for something that isn't in the theme to begin
     // with. Excluding it from the list is still offered.
-    const actions = impact.is_platform
+    // 'active'/'excluded' are dismiss/undo, allowed on Free the same as the
+    // backend (AppImpactController::updateStatus) - every action that
+    // actually touches the theme requires a paid plan.
+    const actions = impact.is_platform || isFree
         ? ['active', 'excluded']
         : [
             'active', 'disabled', 'delayed', 'excluded',
@@ -279,7 +284,7 @@ function ImpactRow({ impact, pending, onSetStatus, scriptManager, onScriptManage
                         ))}
                 </ButtonGroup>
             </InlineStack>
-            {!impact.is_platform && (impact.status ?? 'active') === 'active' && (
+            {!impact.is_platform && !isFree && (impact.status ?? 'active') === 'active' && (
                 <InlineStack gap="200" blockAlign="center">
                     <FixCodeViewer
                         key={`disabled-${impact.id}`}
@@ -297,7 +302,7 @@ function ImpactRow({ impact, pending, onSetStatus, scriptManager, onScriptManage
                     </Button>
                 </InlineStack>
             )}
-            {!impact.is_platform && rulesOpen && (
+            {!impact.is_platform && !isFree && rulesOpen && (
                 <ScriptPageRulesPanel appName={impact.app_name} manager={scriptManager} onChange={onScriptManagerChange} />
             )}
         </BlockStack>
@@ -346,6 +351,7 @@ function OverlapBanner({ appImpacts }) {
 }
 
 export default function AppImpact() {
+    const { isFree } = usePlan();
     const [appImpacts, setAppImpacts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [pendingId, setPendingId] = useState(null);
@@ -414,9 +420,9 @@ export default function AppImpact() {
                         <Text as="p">{notice.message}</Text>
                     </Banner>
                 )}
-                <ThemeAccessStatus />
+                {!isFree && <ThemeAccessStatus />}
                 <OverlapBanner appImpacts={appImpacts} />
-                <AdvancedDelaySetup appImpacts={appImpacts} />
+                {!isFree && <AdvancedDelaySetup appImpacts={appImpacts} />}
                 <Card>
                     {loading ? (
                         <SkeletonBodyText lines={4} />

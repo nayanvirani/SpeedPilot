@@ -53,6 +53,20 @@ class Plan extends Model
         return static::whereRaw('LOWER(shopify_plan_name) = ?', [strtolower($shopifyPlanName)])->first();
     }
 
+    /**
+     * Used when a shop has plan access but its stored `plan` key doesn't
+     * match any row (e.g. a test-shop-allowlisted shop with no real
+     * Shopify subscription at all - see ShopInstallation::hasPlanAccess()).
+     * Deliberately prefers a paid plan over Free: that allowlist exists to
+     * grant full access for internal/demo stores, and falling back to the
+     * free row here would silently strip that down to scan-only.
+     */
+    public static function fallbackForUnrecognizedKey(): ?self
+    {
+        return static::where('active', true)->where('price', '>', 0)->orderBy('sort_order')->first()
+            ?? static::where('active', true)->orderBy('sort_order')->first();
+    }
+
     protected static function booted(): void
     {
         static::saved(fn (self $plan) => Cache::forget("plan:{$plan->key}"));

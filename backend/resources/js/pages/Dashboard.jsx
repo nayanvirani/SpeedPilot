@@ -6,6 +6,7 @@ import CategoryScores from '../components/CategoryScores';
 import PerformanceHealth from '../components/PerformanceHealth';
 import WeeklyRollup from '../components/WeeklyRollup';
 import PageLoadBeforeAfter from '../components/PageLoadBeforeAfter';
+import { usePlan } from '../PlanContext';
 
 function statusTone(status) {
     return status === 'complete' ? 'success' : status === 'failed' ? 'critical' : 'attention';
@@ -129,7 +130,9 @@ function PageScoreCards({ pages }) {
 
 export default function Dashboard() {
     const navigate = useNavigate();
+    const { isFree } = usePlan();
     const [latestAudit, setLatestAudit] = useState(null);
+    const [potentialScore, setPotentialScore] = useState(null);
     const [loading, setLoading] = useState(true);
     const [scanning, setScanning] = useState(false);
     const [scanError, setScanError] = useState(null);
@@ -153,8 +156,9 @@ export default function Dashboard() {
                 setLatestAudit(null);
                 return;
             }
-            const { audit } = await api.get(`/audits/${audits[0].id}`);
+            const { audit, potential_score: potentialScore } = await api.get(`/audits/${audits[0].id}`);
             setLatestAudit(audit);
+            setPotentialScore(potentialScore ?? null);
         } finally {
             if (!silent) setLoading(false);
         }
@@ -214,7 +218,7 @@ export default function Dashboard() {
                 {scanError && !storefrontLocked && (
                     <Banner tone="critical" onDismiss={() => setScanError(null)}>{scanError}</Banner>
                 )}
-                {!loading && !hasTargetTheme && (
+                {!loading && !hasTargetTheme && !isFree && (
                     <Banner tone="info" title="No target theme set" action={{ content: 'Go to Settings', onAction: () => navigate('/settings') }}>
                         Fixes will stay recommendation-only until you choose which theme SpeedPilot applies them to.
                     </Banner>
@@ -253,6 +257,9 @@ export default function Dashboard() {
                                 <InlineStack gap="300" blockAlign="baseline">
                                     <span className={`sp-score ${scoreClass(latestAudit.score)}`}>{latestAudit.score ?? '—'}</span>
                                     <Text as="span" tone="subdued">/ 100</Text>
+                                    {potentialScore && (
+                                        <Badge tone="attention">{`Upgrade to reach ~${potentialScore}`}</Badge>
+                                    )}
                                 </InlineStack>
                                 <InlineStack gap="300" blockAlign="center">
                                     <Badge tone={statusTone(latestAudit.status)}>{latestAudit.status}</Badge>
@@ -263,6 +270,16 @@ export default function Dashboard() {
                                     )}
                                 </InlineStack>
                             </InlineStack>
+                            {potentialScore && (
+                                <Text as="p" tone="subdued">
+                                    Based on the fixable issues this scan found - an estimate, not a guarantee.{' '}
+                                    <Text as="span" fontWeight="medium">
+                                        <a onClick={() => navigate('/billing')} style={{ cursor: 'pointer', color: 'inherit', textDecoration: 'underline' }}>
+                                            See upgrade options
+                                        </a>
+                                    </Text>
+                                </Text>
+                            )}
                             <div className="sp-cwv-grid">
                                 <CwvStat label="LCP" value={latestAudit.lcp} suffix="s" />
                                 <CwvStat label="INP" value={latestAudit.inp} suffix="ms" />
@@ -284,8 +301,10 @@ export default function Dashboard() {
                                 </BlockStack>
                             )}
                             <InlineStack gap="200">
-                                <Button onClick={() => navigate(`/audits/${latestAudit.id}`)}>Fix issues</Button>
-                                <Button onClick={() => navigate('/monitoring')}>View monitoring</Button>
+                                <Button onClick={() => navigate(`/audits/${latestAudit.id}`)}>
+                                    {isFree ? 'View issues' : 'Fix issues'}
+                                </Button>
+                                {!isFree && <Button onClick={() => navigate('/monitoring')}>View monitoring</Button>}
                             </InlineStack>
                             <PageScoreCards pages={latestAudit.pages} />
                         </BlockStack>
