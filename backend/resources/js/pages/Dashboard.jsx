@@ -181,6 +181,15 @@ export default function Dashboard() {
 
     const scanInProgress = latestAudit?.status === 'pending' || latestAudit?.status === 'running';
 
+    // Mirrors AuditController::store()'s PlanPolicy::manualScanCooldownDays()
+    // check server-side (only a completed scan counts - see its comment) -
+    // computed here too so the button is disabled upfront instead of only
+    // failing reactively after a click.
+    const nextScanAt = isFree && latestAudit?.status === 'complete' && latestAudit?.created_at
+        ? new Date(new Date(latestAudit.created_at).getTime() + 7 * 24 * 60 * 60 * 1000)
+        : null;
+    const scanLimited = nextScanAt ? nextScanAt > new Date() : false;
+
     async function scanNow() {
         setScanning(true);
         setScanError(null);
@@ -199,9 +208,13 @@ export default function Dashboard() {
         <Page
             title="SpeedPilot"
             primaryAction={{
-                content: scanInProgress ? 'Scan in progress…' : 'Scan My Store',
+                content: scanInProgress
+                    ? 'Scan in progress…'
+                    : scanLimited
+                        ? `Next scan: ${nextScanAt.toLocaleDateString()}`
+                        : 'Scan My Store',
                 loading: scanning,
-                disabled: storefrontLocked || scanInProgress,
+                disabled: storefrontLocked || scanInProgress || scanLimited,
                 onAction: scanNow,
             }}
         >
@@ -209,6 +222,11 @@ export default function Dashboard() {
                 <PerformanceHealth />
                 <WeeklyRollup />
                 <PageLoadBeforeAfter />
+                {!loading && scanLimited && !storefrontLocked && (
+                    <Banner tone="info" title="Free plan: 1 scan per week">
+                        {`You can scan again on ${nextScanAt.toLocaleDateString()} - upgrade for unlimited scans and monitoring.`}
+                    </Banner>
+                )}
                 {!loading && storefrontLocked && (
                     <Banner tone="critical" title="Your storefront is password-protected" action={{ content: 'Add storefront password', onAction: () => navigate('/settings') }}>
                         SpeedPilot can't reach your store's real content until it can unlock the password
@@ -247,7 +265,9 @@ export default function Dashboard() {
                                     ?? 'None of the pages in this scan could be reached. Try again, or check Settings if your store needs a storefront password.'}
                             </Text>
                             <InlineStack gap="200">
-                                <Button loading={scanning} onClick={scanNow} disabled={storefrontLocked}>Retry scan</Button>
+                                <Button loading={scanning} onClick={scanNow} disabled={storefrontLocked || scanLimited}>
+                                    {scanLimited ? `Next scan: ${nextScanAt.toLocaleDateString()}` : 'Retry scan'}
+                                </Button>
                                 <Button onClick={() => navigate('/settings')}>Go to Settings</Button>
                             </InlineStack>
                         </BlockStack>

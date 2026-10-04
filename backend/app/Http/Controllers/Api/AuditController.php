@@ -31,6 +31,25 @@ class AuditController extends Controller
             'url' => 'nullable|url',
         ]);
 
+        $cooldownDays = (new PlanPolicy($shop))->manualScanCooldownDays();
+
+        if ($cooldownDays !== null) {
+            // Only a completed scan counts against the weekly quota - a
+            // failed one (storefront hiccup, scanner recycling) shouldn't
+            // lock a Free merchant out for a week over something that
+            // wasn't a real, usable scan to begin with.
+            $lastAudit = $shop->audits()->where('status', 'complete')->latest('created_at')->first();
+            $nextScanAt = $lastAudit?->created_at->copy()->addDays($cooldownDays);
+
+            if ($nextScanAt && $nextScanAt->isFuture()) {
+                return response()->json([
+                    'error' => "The Free plan allows 1 scan per week. You can scan again on {$nextScanAt->format('M j, Y')}.",
+                    'scan_limited' => true,
+                    'next_scan_at' => $nextScanAt,
+                ], 429);
+            }
+        }
+
         // Refuse upfront rather than creating an audit that's guaranteed to
         // fail on every page - the reactive per-page check in the scanner
         // would produce the same "failed" result, just after wasting a full

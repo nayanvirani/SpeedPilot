@@ -94,4 +94,15 @@ class PlanPolicy
     {
         return $this->plan?->pages_per_scan ?? 1;
     }
+
+    /**
+     * Free's scan limit isn't about depth (pagesPerScan already caps that
+     * at 1) - it's about how often a merchant can re-run one. Returns the
+     * minimum number of days that must pass since the shop's last audit
+     * before another manual scan is allowed, or null for no limit at all.
+     */
+    public function manualScanCooldownDays(): ?int
+    {
+        return $this->hasPaidPlan() ? null : 7;
+    }
 }
