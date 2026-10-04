@@ -237,10 +237,7 @@ function ImpactRow({ impact, pending, onSetStatus, scriptManager, onScriptManage
     // theme's own files - no app, including this one, can disable, delay,
     // or show "the code" for something that isn't in the theme to begin
     // with. Excluding it from the list is still offered.
-    // 'active'/'excluded' are dismiss/undo, allowed on Free the same as the
-    // backend (AppImpactController::updateStatus) - every action that
-    // actually touches the theme requires a paid plan.
-    const actions = impact.is_platform || isFree
+    const actions = impact.is_platform
         ? ['active', 'excluded']
         : [
             'active', 'disabled', 'delayed', 'excluded',
@@ -274,15 +271,17 @@ function ImpactRow({ impact, pending, onSetStatus, scriptManager, onScriptManage
                         </Text>
                     )}
                 </BlockStack>
-                <ButtonGroup>
-                    {actions
-                        .filter((action) => action !== current)
-                        .map((action) => (
-                            <Button key={action} size="micro" loading={pending} onClick={() => onSetStatus(impact, action)}>
-                                {ACTION_META[action].label}
-                            </Button>
-                        ))}
-                </ButtonGroup>
+                {!isFree && (
+                    <ButtonGroup>
+                        {actions
+                            .filter((action) => action !== current)
+                            .map((action) => (
+                                <Button key={action} size="micro" loading={pending} onClick={() => onSetStatus(impact, action)}>
+                                    {ACTION_META[action].label}
+                                </Button>
+                            ))}
+                    </ButtonGroup>
+                )}
             </InlineStack>
             {!impact.is_platform && !isFree && (impact.status ?? 'active') === 'active' && (
                 <InlineStack gap="200" blockAlign="center">
@@ -432,29 +431,39 @@ export default function AppImpact() {
                         </Text>
                     ) : (
                         <BlockStack gap="400">
-                            <Text as="p" tone="subdued">
-                                <b>Disabled (auto)</b> and <b>Delayed (auto)</b> have SpeedPilot edit your theme directly -
-                                only works when SpeedPilot can find the script in your theme's files, and once
-                                Shopify approves this app's theme-editing access. <b>Stop (verified)</b> is for scripts
-                                injected by another app (no theme file to edit) that SpeedPilot has actually confirmed,
-                                this scan, appear as real code in your storefront's rendered page - it edits your theme
-                                to neutralize that exact code server-side, then reloads it on interaction, and only
-                                appears as an option once that's been confirmed. <b>Advanced delay (experimental)</b> is
-                                the best-effort fallback for everything else - it watches for that app's own resources
-                                loading dynamically and delays those, but some scripts (notably Shopify's own sandboxed
-                                marketing pixels - Facebook, TikTok, Klarna, Affirm, and similar) can't be delayed by
-                                any method, including this one, since they never appear as literal code anywhere in the
-                                page to begin with. Delaying an app that also renders something visible (a reviews
-                                widget, chat button, carousel) can make that widget show an error instead of just
-                                loading later - worth testing per app. It only works once its tag is added near the top
-                                of your theme's &lt;head&gt; (see <b>Advanced delay setup</b> above - Auto-fix or Manual
-                                fix, one tag total, not per app).{' '}
-                                <b>Manual fix</b> shows
-                                you the exact code to paste yourself right now, no approval needed. <b>Excluded</b> just
-                                stops it from being flagged here - it doesn't change your storefront. Rows marked{' '}
-                                <Badge tone="info">Shopify platform</Badge> are loaded by Shopify itself (Shop Pay,
-                                checkout, core analytics), not an installed app - no app can edit these.
-                            </Text>
+                            {isFree ? (
+                                <Text as="p" tone="subdued">
+                                    This is every app and script detected on your store, with its requests, size, and
+                                    impact level - view only on the Free plan. Upgrade to disable or delay any of
+                                    these directly from here, with full backup and rollback on every change. Rows
+                                    marked <Badge tone="info">Shopify platform</Badge> are loaded by Shopify itself
+                                    (Shop Pay, checkout, core analytics), not an installed app.
+                                </Text>
+                            ) : (
+                                <Text as="p" tone="subdued">
+                                    <b>Disabled (auto)</b> and <b>Delayed (auto)</b> have SpeedPilot edit your theme directly -
+                                    only works when SpeedPilot can find the script in your theme's files, and once
+                                    Shopify approves this app's theme-editing access. <b>Stop (verified)</b> is for scripts
+                                    injected by another app (no theme file to edit) that SpeedPilot has actually confirmed,
+                                    this scan, appear as real code in your storefront's rendered page - it edits your theme
+                                    to neutralize that exact code server-side, then reloads it on interaction, and only
+                                    appears as an option once that's been confirmed. <b>Advanced delay (experimental)</b> is
+                                    the best-effort fallback for everything else - it watches for that app's own resources
+                                    loading dynamically and delays those, but some scripts (notably Shopify's own sandboxed
+                                    marketing pixels - Facebook, TikTok, Klarna, Affirm, and similar) can't be delayed by
+                                    any method, including this one, since they never appear as literal code anywhere in the
+                                    page to begin with. Delaying an app that also renders something visible (a reviews
+                                    widget, chat button, carousel) can make that widget show an error instead of just
+                                    loading later - worth testing per app. It only works once its tag is added near the top
+                                    of your theme's &lt;head&gt; (see <b>Advanced delay setup</b> above - Auto-fix or Manual
+                                    fix, one tag total, not per app).{' '}
+                                    <b>Manual fix</b> shows
+                                    you the exact code to paste yourself right now, no approval needed. <b>Excluded</b> just
+                                    stops it from being flagged here - it doesn't change your storefront. Rows marked{' '}
+                                    <Badge tone="info">Shopify platform</Badge> are loaded by Shopify itself (Shop Pay,
+                                    checkout, core analytics), not an installed app - no app can edit these.
+                                </Text>
+                            )}
                             {appImpacts.map((impact, i) => (
                                 <React.Fragment key={impact.id}>
                                     {i > 0 && <div style={{ borderTop: '1px solid var(--p-color-border-secondary)' }} />}

@@ -72,6 +72,7 @@ function StorefrontPasswordSettings() {
 }
 
 function TargetThemeSettings() {
+    const { isFree } = usePlan();
     const [themes, setThemes] = useState(null);
     const [current, setCurrent] = useState({ id: null, mode: null, diverged: null });
     const [selectedThemeId, setSelectedThemeId] = useState('');
@@ -102,7 +103,7 @@ function TargetThemeSettings() {
         }
     }, [selectedThemeId]);
 
-    useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    useEffect(() => { if (!isFree) load(); }, [isFree]); // eslint-disable-line react-hooks/exhaustive-deps
 
     async function setTargetTheme() {
         setSaving(true);
@@ -112,6 +113,19 @@ function TargetThemeSettings() {
         } finally {
             setSaving(false);
         }
+    }
+
+    if (isFree) {
+        return (
+            <Card>
+                <BlockStack gap="200">
+                    <Text as="h3" variant="headingSm"><span className="sp-heading">Target theme</span></Text>
+                    <Text as="p" tone="subdued">
+                        Upgrade to a paid plan to choose a theme and have SpeedPilot apply fixes to it.
+                    </Text>
+                </BlockStack>
+            </Card>
+        );
     }
 
     if (themes === null) {
@@ -186,6 +200,7 @@ const DEVICE_OPTIONS = [
 ];
 
 function ScanPreferencesSettings() {
+    const { isFree } = usePlan();
     const [prefs, setPrefs] = useState(null);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
@@ -218,18 +233,22 @@ function ScanPreferencesSettings() {
             <BlockStack gap="300">
                 <Text as="h3" variant="headingSm"><span className="sp-heading">Scan preferences</span></Text>
                 <Text as="p" tone="subdued">
-                    Controls SpeedPilot's automatic monitoring re-scans and which device(s) every scan
-                    covers. Clicking "Scan My Store" always runs immediately regardless of frequency.
+                    {isFree
+                        ? "Controls which device(s) your manual scan covers. Upgrade for automatic monitoring re-scans."
+                        : 'Controls SpeedPilot\'s automatic monitoring re-scans and which device(s) every scan '
+                            + 'covers. Clicking "Scan My Store" always runs immediately regardless of frequency.'}
                 </Text>
                 <InlineStack gap="300" wrap>
-                    <div style={{ minWidth: '200px' }}>
-                        <Select
-                            label="Automatic scan frequency"
-                            options={FREQUENCY_OPTIONS}
-                            value={prefs.scan_frequency}
-                            onChange={(v) => save({ ...prefs, scan_frequency: v })}
-                        />
-                    </div>
+                    {!isFree && (
+                        <div style={{ minWidth: '200px' }}>
+                            <Select
+                                label="Automatic scan frequency"
+                                options={FREQUENCY_OPTIONS}
+                                value={prefs.scan_frequency}
+                                onChange={(v) => save({ ...prefs, scan_frequency: v })}
+                            />
+                        </div>
+                    )}
                     <div style={{ minWidth: '200px' }}>
                         <Select
                             label="Devices to scan"
@@ -258,16 +277,29 @@ const DELAY_OPTIONS = [3000, 5000, 8000, 10000, 15000, 20000].map((ms) => ({
 }));
 
 function AdvancedDelayTimingSettings() {
+    const { isFree } = usePlan();
     const [prefs, setPrefs] = useState(null);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
 
     useEffect(() => {
+        if (isFree) return;
         api.get('/settings').then((res) => setPrefs({
             interceptor_delay_ms: res.interceptor_delay_ms ?? 5000,
             interceptor_trigger: res.interceptor_trigger ?? 'interaction',
         }));
-    }, []);
+    }, [isFree]);
+
+    if (isFree) {
+        return (
+            <Card>
+                <BlockStack gap="200">
+                    <Text as="h3" variant="headingSm"><span className="sp-heading">Advanced delay timing</span></Text>
+                    <Text as="p" tone="subdued">Upgrade to a paid plan to use Advanced delay.</Text>
+                </BlockStack>
+            </Card>
+        );
+    }
 
     async function save(next) {
         setPrefs(next);
@@ -406,17 +438,30 @@ function RevenueInputsSettings() {
 }
 
 function SpeedBudgetSettings() {
+    const { isFree } = usePlan();
     const [value, setValue] = useState(null);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
 
     useEffect(() => {
+        if (isFree) return;
         api.get('/settings').then((res) => setValue(
             res.speed_budget_lcp_seconds !== null && res.speed_budget_lcp_seconds !== undefined
                 ? String(res.speed_budget_lcp_seconds)
                 : '',
         ));
-    }, []);
+    }, [isFree]);
+
+    if (isFree) {
+        return (
+            <Card>
+                <BlockStack gap="200">
+                    <Text as="h3" variant="headingSm"><span className="sp-heading">Speed budget</span></Text>
+                    <Text as="p" tone="subdued">Upgrade to a paid plan to get alerts when your LCP crosses a budget.</Text>
+                </BlockStack>
+            </Card>
+        );
+    }
 
     async function save() {
         setSaving(true);
@@ -587,6 +632,7 @@ function InstantNavigationSettings() {
 }
 
 function SlackNotificationSettings() {
+    const { isFree } = usePlan();
     const [hasWebhook, setHasWebhook] = useState(null);
     const [value, setValue] = useState('');
     const [saving, setSaving] = useState(false);
@@ -594,8 +640,20 @@ function SlackNotificationSettings() {
     const [error, setError] = useState(null);
 
     useEffect(() => {
+        if (isFree) return;
         api.get('/settings').then((res) => setHasWebhook(res.has_slack_webhook)).catch(() => setHasWebhook(false));
-    }, []);
+    }, [isFree]);
+
+    if (isFree) {
+        return (
+            <Card>
+                <BlockStack gap="200">
+                    <Text as="h3" variant="headingSm"><span className="sp-heading">Slack notifications</span></Text>
+                    <Text as="p" tone="subdued">Upgrade to a paid plan for regression and auto-fix alerts in Slack.</Text>
+                </BlockStack>
+            </Card>
+        );
+    }
 
     async function save() {
         setSaving(true);

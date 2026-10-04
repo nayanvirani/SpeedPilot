@@ -97,6 +97,10 @@ class ShopSettingsController extends Controller
         /** @var ShopInstallation $shop */
         $shop = $request->attributes->get('shop');
 
+        if (! (new PlanPolicy($shop))->hasPaidPlan()) {
+            return response()->json(['error' => 'Advanced delay is not available on the Free plan.'], 403);
+        }
+
         $data = $request->validate([
             'interceptor_delay_ms' => 'required|integer|min:500|max:30000',
             'interceptor_trigger' => ['required', Rule::in(['interaction', 'window_load', 'document_load', 'timeout_only'])],
@@ -147,6 +151,10 @@ class ShopSettingsController extends Controller
     {
         /** @var ShopInstallation $shop */
         $shop = $request->attributes->get('shop');
+
+        if (! (new PlanPolicy($shop))->hasPaidPlan()) {
+            return response()->json(['error' => 'Speed budget alerts are not available on the Free plan.'], 403);
+        }
 
         $data = $request->validate([
             'speed_budget_lcp_seconds' => 'nullable|numeric|min:0.1|max:60',
@@ -232,6 +240,10 @@ class ShopSettingsController extends Controller
         /** @var ShopInstallation $shop */
         $shop = $request->attributes->get('shop');
 
+        if (! (new PlanPolicy($shop))->hasPaidPlan()) {
+            return response()->json(['error' => 'Slack alerts are not available on the Free plan.'], 403);
+        }
+
         $data = $request->validate([
             'webhook_url' => 'nullable|url|starts_with:https://hooks.slack.com/',
         ]);
@@ -290,6 +302,10 @@ class ShopSettingsController extends Controller
     {
         /** @var ShopInstallation $shop */
         $shop = $request->attributes->get('shop');
+
+        if (! (new PlanPolicy($shop))->hasPaidPlan()) {
+            return response()->json(['error' => 'Choosing a target theme is not available on the Free plan.'], 403);
+        }
 
         $data = $request->validate([
             'theme_id' => 'required|string',

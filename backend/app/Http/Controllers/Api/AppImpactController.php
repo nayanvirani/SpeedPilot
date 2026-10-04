@@ -96,10 +96,14 @@ class AppImpactController extends Controller
             'method' => ['nullable', Rule::in(['theme_edit', 'interceptor', 'content_replace'])],
         ]);
 
-        // 'active'/'excluded' are dismiss/undo, not a new theme change -
-        // always allowed, same reasoning as rollback staying ungated.
-        if (in_array($data['status'], ['disabled', 'delayed'], true) && ! (new PlanPolicy($shop))->hasPaidPlan()) {
-            return response()->json(['error' => 'Disabling or delaying apps is not available on the Free plan.'], 403);
+        // 'excluded' is a local dismiss flag only, never touches the theme -
+        // always allowed. 'active' (restore()) CAN write to the theme when
+        // undoing a previously-applied disable/delay, so Free is gated here
+        // too, same as every other action on this page - a Free shop should
+        // never cause a theme write, not even to undo one from before it
+        // was downgraded.
+        if (in_array($data['status'], ['disabled', 'delayed', 'active'], true) && ! (new PlanPolicy($shop))->hasPaidPlan()) {
+            return response()->json(['error' => 'Managing apps is not available on the Free plan.'], 403);
         }
 
         $impact = AppImpact::whereHas(
