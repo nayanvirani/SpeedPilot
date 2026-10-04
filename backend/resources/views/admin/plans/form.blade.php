@@ -51,6 +51,17 @@
                    class="mt-1 w-full rounded-md border-slate-300 shadow-sm text-sm font-mono">
         </div>
 
+        <div>
+            <label class="block text-sm font-medium text-slate-700">
+                Top features <span class="text-slate-400 font-normal">(one per line, up to 8, max 40 characters each -
+                must match the "top features" entered in Shopify's Partner Dashboard pricing config exactly, or app
+                review can reject the app for a listing/pricing mismatch)</span>
+            </label>
+            <textarea name="top_features" rows="8"
+                      class="mt-1 w-full rounded-md border-slate-300 shadow-sm text-sm font-mono"
+                      placeholder="One feature per line">{{ old('top_features', is_array($plan->top_features) ? implode("\n", $plan->top_features) : '') }}</textarea>
+        </div>
+
         <div class="grid grid-cols-2 gap-4">
             <div>
                 <label class="block text-sm font-medium text-slate-700">Price (display only - USD/mo)</label>

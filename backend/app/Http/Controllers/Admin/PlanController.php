@@ -77,6 +77,7 @@ class PlanController extends Controller
             'ai_recommendations' => 'nullable|boolean',
             'active' => 'nullable|boolean',
             'sort_order' => 'required|integer|min:0',
+            'top_features' => 'nullable|string',
         ]);
 
         $data['auto_fixes'] = $request->boolean('auto_fixes');
@@ -84,6 +85,19 @@ class PlanController extends Controller
         $data['high_risk_recommendations'] = $request->boolean('high_risk_recommendations');
         $data['ai_recommendations'] = $request->boolean('ai_recommendations');
         $data['active'] = $request->boolean('active');
+
+        // One feature per line in the textarea -> a plain string array,
+        // same shape PlanPicker.jsx and welcome.blade.php both render
+        // directly, no reformatting. Capped at 8 / 40 chars each to match
+        // what Shopify's own Partner Dashboard fields allow, so whatever
+        // passes validation here is always safe to paste there unchanged.
+        $data['top_features'] = collect(preg_split('/\r\n|\r|\n/', (string) ($data['top_features'] ?? '')))
+            ->map(fn (string $line) => trim($line))
+            ->filter()
+            ->take(8)
+            ->map(fn (string $line) => mb_substr($line, 0, 40))
+            ->values()
+            ->all();
 
         // key is the identifier ShopInstallation.plan and Plan::findByKey
         // reference directly (not a foreign key) - changing it on an

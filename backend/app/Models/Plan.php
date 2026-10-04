@@ -11,6 +11,7 @@ class Plan extends Model
         'key', 'name', 'shopify_plan_name', 'price', 'trial_days', 'script_rule_limit',
         'auto_fix_limit', 'history_days', 'pages_per_scan', 'auto_fixes', 'medium_risk_fixes',
         'high_risk_recommendations', 'ai_recommendations', 'monitoring', 'active', 'sort_order',
+        'top_features',
     ];
 
     protected function casts(): array
@@ -22,6 +23,7 @@ class Plan extends Model
             'high_risk_recommendations' => 'boolean',
             'ai_recommendations' => 'boolean',
             'active' => 'boolean',
+            'top_features' => 'array',
         ];
     }
 

@@ -360,33 +360,16 @@
       <div class="pricing-card{{ $isFree ? ' pricing-card--free' : '' }}">
         <div>
           <div class="plan-name">{{ $plan->name }}</div>
+          {{-- Same top_features list entered in Shopify's Partner Dashboard
+               pricing config (Plan::top_features, edited via /admin/plans) -
+               review checks these match, so this is never reworded here,
+               only ever the literal stored text, same as PlanPicker.jsx. --}}
           <div class="check-list">
-            <div class="check-item">{!! $checkIcon !!} {{ $plan->pages_per_scan > 1 ? 'Full-store scans, mobile + desktop' : 'Homepage speed scan' }}</div>
-            <div class="check-item">{!! $checkIcon !!} Score, Core Web Vitals &amp; full issue list</div>
-            @if ($plan->auto_fixes)
-            <div class="check-item">{!! $checkIcon !!} Automatic safe fixes{{ $plan->auto_fix_limit ? " (up to {$plan->auto_fix_limit})" : ' (unlimited)' }}</div>
-            @else
-            <div class="check-item check-item--muted">{!! $dashIcon !!} No automatic fixes — upgrade to apply what's found</div>
-            @endif
-            @if ($plan->medium_risk_fixes)
-            <div class="check-item">{!! $checkIcon !!} Medium-risk fixes via preview theme</div>
-            @endif
-            @if ($plan->high_risk_recommendations)
-            <div class="check-item">{!! $checkIcon !!} High-risk recommendations</div>
-            @endif
-            @if ($plan->ai_recommendations)
-            <div class="check-item">{!! $checkIcon !!} AI-generated recommendations</div>
-            @endif
-            @if ($plan->script_rule_limit !== 0)
-            <div class="check-item">{!! $checkIcon !!} Smart Script Manager &amp; App Impact actions</div>
-            @endif
-            @if ($plan->monitoring)
-            <div class="check-item">{!! $checkIcon !!} {{ ucfirst(str_replace('_', ' + ', $plan->monitoring)) }} monitoring &amp; alerts</div>
-            @endif
-            <div class="check-item">{!! $checkIcon !!} {{ $plan->history_days > 0 ? "{$plan->history_days}-day history" : 'One-time scan, re-run anytime' }}</div>
-            @if ($plan->auto_fixes)
-            <div class="check-item">{!! $checkIcon !!} One-click rollback on every fix</div>
-            @endif
+            @forelse (($plan->top_features ?? []) as $feature)
+            <div class="check-item">{!! $checkIcon !!} {{ $feature }}</div>
+            @empty
+            <div class="check-item check-item--muted">{!! $dashIcon !!} No features listed for this plan yet.</div>
+            @endforelse
           </div>
           <div class="price-cta">
             <a class="btn {{ $isFree ? 'btn-ghost' : 'btn-primary' }}" href="https://apps.shopify.com/speedpilot">
