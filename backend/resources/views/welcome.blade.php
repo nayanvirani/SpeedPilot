@@ -145,6 +145,10 @@
       .check-item svg{width:16px; height:16px; stroke:var(--good); flex:none; margin-top:2px;}
       .price-cta{margin-top:22px; text-align:right;}
       @media (max-width:700px){ .price-cta{text-align:left;} }
+      .pricing-row{display:flex; flex-direction:column; gap:18px;}
+      .pricing-card--free{box-shadow:none; background:var(--surface-2);}
+      .check-item--muted{color:var(--text-faint);}
+      .check-item--muted svg{stroke:var(--text-faint);}
 
       footer{padding-block:36px 48px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px;}
       footer p{font-size:12.5px;}
@@ -262,6 +266,36 @@
         <h3>Test on a copy first, or go live directly</h3>
         <p>Pick your live theme for immediate effect, or point SpeedPilot at a theme you've duplicated yourself in Shopify — fixes land there first so you can review before publishing.</p>
       </div>
+      <div class="card">
+        <span class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 5v2M12 17v2M5 12h2M17 12h2M7.5 7.5l1.4 1.4M15.1 15.1l1.4 1.4M16.5 7.5l-1.4 1.4M8.9 15.1l-1.4 1.4"/></svg></span>
+        <span class="tag">Per-page control</span>
+        <h3>Decide when each app loads, per page</h3>
+        <p>Smart Script Manager lets you turn a chat widget off on product pages, delay it until the shopper scrolls on collection pages, and load it immediately on the homepage — one rule per app, per page type, no theme code required.</p>
+      </div>
+      <div class="card">
+        <span class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></span>
+        <span class="tag">Image Health</span>
+        <h3>Every broken image pattern, in one place</h3>
+        <p>Missing alt text, oversized files, images without reserved dimensions, next-gen format candidates, large animated GIFs, and the same asset accidentally loaded twice — counted and grouped, not buried in a flat issue list.</p>
+      </div>
+      <div class="card">
+        <span class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l-5-5 5-5M15 6l5 5-5 5"/><path d="M3 13h4M17 13h4"/></svg></span>
+        <span class="tag">What if</span>
+        <h3>See the score before you disable anything</h3>
+        <p>"What would my score be without this app?" runs a real second scan with that app's scripts blocked — no theme write, nothing live changes — so you know the real impact before you decide, not a guess.</p>
+      </div>
+      <div class="card">
+        <span class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/><path d="M3 3l2 2M21 3l-2 2"/></svg></span>
+        <span class="tag">Timeline</span>
+        <h3>Why your score changed, not just that it did</h3>
+        <p>A running log of every applied fix, every reverted change, and every monitoring run worth knowing about — "new script detected," "regression detected," "+6 points this week" — in order, with a reason attached to each.</p>
+      </div>
+      <div class="card">
+        <span class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M9 18h6"/></svg></span>
+        <span class="tag">Real visitors</span>
+        <h3>Real-visitor data, split by device and browser</h3>
+        <p>The on-storefront collector now breaks real Core Web Vitals down by mobile vs. desktop and by browser — so "my score looks fine" and "my mobile Safari shoppers are waiting three extra seconds" can both be true, and you'll know which.</p>
+      </div>
     </div>
   </section>
 
@@ -307,48 +341,64 @@
   </section>
 
   @php
-      $plan = \App\Models\Plan::where('active', true)->orderBy('sort_order')->first();
+      $plans = \App\Models\Plan::where('active', true)->orderBy('sort_order')->get();
   @endphp
-  @if ($plan)
+  @if ($plans->isNotEmpty())
   <section id="pricing">
     <div class="section-head">
-      <div class="eyebrow"><span class="eyebrow-dot"></span> No tiers, no upsells</div>
-      <h2>One plan. Everything unlocked.</h2>
-      <p>No feature-gated "Pro" tier to upgrade into later — every SpeedPilot subscriber gets the full product from day one.</p>
+      <div class="eyebrow"><span class="eyebrow-dot"></span> Free forever, upgrade when you're ready</div>
+      <h2>See your score for free. Fix it when you want to.</h2>
+      <p>Every store gets a real score, Core Web Vitals, and a full list of what's slowing it down — no card required. Upgrade to have SpeedPilot actually apply the safe fixes, with backup and rollback on every change.</p>
     </div>
     @php
         $checkIcon = '<svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
+        $dashIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14"/></svg>';
     @endphp
-    <div class="pricing-card">
-      <div>
-        <div class="plan-name">{{ $plan->name }}</div>
-        <div class="check-list">
-          <div class="check-item">{!! $checkIcon !!} {{ $plan->pages_per_scan > 1 ? 'Full-store scans, mobile + desktop' : 'Homepage speed scans' }}</div>
-          <div class="check-item">{!! $checkIcon !!} {{ $plan->auto_fixes ? 'Automatic safe fixes' . ($plan->auto_fix_limit ? " (up to {$plan->auto_fix_limit})" : ' (unlimited)') : 'Speed audit & app impact report' }}</div>
-          @if ($plan->medium_risk_fixes)
-          <div class="check-item">{!! $checkIcon !!} Medium-risk fixes via preview theme</div>
-          @endif
-          @if ($plan->high_risk_recommendations)
-          <div class="check-item">{!! $checkIcon !!} High-risk recommendations</div>
-          @endif
-          @if ($plan->ai_recommendations)
-          <div class="check-item">{!! $checkIcon !!} AI-generated recommendations</div>
-          @endif
-          @if ($plan->monitoring)
-          <div class="check-item">{!! $checkIcon !!} {{ ucfirst(str_replace('_', ' + ', $plan->monitoring)) }} monitoring</div>
-          @endif
-          <div class="check-item">{!! $checkIcon !!} {{ $plan->history_days > 0 ? "{$plan->history_days}-day history" : 'One-time scan' }}</div>
-          <div class="check-item">{!! $checkIcon !!} One-click rollback on every fix</div>
+    <div class="pricing-row">
+      @foreach ($plans as $plan)
+      @php $isFree = (float) $plan->price === 0.0; @endphp
+      <div class="pricing-card{{ $isFree ? ' pricing-card--free' : '' }}">
+        <div>
+          <div class="plan-name">{{ $plan->name }}</div>
+          <div class="check-list">
+            <div class="check-item">{!! $checkIcon !!} {{ $plan->pages_per_scan > 1 ? 'Full-store scans, mobile + desktop' : 'Homepage speed scan' }}</div>
+            <div class="check-item">{!! $checkIcon !!} Score, Core Web Vitals &amp; full issue list</div>
+            @if ($plan->auto_fixes)
+            <div class="check-item">{!! $checkIcon !!} Automatic safe fixes{{ $plan->auto_fix_limit ? " (up to {$plan->auto_fix_limit})" : ' (unlimited)' }}</div>
+            @else
+            <div class="check-item check-item--muted">{!! $dashIcon !!} No automatic fixes — upgrade to apply what's found</div>
+            @endif
+            @if ($plan->medium_risk_fixes)
+            <div class="check-item">{!! $checkIcon !!} Medium-risk fixes via preview theme</div>
+            @endif
+            @if ($plan->high_risk_recommendations)
+            <div class="check-item">{!! $checkIcon !!} High-risk recommendations</div>
+            @endif
+            @if ($plan->ai_recommendations)
+            <div class="check-item">{!! $checkIcon !!} AI-generated recommendations</div>
+            @endif
+            @if ($plan->script_rule_limit !== 0)
+            <div class="check-item">{!! $checkIcon !!} Smart Script Manager &amp; App Impact actions</div>
+            @endif
+            @if ($plan->monitoring)
+            <div class="check-item">{!! $checkIcon !!} {{ ucfirst(str_replace('_', ' + ', $plan->monitoring)) }} monitoring &amp; alerts</div>
+            @endif
+            <div class="check-item">{!! $checkIcon !!} {{ $plan->history_days > 0 ? "{$plan->history_days}-day history" : 'One-time scan, re-run anytime' }}</div>
+            @if ($plan->auto_fixes)
+            <div class="check-item">{!! $checkIcon !!} One-click rollback on every fix</div>
+            @endif
+          </div>
+          <div class="price-cta">
+            <a class="btn {{ $isFree ? 'btn-ghost' : 'btn-primary' }}" href="https://apps.shopify.com/speedpilot">
+              {{ $isFree ? 'Scan free, no card required' : ($plan->trial_days > 0 ? "Start {$plan->trial_days}-day free trial" : 'Install & subscribe') }}
+            </a>
+          </div>
         </div>
-        <div class="price-cta">
-          <a class="btn btn-primary" href="https://apps.shopify.com/speedpilot">
-            {{ $plan->trial_days > 0 ? "Start {$plan->trial_days}-day free trial" : 'Install & subscribe' }}
-          </a>
+        <div style="text-align:right;">
+          <div class="price-tag">${{ rtrim(rtrim(number_format($plan->price, 2), '0'), '.') }}<span>/mo</span></div>
         </div>
       </div>
-      <div style="text-align:right;">
-        <div class="price-tag">${{ rtrim(rtrim(number_format($plan->price, 2), '0'), '.') }}<span>/mo</span></div>
-      </div>
+      @endforeach
     </div>
   </section>
   @endif
