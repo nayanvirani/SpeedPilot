@@ -30,6 +30,7 @@ Route::middleware('shopify.session')->group(function () {
     Route::get('/audits/{id}/priority-plan', [AiRecommendationController::class, 'prioritize']);
     Route::post('/audit-issues/{id}/medium-fix/preview', [MediumFixController::class, 'preview']);
     Route::post('/audit-issues/{id}/medium-fix/apply', [MediumFixController::class, 'apply']);
+    Route::post('/audits/{id}/medium-fix/apply-all-defer-css', [MediumFixController::class, 'applyAllDeferCss']);
     Route::get('/audit-issues/{id}/fix-code', [FixCodeController::class, 'forIssue']);
 
     Route::get('/app-impacts', [AppImpactController::class, 'index']);

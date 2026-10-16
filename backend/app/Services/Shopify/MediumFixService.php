@@ -80,6 +80,96 @@ class MediumFixService
     }
 
     /**
+     * The bulk counterpart to apply()'s single-issue defer_css path - a
+     * theme often has several render-blocking stylesheets flagged in one
+     * scan (confirmed live: jewel-nests had main.css AND
+     * component-list-social.css both flagged, but only main.css ever had a
+     * fix applied, since the single-issue flow needs a merchant to click
+     * through each one individually). Groups by the FILE each stylesheet's
+     * tag actually lives in - often layout/theme.liquid for more than one
+     * of them - so that file gets read once, every matching tag deferred in
+     * one pass, and written once, rather than one overlapping read-modify-
+     * write race per stylesheet.
+     *
+     * @param  \Illuminate\Support\Collection<int, AuditIssue>  $issues
+     * @return array<int, Optimization> one per file actually changed
+     */
+    public function applyAllDeferCss($issues, ShopInstallation $shop): array
+    {
+        if (! $shop->target_theme_id) {
+            throw new RuntimeException('No target theme selected - choose one on the Dashboard first.');
+        }
+
+        $deferIssues = $issues->filter(
+            fn (AuditIssue $i) => ($i->meta['fix_type'] ?? null) === 'defer_css' && ! empty($i->meta['css_url'])
+        );
+
+        if ($deferIssues->isEmpty()) {
+            throw new RuntimeException('No render-blocking stylesheet issues to fix.');
+        }
+
+        $liveThemeId = $this->activeThemeIdOrFail($shop);
+        $writeThemeId = $shop->target_theme_id;
+
+        $byAssetKey = [];
+        foreach ($deferIssues as $issue) {
+            $cssUrl = $issue->meta['css_url'];
+            $assetKey = $this->locator->findStylesheetSource($liveThemeId, $cssUrl);
+
+            if (! $assetKey) {
+                continue; // skip what can't be located - don't fail the whole batch over one unresolvable url
+            }
+
+            $byAssetKey[$assetKey]['issue_ids'][] = $issue->id;
+            $byAssetKey[$assetKey]['css_urls'][] = $cssUrl;
+        }
+
+        if (empty($byAssetKey)) {
+            throw new RuntimeException("Couldn't find any of these stylesheets' <link> tags in your theme's files.");
+        }
+
+        $optimizations = [];
+
+        foreach ($byAssetKey as $assetKey => $group) {
+            $original = $this->themeAssets->read($liveThemeId, $assetKey);
+
+            if ($original === null) {
+                continue;
+            }
+
+            $fixed = $original;
+            foreach ($group['css_urls'] as $cssUrl) {
+                $fixed = ThemeAssetLocatorService::deferStylesheetTag($fixed, $cssUrl);
+            }
+
+            if ($fixed === $original) {
+                continue;
+            }
+
+            $optimization = $shop->optimizations()->create([
+                'audit_issue_id' => $group['issue_ids'][0],
+                'type' => 'defer_css',
+                'risk_tier' => 'medium',
+                'status' => 'recommended',
+                'theme_id' => $writeThemeId,
+                'asset_key' => $assetKey,
+            ]);
+
+            $this->backups->backup($optimization, $writeThemeId, $assetKey, $original, $fixed);
+            $this->themeAssets->write($writeThemeId, $assetKey, $fixed);
+            $optimization->update(['status' => 'applied', 'applied_at' => now()]);
+
+            $optimizations[] = $optimization;
+        }
+
+        if (empty($optimizations)) {
+            throw new RuntimeException('Found these stylesheets but none had a tag pattern this fix could safely change.');
+        }
+
+        return $optimizations;
+    }
+
+    /**
      * @return array{0: string, 1: string, 2: string} [assetKey, originalContent, fixedContent]
      */
     private function resolveMinify(AuditIssue $issue, ShopInstallation $shop): array

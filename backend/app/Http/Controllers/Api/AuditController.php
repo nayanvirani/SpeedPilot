@@ -138,6 +138,12 @@ class AuditController extends Controller
             return null;
         }
 
+        // A super admin's manual override (support requests, active
+        // debugging) - see StoreController::resetScanCooldown().
+        if ($shop->scan_cooldown_reset_at?->isAfter($lastAudit->created_at)) {
+            return null;
+        }
+
         $cooldownDays = (new PlanPolicy($shop))->manualScanCooldownDays();
 
         return $lastAudit->created_at->copy()->addDays($cooldownDays);

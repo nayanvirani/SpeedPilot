@@ -56,4 +56,16 @@ class StoreController extends Controller
 
         return back()->with('status', "Plan resynced: {$store->fresh()->plan}");
     }
+
+    /**
+     * Unblocks this store's manual-scan cooldown immediately (support
+     * requests, active debugging sessions) without touching audit history -
+     * see AuditController::nextManualScanAt() for the matching check.
+     */
+    public function resetScanCooldown(ShopInstallation $store)
+    {
+        $store->update(['scan_cooldown_reset_at' => now()]);
+
+        return back()->with('status', 'Scan cooldown reset - the next manual scan will run immediately.');
+    }
 }

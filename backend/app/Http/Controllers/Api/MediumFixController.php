@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Audit;
 use App\Models\AuditIssue;
 use App\Models\ShopInstallation;
 use App\Services\PlanPolicy;
@@ -63,6 +64,42 @@ class MediumFixController extends Controller
 
             return response()->json([
                 'error' => "Couldn't apply this automatically right now - use Manual fix above to apply it yourself.",
+            ], 503);
+        } catch (RuntimeException $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * One click to defer every render-blocking stylesheet this scan found,
+     * instead of clicking through "Preview -> Confirm" per issue - see
+     * MediumFixService::applyAllDeferCss() for why that mattered live (a
+     * theme with 2+ flagged stylesheets only ever got the first one fixed
+     * in practice).
+     */
+    public function applyAllDeferCss(Request $request, int $auditId)
+    {
+        /** @var ShopInstallation $shop */
+        $shop = $request->attributes->get('shop');
+
+        if (! (new PlanPolicy($shop))->canApplyMediumRiskFixes()) {
+            return response()->json(['error' => 'Medium-risk fixes are not available on your plan.'], 403);
+        }
+
+        $audit = Audit::where('shop_installation_id', $shop->id)->findOrFail($auditId);
+        $issues = $audit->issues()->where('risk_tier', 'medium')->get();
+
+        try {
+            $optimizations = $this->service($shop)->applyAllDeferCss($issues, $shop);
+
+            $shop->update(['theme_write_blocked_at' => null]);
+
+            return response()->json(['optimizations' => $optimizations]);
+        } catch (ThemeWriteAccessDeniedException) {
+            $shop->update(['theme_write_blocked_at' => now()]);
+
+            return response()->json([
+                'error' => "Couldn't apply this automatically right now - use Manual fix on each issue instead.",
             ], 503);
         } catch (RuntimeException $e) {
             return response()->json(['error' => $e->getMessage()], 422);

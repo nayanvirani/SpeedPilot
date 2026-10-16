@@ -80,6 +80,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/stores', [AdminStoreController::class, 'index'])->name('stores.index');
         Route::get('/stores/{store}', [AdminStoreController::class, 'show'])->name('stores.show');
         Route::post('/stores/{store}/resync-plan', [AdminStoreController::class, 'resyncPlan'])->name('stores.resync-plan');
+        Route::post('/stores/{store}/reset-scan-cooldown', [AdminStoreController::class, 'resetScanCooldown'])->name('stores.reset-scan-cooldown');
         Route::resource('plans', AdminPlanController::class)->except('show');
         Route::get('/subscriptions', [AdminSubscriptionController::class, 'index'])->name('subscriptions.index');
         Route::get('/settings', [AdminSettingsController::class, 'edit'])->name('settings.edit');

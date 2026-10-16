@@ -6,12 +6,20 @@
     <a href="{{ route('admin.stores.index') }}" class="text-sm text-slate-500 hover:underline">&larr; Back to stores</a>
     <div class="flex items-center justify-between mt-2 mb-6">
         <h1 class="text-2xl font-semibold">{{ $store->shop_domain }}</h1>
-        <form method="POST" action="{{ route('admin.stores.resync-plan', $store) }}">
-            @csrf
-            <button type="submit" class="text-sm bg-slate-100 hover:bg-slate-200 rounded-md px-3 py-1.5">
-                Resync plan from Shopify
-            </button>
-        </form>
+        <div class="flex gap-2">
+            <form method="POST" action="{{ route('admin.stores.reset-scan-cooldown', $store) }}">
+                @csrf
+                <button type="submit" class="text-sm bg-slate-100 hover:bg-slate-200 rounded-md px-3 py-1.5">
+                    Reset scan cooldown
+                </button>
+            </form>
+            <form method="POST" action="{{ route('admin.stores.resync-plan', $store) }}">
+                @csrf
+                <button type="submit" class="text-sm bg-slate-100 hover:bg-slate-200 rounded-md px-3 py-1.5">
+                    Resync plan from Shopify
+                </button>
+            </form>
+        </div>
     </div>
 
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 text-sm">

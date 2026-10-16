@@ -363,10 +363,19 @@ function FixAllSafeIssues({ auditId, issues }) {
     const [applying, setApplying] = useState(false);
     const [result, setResult] = useState(null);
     const [error, setError] = useState(null);
+    const [applyingCss, setApplyingCss] = useState(false);
+    const [cssResult, setCssResult] = useState(null);
+    const [cssError, setCssError] = useState(null);
 
     const counts = { safe: 0, medium: 0, high: 0 };
     issues.forEach((i) => { counts[i.risk_tier] = (counts[i.risk_tier] ?? 0) + 1; });
     const safeFixable = issues.filter((i) => i.risk_tier === 'safe' && i.fix_available);
+    // A theme often has more than one render-blocking stylesheet flagged in
+    // one scan - this applies the same defer fix to all of them at once
+    // instead of clicking "Preview -> Confirm" per issue (confirmed live:
+    // a theme with 2 flagged stylesheets only ever got the first one fixed
+    // in practice, since nothing prompted going back for the second).
+    const cssFixable = issues.filter((i) => i.meta?.fix_type === 'defer_css' && i.fix_available);
 
     async function fixAll() {
         setApplying(true);
@@ -379,6 +388,20 @@ function FixAllSafeIssues({ auditId, issues }) {
             setError(e.body?.error || 'Could not apply fixes right now.');
         } finally {
             setApplying(false);
+        }
+    }
+
+    async function fixAllCss() {
+        setApplyingCss(true);
+        setCssError(null);
+        setCssResult(null);
+        try {
+            const res = await api.post(`/audits/${auditId}/medium-fix/apply-all-defer-css`, {});
+            setCssResult(res);
+        } catch (e) {
+            setCssError(e.body?.error || 'Could not apply these fixes right now.');
+        } finally {
+            setApplyingCss(false);
         }
     }
 
@@ -431,6 +454,33 @@ function FixAllSafeIssues({ auditId, issues }) {
                             ))}
                         </BlockStack>
                     )
+                )}
+                {cssFixable.length > 1 && (
+                    <BlockStack gap="150">
+                        <div style={{ borderTop: '1px solid var(--p-color-border-secondary)', paddingTop: 'var(--p-space-150)' }}>
+                            {isFree ? (
+                                <Text as="p" tone="subdued">
+                                    {cssFixable.length} render-blocking stylesheets found - upgrade to defer them all at once.
+                                </Text>
+                            ) : !cssResult ? (
+                                <InlineStack gap="200" blockAlign="center">
+                                    <Button loading={applyingCss} onClick={fixAllCss}>
+                                        {applyingCss ? 'Deferring…' : `Defer All ${cssFixable.length} Render-Blocking Stylesheets`}
+                                    </Button>
+                                    {cssError && <Text as="span" tone="critical">{cssError}</Text>}
+                                </InlineStack>
+                            ) : (
+                                <BlockStack gap="100">
+                                    <Text as="p" tone="success">
+                                        ✓ Deferred {cssResult.optimizations.length} file{cssResult.optimizations.length === 1 ? '' : 's'}.
+                                    </Text>
+                                    {cssResult.optimizations.map((o) => (
+                                        <Text as="span" key={o.id} tone="subdued">✓ {o.asset_key}</Text>
+                                    ))}
+                                </BlockStack>
+                            )}
+                        </div>
+                    </BlockStack>
                 )}
             </BlockStack>
         </Card>
