@@ -133,6 +133,7 @@ export default function Dashboard() {
     const { isFree } = usePlan();
     const [latestAudit, setLatestAudit] = useState(null);
     const [potentialScore, setPotentialScore] = useState(null);
+    const [nextScanAt, setNextScanAt] = useState(null);
     const [loading, setLoading] = useState(true);
     const [scanning, setScanning] = useState(false);
     const [scanError, setScanError] = useState(null);
@@ -146,12 +147,18 @@ export default function Dashboard() {
             // The list endpoint is intentionally lightweight (no screenshots)
             // - fetch full detail for just the one audit this page actually
             // displays instead of paying for all 20 rows' worth of images.
-            const [{ audits }, settings] = await Promise.all([
+            const [{ audits, next_scan_at: nextScanAtRes }, settings] = await Promise.all([
                 api.get('/audits'),
                 api.get('/settings').catch(() => ({ target_theme_id: null, storefront_locked: false })),
             ]);
             setHasTargetTheme(!!settings.target_theme_id);
             setStorefrontLocked(!!settings.storefront_locked);
+            // Server-computed (AuditController::nextManualScanAt()) from the
+            // last *completed* audit, not derived from `audits[0]` here -
+            // that row can be any status (a later failed retry, a still-
+            // running scan), which isn't necessarily the cooldown-relevant
+            // one.
+            setNextScanAt(nextScanAtRes ? new Date(nextScanAtRes) : null);
             if (!audits[0]) {
                 setLatestAudit(null);
                 return;
@@ -180,17 +187,6 @@ export default function Dashboard() {
     }, [latestAudit?.status, load]);
 
     const scanInProgress = latestAudit?.status === 'pending' || latestAudit?.status === 'running';
-
-    // Mirrors AuditController::store()'s PlanPolicy::manualScanCooldownDays()
-    // check server-side (only a completed scan counts - see its comment) -
-    // computed here too so the button is disabled upfront instead of only
-    // failing reactively after a click. Paid plans get a real cooldown too
-    // now (1 day, vs Free's 7) - every manual scan is real scanner compute
-    // cost, not just a Free-tier restriction.
-    const cooldownDays = isFree ? 7 : 1;
-    const nextScanAt = latestAudit?.status === 'complete' && latestAudit?.created_at
-        ? new Date(new Date(latestAudit.created_at).getTime() + cooldownDays * 24 * 60 * 60 * 1000)
-        : null;
     const scanLimited = nextScanAt ? nextScanAt > new Date() : false;
 
     async function scanNow() {

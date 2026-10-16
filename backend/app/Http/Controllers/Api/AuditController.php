@@ -31,15 +31,13 @@ class AuditController extends Controller
             'url' => 'nullable|url',
         ]);
 
-        $cooldownDays = (new PlanPolicy($shop))->manualScanCooldownDays();
-
         // Only a completed scan counts against the quota - a failed one
         // (storefront hiccup, scanner recycling) shouldn't lock a merchant
         // out over something that wasn't a real, usable scan to begin with.
-        $lastAudit = $shop->audits()->where('status', 'complete')->latest('created_at')->first();
-        $nextScanAt = $lastAudit?->created_at->copy()->addDays($cooldownDays);
+        $nextScanAt = $this->nextManualScanAt($shop);
 
         if ($nextScanAt && $nextScanAt->isFuture()) {
+            $cooldownDays = (new PlanPolicy($shop))->manualScanCooldownDays();
             return response()->json([
                 'error' => $cooldownDays === 1
                     ? "You can scan again on {$nextScanAt->format('M j, Y')} - manual scans are limited to once per day."
@@ -98,7 +96,26 @@ class AuditController extends Controller
                 ->latest('id')
                 ->limit(20)
                 ->get(),
+            // Computed server-side (same query store() gates on) rather
+            // than left for the frontend to derive from `audits` above - the
+            // most-recent-by-id row here is often NOT the most recent
+            // *complete* one (a later failed retry, a still-running scan),
+            // so re-deriving "is scanning still on cooldown" from it client-
+            // side silently showed the scan button as available even while
+            // store() would still correctly reject the click (confirmed
+            // live 2026-10-16: an audit that failed after the cooldown-
+            // relevant complete scan made Dashboard.jsx think there was no
+            // cooldown at all).
+            'next_scan_at' => $this->nextManualScanAt($shop),
         ]);
+    }
+
+    private function nextManualScanAt(ShopInstallation $shop): ?\Illuminate\Support\Carbon
+    {
+        $cooldownDays = (new PlanPolicy($shop))->manualScanCooldownDays();
+        $lastAudit = $shop->audits()->where('status', 'complete')->latest('created_at')->first();
+
+        return $lastAudit?->created_at->copy()->addDays($cooldownDays);
     }
 
     public function show(Request $request, int $id, PotentialScoreEstimator $potentialScore)
