@@ -112,10 +112,24 @@ class AuditController extends Controller
 
     private function nextManualScanAt(ShopInstallation $shop): ?\Illuminate\Support\Carbon
     {
-        $cooldownDays = (new PlanPolicy($shop))->manualScanCooldownDays();
         $lastAudit = $shop->audits()->where('status', 'complete')->latest('created_at')->first();
 
-        return $lastAudit?->created_at->copy()->addDays($cooldownDays);
+        if (! $lastAudit) {
+            return null;
+        }
+
+        // A target-theme switch since that scan makes it stale for cooldown
+        // purposes - every existing scan's data (App & Script Impact,
+        // Optimizations, the Dashboard score) still reflects the OLD theme,
+        // so the merchant genuinely needs a fresh scan against the new one,
+        // not a cooldown built for "re-scanning the same thing too often."
+        if ($shop->target_theme_changed_at?->isAfter($lastAudit->created_at)) {
+            return null;
+        }
+
+        $cooldownDays = (new PlanPolicy($shop))->manualScanCooldownDays();
+
+        return $lastAudit->created_at->copy()->addDays($cooldownDays);
     }
 
     public function show(Request $request, int $id, PotentialScoreEstimator $potentialScore)

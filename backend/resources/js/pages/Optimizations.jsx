@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Badge, BlockStack, Box, Button, Card, DataTable, InlineStack, Modal, Page, SkeletonBodyText, Text } from '@shopify/polaris';
+import { Badge, Banner, BlockStack, Box, Button, Card, DataTable, InlineStack, Modal, Page, SkeletonBodyText, Text, Toast } from '@shopify/polaris';
 import { api } from '../api';
 import ThemeAccessStatus from '../components/ThemeAccessStatus';
 
@@ -26,6 +26,7 @@ export default function Optimizations() {
     const [pendingId, setPendingId] = useState(null);
     const [diffOpt, setDiffOpt] = useState(null);
     const [showFullDiff, setShowFullDiff] = useState(false);
+    const [notice, setNotice] = useState(null);
 
     const load = useCallback(() => {
         setLoading(true);
@@ -56,6 +57,20 @@ export default function Optimizations() {
         }
     }
 
+    async function reapplyToCurrentTheme(id) {
+        setPendingId(id);
+        setNotice(null);
+        try {
+            await api.post(`/optimizations/${id}/reapply-to-current-theme`);
+            setNotice({ tone: 'success', message: 'Re-applied to your current target theme.' });
+            await load();
+        } catch (e) {
+            setNotice({ tone: 'critical', message: e.body?.error || 'Could not re-apply this to your current theme.' });
+        } finally {
+            setPendingId(null);
+        }
+    }
+
     const rows = optimizations.map((opt) => {
         const backup = opt.backups?.[0];
 
@@ -81,9 +96,14 @@ export default function Optimizations() {
                         Rollback
                     </Button>
                 )}
-                {(opt.status === 'rolled_back' || opt.reverted_at) && (
+                {(opt.status === 'rolled_back' || opt.reverted_at) && !opt.theme_mismatch && (
                     <Button size="micro" variant="primary" loading={pendingId === opt.id} onClick={() => reapply(opt.id)}>
                         Re-apply
+                    </Button>
+                )}
+                {opt.theme_mismatch && (
+                    <Button size="micro" variant="primary" loading={pendingId === opt.id} onClick={() => reapplyToCurrentTheme(opt.id)}>
+                        Apply to current theme
                     </Button>
                 )}
             </div>,
@@ -95,7 +115,20 @@ export default function Optimizations() {
 
     return (
         <Page title="Optimizations">
+            {notice && (
+                <Toast
+                    content={notice.message}
+                    error={notice.tone === 'critical'}
+                    onDismiss={() => setNotice(null)}
+                    duration={notice.tone === 'success' ? 3000 : 6000}
+                />
+            )}
             <BlockStack gap="400">
+                {notice && (
+                    <Banner tone={notice.tone} onDismiss={() => setNotice(null)}>
+                        <Text as="p">{notice.message}</Text>
+                    </Banner>
+                )}
                 <ThemeAccessStatus />
                 <Card>
                     <InlineStack align="space-between" blockAlign="center" wrap>

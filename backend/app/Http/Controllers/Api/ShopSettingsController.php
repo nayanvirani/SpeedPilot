@@ -320,10 +320,19 @@ class ShopSettingsController extends Controller
             return response()->json(['error' => 'Could not find that theme - it may have been deleted.'], 422);
         }
 
+        // A real switch (not just re-confirming the same theme) makes every
+        // existing scan stale for this new target - recorded so
+        // AuditController::nextManualScanAt() can let the next manual scan
+        // through immediately instead of enforcing a cooldown built for "the
+        // merchant is re-scanning the same thing too often," which isn't
+        // what's happening here.
+        $themeChanged = $shop->target_theme_id !== $theme['id'];
+
         if ($theme['role'] === 'main') {
             $shop->update([
                 'target_theme_id' => $theme['id'],
                 'target_theme_mode' => 'live',
+                'target_theme_changed_at' => $themeChanged ? now() : $shop->target_theme_changed_at,
             ]);
         } else {
             $liveThemeId = $themeAssets->activeThemeId();
@@ -338,6 +347,7 @@ class ShopSettingsController extends Controller
             $shop->update([
                 'target_theme_id' => $theme['id'],
                 'target_theme_mode' => 'duplicate',
+                'target_theme_changed_at' => $themeChanged ? now() : $shop->target_theme_changed_at,
             ]);
         }
 
