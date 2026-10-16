@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AppImpact;
 use App\Models\ShopInstallation;
+use App\Services\Monitoring\AuditDiffService;
 use App\Services\PlanPolicy;
 use App\Services\Scanner\ScannerClient;
 use App\Services\Shopify\AppCategoryClassifier;
@@ -28,6 +29,38 @@ use Throwable;
  */
 class AppImpactController extends Controller
 {
+    /**
+     * The data behind this (which third-party scripts weren't there last
+     * scan) already existed buried in the Monitoring timeline's diff text
+     * (see AuditDiffService::scriptDiff(), used there too) - this surfaces
+     * the same comparison as its own dedicated, prominent read-only card
+     * here instead of requiring a merchant to dig through Monitoring to
+     * notice it. Deliberately diffs the latest two COMPLETE audits
+     * (whatever those happen to be, paid or free) rather than requiring
+     * weekly-monitoring history, so it works the same on every plan - no
+     * action attached, just information, consistent with how every other
+     * free-tier view on this page already works.
+     */
+    public function newlyInstalled(Request $request, AuditDiffService $diffService)
+    {
+        /** @var ShopInstallation $shop */
+        $shop = $request->attributes->get('shop');
+
+        $audits = $shop->audits()->where('status', 'complete')->with('appImpacts')->latest('created_at')->take(2)->get();
+
+        if ($audits->count() < 2) {
+            return response()->json(['apps' => [], 'since' => null]);
+        }
+
+        [$current, $previous] = $audits;
+        $diff = $diffService->diff($previous, $current);
+
+        return response()->json([
+            'apps' => $diff['new_third_party_scripts'],
+            'since' => $previous->created_at,
+        ]);
+    }
+
     public function index(Request $request, AppCategoryClassifier $classifier)
     {
         /** @var ShopInstallation $shop */

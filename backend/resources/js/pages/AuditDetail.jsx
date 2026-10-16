@@ -12,7 +12,7 @@ const PAGE_TYPE_LABEL = {
     home: 'Homepage', product: 'Product page', collection: 'Collection page',
     cart: 'Cart', search: 'Search', blog: 'Blog article', custom: 'Custom URL',
 };
-const ISSUE_CATEGORY_LABEL = { image: 'Images', js: 'JavaScript', css: 'CSS', font: 'Fonts', cls: 'Layout shift (CLS)', theme: 'Theme' };
+const ISSUE_CATEGORY_LABEL = { image: 'Images', js: 'JavaScript', css: 'CSS', font: 'Fonts', cls: 'Layout shift (CLS)', theme: 'Theme', seo: 'SEO' };
 const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low'];
 
 function scoreClass(score) {
@@ -89,6 +89,9 @@ function evidenceRows(evidence) {
     if (evidence.cause) rows.push(['Likely cause', evidence.cause]);
     if (evidence.shift_score != null) rows.push(['Shift score', evidence.shift_score]);
     if (evidence.wasted_ms != null) rows.push(['Blocking time', `${Math.round(evidence.wasted_ms)}ms`]);
+    if (evidence.total_elements != null) rows.push(['Total elements', evidence.total_elements]);
+    if (evidence.widest_element?.selector) rows.push(['Widest element', `${evidence.widest_element.selector} (${evidence.widest_element.value} children)`]);
+    if (evidence.deepest_element?.selector) rows.push(['Deepest element', `${evidence.deepest_element.selector} (${evidence.deepest_element.value} levels)`]);
 
     return rows;
 }

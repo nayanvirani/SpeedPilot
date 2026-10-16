@@ -50,6 +50,45 @@ function IssueSeverityCounts({ issues }) {
     );
 }
 
+// Confusion this session repeatedly traced back to concepts (target theme,
+// theme-switch behavior, the safe/medium/manual fix tiers) a brand-new
+// install has no context for yet - this gives a first-time merchant a
+// concrete three-step path instead of landing on an empty Dashboard with no
+// orientation. Auto-hides once step 3 is done rather than needing a
+// dismiss button - there's nothing left to guide at that point.
+function OnboardingChecklist({ hasTargetTheme, hasCompletedScan, hasAppliedFix, navigate }) {
+    if (hasAppliedFix) {
+        return null;
+    }
+
+    const steps = [
+        { label: 'Pick your theme', done: hasTargetTheme, path: '/settings' },
+        { label: 'Run your first scan', done: hasCompletedScan, path: null },
+        { label: 'Apply a safe fix', done: hasAppliedFix, path: null },
+    ];
+
+    return (
+        <Card>
+            <BlockStack gap="200">
+                <Text as="h3" variant="headingSm"><span className="sp-heading">Getting started</span></Text>
+                <BlockStack gap="150">
+                    {steps.map((step, i) => (
+                        <InlineStack key={step.label} align="space-between" blockAlign="center">
+                            <InlineStack gap="200" blockAlign="center">
+                                <Badge tone={step.done ? 'success' : 'new'}>{step.done ? '✓' : `${i + 1}`}</Badge>
+                                <Text as="span" tone={step.done ? 'subdued' : undefined}>{step.label}</Text>
+                            </InlineStack>
+                            {!step.done && step.path && (
+                                <Button size="micro" onClick={() => navigate(step.path)}>Go</Button>
+                            )}
+                        </InlineStack>
+                    ))}
+                </BlockStack>
+            </BlockStack>
+        </Card>
+    );
+}
+
 const PAGE_TYPE_LABEL = {
     home: 'Homepage', product: 'Product page', collection: 'Collection page',
     cart: 'Cart', search: 'Search', blog: 'Blog article', custom: 'Custom URL',
@@ -139,6 +178,7 @@ export default function Dashboard() {
     const [scanError, setScanError] = useState(null);
     const [hasTargetTheme, setHasTargetTheme] = useState(true);
     const [storefrontLocked, setStorefrontLocked] = useState(false);
+    const [hasAppliedFix, setHasAppliedFix] = useState(true);
 
     const load = useCallback(async (opts = {}) => {
         const { silent = false } = opts;
@@ -149,10 +189,11 @@ export default function Dashboard() {
             // displays instead of paying for all 20 rows' worth of images.
             const [{ audits, next_scan_at: nextScanAtRes }, settings] = await Promise.all([
                 api.get('/audits'),
-                api.get('/settings').catch(() => ({ target_theme_id: null, storefront_locked: false })),
+                api.get('/settings').catch(() => ({ target_theme_id: null, storefront_locked: false, has_applied_any_fix: true })),
             ]);
             setHasTargetTheme(!!settings.target_theme_id);
             setStorefrontLocked(!!settings.storefront_locked);
+            setHasAppliedFix(!!settings.has_applied_any_fix);
             // Server-computed (AuditController::nextManualScanAt()) from the
             // last *completed* audit, not derived from `audits[0]` here -
             // that row can be any status (a later failed retry, a still-
@@ -218,6 +259,14 @@ export default function Dashboard() {
             }}
         >
             <BlockStack gap="400">
+                {!loading && (
+                    <OnboardingChecklist
+                        hasTargetTheme={hasTargetTheme}
+                        hasCompletedScan={latestAudit?.status === 'complete'}
+                        hasAppliedFix={hasAppliedFix}
+                        navigate={navigate}
+                    />
+                )}
                 <PerformanceHealth />
                 <WeeklyRollup />
                 <PageLoadBeforeAfter />

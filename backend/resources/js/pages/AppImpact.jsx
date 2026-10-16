@@ -309,13 +309,54 @@ function ImpactRow({ impact, pending, onSetStatus, scriptManager, onScriptManage
 }
 
 /**
- * Purely informational - overlap_category/overlap_with come from the
- * backend's curated category list (reviews, chat, popups, etc.), never
- * analytics/tracking apps, since running several of those simultaneously is
- * normal, not redundant. No action attached; this just gives the merchant
- * something to consider, since removing either app is their call.
+ * Surfaces AppImpactController::newlyInstalled() as its own prominent,
+ * read-only card instead of leaving it buried in the Monitoring timeline's
+ * diff text - fetched once on mount, same as every other read-only card on
+ * this page. No action attached (disabling/delaying is already one click
+ * away on the row below once the merchant scrolls to it), and shown on
+ * every plan since it's pure information, not a theme-write action.
  */
-function OverlapBanner({ appImpacts }) {
+function NewAppsCard() {
+    const [data, setData] = useState(null);
+
+    useEffect(() => {
+        api.get('/app-impacts/newly-installed').then(setData).catch(() => {});
+    }, []);
+
+    if (!data || data.apps.length === 0) {
+        return null;
+    }
+
+    const since = new Date(data.since).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+    return (
+        <Banner tone="warning" title="New since your last scan">
+            <BlockStack gap="150">
+                {data.apps.map((a) => (
+                    <Text as="p" key={a.app_name}>
+                        <b>{a.app_name}</b> showed up since your scan on {since}
+                        {a.estimated_blocking_ms ? ` - an estimated ${a.estimated_blocking_ms}ms of blocking time` : ''}.
+                        {' '}Check the row below for details, or disable/delay it if it's not needed.
+                    </Text>
+                ))}
+            </BlockStack>
+        </Banner>
+    );
+}
+
+/**
+ * overlap_category/overlap_with come from the backend's curated category
+ * list (reviews, chat, popups, etc.), never analytics/tracking apps, since
+ * running several of those simultaneously is normal, not redundant. Mostly
+ * informational - removing either app is the merchant's call - but offers
+ * one safe, reversible action: delaying whichever app in the pair measured
+ * the SMALLER estimated_blocking_ms. That's deliberately the lower-impact
+ * one, not the higher: it's the one most likely to be a secondary/legacy
+ * install doing less real work, so delaying it is the lower-risk pick,
+ * and it reuses the exact same `delayed` action (and its confirm dialog)
+ * every other app on this page already offers - not a new code path.
+ */
+function OverlapBanner({ appImpacts, isFree, pendingId, onSetStatus }) {
     const seen = new Set();
     const groups = [];
 
@@ -325,9 +366,18 @@ function OverlapBanner({ appImpacts }) {
         }
 
         seen.add(impact.overlap_category);
+
+        const members = appImpacts.filter(
+            (a) => a.overlap_category === impact.overlap_category
+        );
+        const resolvable = members
+            .filter((a) => !a.is_platform && (a.status ?? 'active') === 'active')
+            .sort((a, b) => (a.estimated_blocking_ms ?? 0) - (b.estimated_blocking_ms ?? 0))[0];
+
         groups.push({
             category: impact.overlap_category,
-            names: [impact.app_name, ...impact.overlap_with],
+            names: members.map((m) => m.app_name),
+            resolvable,
         });
     }
 
@@ -337,12 +387,25 @@ function OverlapBanner({ appImpacts }) {
 
     return (
         <Banner tone="info" title="Possible overlap between installed apps">
-            <BlockStack gap="150">
+            <BlockStack gap="200">
                 {groups.map((g) => (
-                    <Text as="p" key={g.category}>
-                        You have {g.names.length} apps that all handle {g.category.replace('/', ' / ')}:{' '}
-                        <b>{g.names.join(', ')}</b> - consider whether you need all of them.
-                    </Text>
+                    <BlockStack gap="150" key={g.category}>
+                        <Text as="p">
+                            You have {g.names.length} apps that all handle {g.category.replace('/', ' / ')}:{' '}
+                            <b>{g.names.join(', ')}</b> - consider whether you need all of them.
+                        </Text>
+                        {!isFree && g.resolvable && (
+                            <InlineStack>
+                                <Button
+                                    size="micro"
+                                    loading={pendingId === g.resolvable.id}
+                                    onClick={() => onSetStatus(g.resolvable, 'delayed')}
+                                >
+                                    {`Delay ${g.resolvable.app_name} (lowest measured impact)`}
+                                </Button>
+                            </InlineStack>
+                        )}
+                    </BlockStack>
                 ))}
             </BlockStack>
         </Banner>
@@ -420,7 +483,8 @@ export default function AppImpact() {
                     </Banner>
                 )}
                 {!isFree && <ThemeAccessStatus />}
-                <OverlapBanner appImpacts={appImpacts} />
+                <NewAppsCard />
+                <OverlapBanner appImpacts={appImpacts} isFree={isFree} pendingId={pendingId} onSetStatus={setStatus} />
                 {!isFree && <AdvancedDelaySetup appImpacts={appImpacts} />}
                 <Card>
                     {loading ? (

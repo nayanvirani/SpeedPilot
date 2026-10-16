@@ -22,6 +22,90 @@ function issuesFromLighthouse(lhr) {
   issues.push(...imageAltIssues(audits));
   issues.push(...hugeGifIssues(audits));
   issues.push(...duplicateAssetIssues(audits));
+  issues.push(...seoIssues(audits));
+
+  return issues;
+}
+
+/**
+ * Basic SEO health - document-title, meta-description, is-crawlable and
+ * link-text are all genuine Lighthouse audits (binary pass/fail, score 0 or
+ * 1), not something this file computes itself. Structured data is
+ * deliberately NOT included here: Lighthouse's own structured-data audit is
+ * always informational (score: null, "manual" mode) rather than actually
+ * graded, so there's nothing pass/fail to surface the same way the others
+ * are - flagging it would mean writing a net-new JSON-LD detector, not
+ * reading an existing result. None of these have a safe auto-fix (writing a
+ * title/description requires real page-specific content a human has to
+ * choose), so every one is manual-only, same as domIssues() above.
+ */
+function seoIssues(audits) {
+  const issues = [];
+
+  const title = audits['document-title'];
+  if (title && title.score === 0) {
+    issues.push({
+      category: 'seo',
+      severity: 'high',
+      title: 'Missing page title',
+      description: "This page has no <title> element, or it's empty.",
+      why: 'The title is one of the strongest signals search engines use to understand '
+        + "what a page is about, and it's what shows in search results and browser tabs - "
+        + 'without one, both are left guessing.',
+      riskTier: 'high',
+      fixAvailable: false,
+      meta: {},
+    });
+  }
+
+  const metaDescription = audits['meta-description'];
+  if (metaDescription && metaDescription.score === 0) {
+    issues.push({
+      category: 'seo',
+      severity: 'medium',
+      title: 'Missing meta description',
+      description: 'This page has no meta description, so search engines will '
+        + 'auto-generate a snippet instead of showing the one you\'d choose.',
+      why: "The meta description is usually what shows as the snippet under your page in "
+        + 'search results - without one, you lose control of how the page is pitched to '
+        + 'searchers.',
+      riskTier: 'medium',
+      fixAvailable: false,
+      meta: {},
+    });
+  }
+
+  const crawlable = audits['is-crawlable'];
+  if (crawlable && crawlable.score === 0) {
+    issues.push({
+      category: 'seo',
+      severity: 'critical',
+      title: 'Page is blocked from search engines',
+      description: 'A robots meta tag, HTTP header, or robots.txt rule is blocking search '
+        + 'engines from indexing this page.',
+      why: "If this isn't intentional, this page won't show up in search results at all, "
+        + 'no matter how fast or well-optimized it is - this blocks discovery entirely, '
+        + "rather than just hurting ranking.",
+      riskTier: 'high',
+      fixAvailable: false,
+      meta: {},
+    });
+  }
+
+  const linkText = audits['link-text'];
+  for (const item of linkText?.details?.items ?? []) {
+    issues.push({
+      category: 'seo',
+      severity: 'low',
+      title: `Non-descriptive link text: "${item.text ?? 'link'}"`,
+      description: `Links to ${shortUrl(item.href)}`,
+      why: 'Text like "click here" or "read more" tells search engines (and screen '
+        + "reader users navigating by links) nothing about what the link leads to.",
+      riskTier: 'medium',
+      fixAvailable: false,
+      meta: { url: item.href ?? null },
+    });
+  }
 
   return issues;
 }
@@ -521,11 +605,46 @@ function clsIssues(audits) {
   });
 }
 
+/**
+ * Lighthouse's own dom-size audit already carries the exact diagnostic that
+ * was previously thrown away - its details table has three fixed rows
+ * (Total DOM Elements, Maximum DOM Depth, Maximum Child Elements - see
+ * lighthouse/core/audits/dobetterweb/dom-size.js), and the latter two each
+ * carry a `node` (selector + snippet) identifying the SPECIFIC element
+ * responsible, not just a page-wide count. No fix exists that's safe to
+ * automate (removing a section/snippet could break the storefront), but
+ * naming the actual offending element turns this from a dead-end "DOM is
+ * too big" into something a merchant can act on.
+ */
 function domIssues(audits) {
   const issues = [];
   const domSize = audits['dom-size'];
 
   if (domSize && domSize.score !== null && domSize.score < 0.9) {
+    const items = domSize.details?.items ?? [];
+    const byStatistic = (label) => items.find((i) => i.statistic === label);
+
+    const totalElements = byStatistic('Total DOM Elements')?.value?.value ?? null;
+    const depthItem = byStatistic('Maximum DOM Depth');
+    const widthItem = byStatistic('Maximum Child Elements');
+
+    const describeNode = (item) => (item?.node ? {
+      selector: item.node.selector ?? null,
+      snippet: item.node.snippet ?? null,
+      value: item.value?.value ?? null,
+    } : null);
+
+    const deepest = describeNode(depthItem);
+    const widest = describeNode(widthItem);
+
+    const recommendations = [];
+    if (widest?.selector) {
+      recommendations.push(`"${widest.selector}" has the most direct children (${widest.value}) - check that section/snippet for duplicated or unnecessary markup`);
+    }
+    if (deepest?.selector && deepest.selector !== widest?.selector) {
+      recommendations.push(`"${deepest.selector}" sits deepest in the page (${deepest.value} levels) - look for unnecessary wrapper divs nested around it`);
+    }
+
     issues.push({
       category: 'theme',
       severity: domSize.score < 0.3 ? 'critical' : domSize.score < 0.5 ? 'high' : 'medium',
@@ -535,7 +654,12 @@ function domIssues(audits) {
         + 'update, slowing down scrolling and every interaction, not just the initial load.',
       riskTier: 'high',
       fixAvailable: false,
-      meta: {},
+      meta: {
+        evidence: { total_elements: totalElements, deepest_element: deepest, widest_element: widest },
+        recommendation: recommendations.length > 0
+          ? recommendations.join('. ') + '.'
+          : null,
+      },
     });
   }
 

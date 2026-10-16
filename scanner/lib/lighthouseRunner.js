@@ -88,11 +88,12 @@ async function runLighthouse(url, options = {}) {
     const runnerResult = await lighthouse(url, {
       port: 9222,
       output: 'json',
-      // 'accessibility' costs nothing extra here - same trace, same page
-      // load, Lighthouse just runs a few more DOM-based audits against data
-      // it already captured. Only image-alt is actually consumed
-      // (domAnalyzer.js's imageAltIssues) - not a general a11y feature.
-      onlyCategories: ['performance', 'accessibility'],
+      // 'accessibility' and 'seo' both cost nothing extra here - same
+      // trace, same page load, Lighthouse just runs a few more DOM-based
+      // audits against data it already captured. Only image-alt
+      // (domAnalyzer.js's imageAltIssues) and the SEO audits consumed by
+      // seoIssues() are actually used - not a general a11y/SEO feature.
+      onlyCategories: ['performance', 'accessibility', 'seo'],
       formFactor: preset.formFactor,
       screenEmulation: preset.screenEmulation,
       extraHeaders: cookieHeader ? { Cookie: cookieHeader } : undefined,

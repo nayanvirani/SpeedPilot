@@ -34,6 +34,7 @@ Route::middleware('shopify.session')->group(function () {
     Route::get('/audit-issues/{id}/fix-code', [FixCodeController::class, 'forIssue']);
 
     Route::get('/app-impacts', [AppImpactController::class, 'index']);
+    Route::get('/app-impacts/newly-installed', [AppImpactController::class, 'newlyInstalled']);
     Route::patch('/app-impacts/{id}', [AppImpactController::class, 'updateStatus']);
     Route::get('/app-impacts/{id}/fix-code', [FixCodeController::class, 'forAppImpact']);
     Route::post('/app-impacts/{id}/project-removal', [AppImpactController::class, 'projectRemoval']);
@@ -74,5 +75,6 @@ Route::middleware('shopify.session')->group(function () {
     Route::post('/settings/prefetch-tag/install', [ShopSettingsController::class, 'installPrefetchTag']);
     Route::get('/settings/trust-badge/code', [ShopSettingsController::class, 'trustBadgeCode']);
     Route::get('/themes', [ShopSettingsController::class, 'listThemes']);
+    Route::post('/themes/{id}/pre-publish-check', [ShopSettingsController::class, 'previewThemeCheck']);
     Route::put('/settings/target-theme', [ShopSettingsController::class, 'updateTargetTheme']);
 });

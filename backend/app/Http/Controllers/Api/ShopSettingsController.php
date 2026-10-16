@@ -52,6 +52,10 @@ class ShopSettingsController extends Controller
             'monthly_orders' => $shop->monthly_orders,
             'speed_budget_lcp_seconds' => $shop->speed_budget_lcp_seconds,
             'has_prefetch_tag' => $shop->optimizations()->where('type', 'prefetch_install')->where('status', 'applied')->exists(),
+            // Powers the first-run checklist on the Dashboard (pick a
+            // theme -> run a scan -> apply fixes) - cheap exists() check,
+            // same pattern as has_prefetch_tag above, not a new endpoint.
+            'has_applied_any_fix' => $shop->optimizations()->where('status', 'applied')->exists(),
             // Shopify gates actually writing theme files behind a separate,
             // app-level "protected scope" exemption it grants (or doesn't) -
             // this is never a per-merchant setting, and no button in this
@@ -291,6 +295,59 @@ class ShopSettingsController extends Controller
         $themeAssets = new ThemeAssetService(new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token));
 
         return response()->json(['themes' => $themeAssets->listThemes()]);
+    }
+
+    /**
+     * "Will publishing this draft regress my score?" - answered the same
+     * way AppImpactController::projectRemoval() answers "what if I removed
+     * this app": two real scans, no theme write, nothing persisted as a
+     * monitored Audit row (this is a what-if comparison, not a real data
+     * point). The draft's own homepage is reachable without logging in via
+     * Shopify's documented theme preview link (?preview_theme_id=), which
+     * is what makes this possible without ever publishing the draft first
+     * just to test it.
+     */
+    public function previewThemeCheck(Request $request, int $id, \App\Services\Scanner\ScannerClient $scanner)
+    {
+        set_time_limit(300);
+
+        /** @var ShopInstallation $shop */
+        $shop = $request->attributes->get('shop');
+
+        if (! (new PlanPolicy($shop))->hasPaidPlan()) {
+            return response()->json(['error' => 'Pre-publish checks are not available on the Free plan.'], 403);
+        }
+
+        $themeAssets = new ThemeAssetService(new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token));
+        $theme = collect($themeAssets->listThemes())->firstWhere('id', (string) $id);
+
+        if (! $theme) {
+            return response()->json(['error' => 'Could not find that theme - it may have been deleted.'], 422);
+        }
+
+        if ($theme['role'] === 'main') {
+            return response()->json(['error' => 'This theme is already live - there is nothing to check before publishing it.'], 422);
+        }
+
+        $liveUrl = "https://{$shop->shop_domain}";
+        $previewUrl = $liveUrl.'/?preview_theme_id='.$id;
+
+        try {
+            $live = $scanner->scan($liveUrl, $shop->storefront_password, 'mobile');
+            $draft = $scanner->scan($previewUrl, $shop->storefront_password, 'mobile');
+        } catch (\Throwable $e) {
+            return response()->json(['error' => "Couldn't run the pre-publish check right now: ".$e->getMessage()], 502);
+        }
+
+        $liveScore = $live['score'] ?? null;
+        $draftScore = $draft['score'] ?? null;
+
+        return response()->json([
+            'theme_name' => $theme['name'],
+            'live_score' => $liveScore,
+            'draft_score' => $draftScore,
+            'delta' => ($liveScore !== null && $draftScore !== null) ? $draftScore - $liveScore : null,
+        ]);
     }
 
     /**

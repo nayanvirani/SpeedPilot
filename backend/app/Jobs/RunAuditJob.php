@@ -421,6 +421,7 @@ class RunAuditJob implements ShouldQueue
             'css' => $issueDeduction('css'),
             'theme' => $issueDeduction('theme'),
             'third_party' => max(0, 100 - $thirdPartyDeduction),
+            'seo' => $issueDeduction('seo'),
         ];
     }
 

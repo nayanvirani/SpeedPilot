@@ -77,6 +77,9 @@ function TargetThemeSettings() {
     const [current, setCurrent] = useState({ id: null, mode: null, diverged: null });
     const [selectedThemeId, setSelectedThemeId] = useState('');
     const [saving, setSaving] = useState(null);
+    const [checkingPublish, setCheckingPublish] = useState(false);
+    const [publishCheck, setPublishCheck] = useState(null);
+    const [publishCheckError, setPublishCheckError] = useState(null);
 
     const load = useCallback(async () => {
         const [settings, themeList] = await Promise.all([
@@ -112,6 +115,26 @@ function TargetThemeSettings() {
             setCurrent((c) => ({ ...c, id: res.target_theme_id, mode: res.target_theme_mode, diverged: null }));
         } finally {
             setSaving(false);
+        }
+    }
+
+    // Catches a regression BEFORE publishing instead of after - runs two
+    // real scans (the live homepage, and this draft's own homepage via
+    // Shopify's ?preview_theme_id= link) so a merchant can decide whether
+    // to publish from Shopify's own theme editor, exactly the same
+    // two-scan comparison technique already used for removal projection.
+    // Nothing here writes to any theme or counts as a monitored scan.
+    async function checkBeforePublish() {
+        setCheckingPublish(true);
+        setPublishCheckError(null);
+        setPublishCheck(null);
+        try {
+            const res = await api.post(`/themes/${selectedThemeId}/pre-publish-check`, {});
+            setPublishCheck(res);
+        } catch (e) {
+            setPublishCheckError(e.body?.error || 'Could not run this check right now.');
+        } finally {
+            setCheckingPublish(false);
         }
     }
 
@@ -177,13 +200,32 @@ function TargetThemeSettings() {
                             label="Theme"
                             options={themes.map((t) => ({ label: `${t.name} (${t.role})`, value: t.id }))}
                             value={selectedThemeId}
-                            onChange={setSelectedThemeId}
+                            onChange={(id) => { setSelectedThemeId(id); setPublishCheck(null); setPublishCheckError(null); }}
                         />
                     </div>
                     <Button loading={saving} onClick={setTargetTheme} disabled={!selectedThemeId} variant="primary">
                         {selectedIsLive ? 'Apply to this theme directly' : 'Use as preview theme'}
                     </Button>
+                    {!selectedIsLive && selectedThemeId && (
+                        <Button loading={checkingPublish} onClick={checkBeforePublish}>
+                            Check score before publishing
+                        </Button>
+                    )}
                 </InlineStack>
+                {publishCheckError && <Text as="p" tone="critical">{publishCheckError}</Text>}
+                {publishCheck && (
+                    <Banner tone={publishCheck.delta != null && publishCheck.delta < -5 ? 'critical' : 'info'}>
+                        <Text as="p">
+                            Live homepage score: <b>{publishCheck.live_score ?? '—'}</b>
+                            {' → '}
+                            {publishCheck.theme_name}: <b>{publishCheck.draft_score ?? '—'}</b>
+                            {publishCheck.delta != null && (
+                                <> ({publishCheck.delta >= 0 ? '+' : ''}{publishCheck.delta})</>
+                            )}
+                            {publishCheck.delta != null && publishCheck.delta < -5 && ' - publishing this would likely lower your score.'}
+                        </Text>
+                    </Banner>
+                )}
             </BlockStack>
         </Card>
     );

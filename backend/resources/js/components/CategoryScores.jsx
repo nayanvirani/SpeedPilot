@@ -8,9 +8,10 @@ const CATEGORY_LABEL = {
     css: 'CSS',
     third_party: 'Third-party',
     theme: 'Theme',
+    seo: 'SEO',
 };
 
-const CATEGORY_ORDER = ['core_web_vitals', 'images', 'javascript', 'css', 'third_party', 'theme'];
+const CATEGORY_ORDER = ['core_web_vitals', 'images', 'javascript', 'css', 'third_party', 'theme', 'seo'];
 
 function barClass(score) {
     if (score >= 90) return 'sp-subscore-bar--good';
