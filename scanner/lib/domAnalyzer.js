@@ -88,7 +88,12 @@ function seoIssues(audits) {
         + "rather than just hurting ranking.",
       riskTier: 'high',
       fixAvailable: false,
-      meta: {},
+      // Shopify itself intentionally noindexes cart and search-results
+      // pages by default (standard practice everywhere, not a mistake) -
+      // this scanner has no page-type context to skip that case itself,
+      // so it's tagged here and filtered in RunAuditJob::persistPageReport()
+      // on the Laravel side, which does know page_type.
+      meta: { lighthouse_audit: 'is-crawlable' },
     });
   }
 

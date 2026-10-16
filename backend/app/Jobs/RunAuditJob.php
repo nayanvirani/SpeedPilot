@@ -271,7 +271,21 @@ class RunAuditJob implements ShouldQueue
             return;
         }
 
+        // Shopify intentionally noindexes cart and search-results pages by
+        // default - that's correct, standard practice (parameterized/
+        // duplicate content nobody wants ranking), not a merchant mistake,
+        // so flagging it as "blocked from search engines" on these two page
+        // types specifically would be a false alarm. Confirmed live:
+        // jewel-nests' real /cart and /search pages both tripped this on
+        // first use, neither one an actual problem.
+        $isCrawlableNoise = fn (array $issue) => ($issue['meta']['lighthouse_audit'] ?? null) === 'is-crawlable'
+            && in_array($page->page_type, ['cart', 'search'], true);
+
         foreach ($report['issues'] ?? [] as $issue) {
+            if ($isCrawlableNoise($issue)) {
+                continue;
+            }
+
             $page->audit->issues()->create([
                 'audit_page_id' => $page->id,
                 'category' => $issue['category'],
