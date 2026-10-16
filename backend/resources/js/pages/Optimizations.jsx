@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Badge, Banner, BlockStack, Box, Button, Card, InlineStack, Modal, Page, SkeletonBodyText, Text, Toast } from '@shopify/polaris';
 import { api } from '../api';
@@ -31,6 +31,16 @@ function formatWhen(iso) {
     });
 }
 
+// Theme switches and re-testing naturally leave several rows for the same
+// file+fix over time (the Optimizations list is an append-only history, by
+// design) - grouping by what a merchant actually sees as "the same fix"
+// (its type + which file it touches) keeps the page from reading as
+// unexplained duplication, showing only the latest attempt per group with
+// older ones tucked behind an optional "earlier attempts" toggle.
+function groupKey(opt) {
+    return `${opt.type}:${opt.asset_key ?? opt.app_impact_id ?? opt.id}`;
+}
+
 function CodeBlock({ label, content, tone }) {
     return (
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -44,7 +54,7 @@ function CodeBlock({ label, content, tone }) {
     );
 }
 
-function OptimizationRow({ opt, pending, onViewChange, onRollback, onReapply, onReapplyToCurrentTheme }) {
+function OptimizationRow({ opt, pending, error, readOnly, onViewChange, onRollback, onReapply, onReapplyToCurrentTheme }) {
     const backup = opt.backups?.[0];
     const displayStatus = opt.reverted_at ? 'reverted' : opt.status;
 
@@ -52,7 +62,7 @@ function OptimizationRow({ opt, pending, onViewChange, onRollback, onReapply, on
         <BlockStack gap="150">
             <InlineStack align="space-between" blockAlign="start" gap="300" wrap>
                 <BlockStack gap="050">
-                    <Text as="span" fontWeight="semibold">{fixTitle(opt)}</Text>
+                    <Text as="span" fontWeight={readOnly ? 'regular' : 'semibold'}>{fixTitle(opt)}</Text>
                     {opt.asset_key && (
                         <Text as="span" tone="subdued" breakWord>
                             <span className="sp-mono" style={{ fontSize: '12px' }}>{opt.asset_key}</span>
@@ -61,7 +71,7 @@ function OptimizationRow({ opt, pending, onViewChange, onRollback, onReapply, on
                 </BlockStack>
                 <InlineStack gap="200" blockAlign="center">
                     <Badge tone={STATUS_TONE[displayStatus]}>{STATUS_LABEL[displayStatus] ?? displayStatus}</Badge>
-                    {opt.risk_tier && (
+                    {!readOnly && opt.risk_tier && (
                         <Badge tone={opt.risk_tier === 'safe' ? 'success' : 'warning'}>
                             {opt.risk_tier === 'safe' ? '🟢 Safe' : '🟡 Review'}
                         </Badge>
@@ -72,23 +82,57 @@ function OptimizationRow({ opt, pending, onViewChange, onRollback, onReapply, on
                 <Text as="span" tone="subdued">{formatWhen(opt.applied_at)}</Text>
                 <InlineStack gap="200">
                     {backup && <Button size="micro" onClick={() => onViewChange(opt)}>View change</Button>}
-                    {opt.status === 'applied' && !opt.reverted_at && !opt.theme_mismatch && (
+                    {!readOnly && opt.status === 'applied' && !opt.reverted_at && !opt.theme_mismatch && (
                         <Button size="micro" loading={pending} onClick={() => onRollback(opt.id)}>Rollback</Button>
                     )}
-                    {(opt.status === 'rolled_back' || opt.reverted_at) && !opt.theme_mismatch && (
+                    {!readOnly && (opt.status === 'rolled_back' || opt.reverted_at) && !opt.theme_mismatch && (
                         <Button size="micro" variant="primary" loading={pending} onClick={() => onReapply(opt.id)}>Re-apply</Button>
                     )}
-                    {opt.theme_mismatch && (
+                    {!readOnly && opt.theme_mismatch && (
                         <Button size="micro" variant="primary" loading={pending} onClick={() => onReapplyToCurrentTheme(opt.id)}>
                             Apply to current theme
                         </Button>
                     )}
                 </InlineStack>
             </InlineStack>
-            {opt.theme_mismatch && (
+            {!readOnly && opt.theme_mismatch && (
                 <Text as="span" tone="caution">
                     ⚠ Your target theme has changed since this was applied - it's no longer on the theme you're using now.
                 </Text>
+            )}
+            {error && <Text as="span" tone="critical">⚠ {error}</Text>}
+        </BlockStack>
+    );
+}
+
+function OptimizationGroup({ group, pendingId, errors, onViewChange, onRollback, onReapply, onReapplyToCurrentTheme }) {
+    const [expanded, setExpanded] = useState(false);
+    const [latest, ...earlier] = group;
+
+    return (
+        <BlockStack gap="200">
+            <OptimizationRow
+                opt={latest}
+                pending={pendingId === latest.id}
+                error={errors[latest.id]}
+                onViewChange={onViewChange}
+                onRollback={onRollback}
+                onReapply={onReapply}
+                onReapplyToCurrentTheme={onReapplyToCurrentTheme}
+            />
+            {earlier.length > 0 && (
+                <Box paddingInlineStart="400">
+                    <BlockStack gap="200">
+                        <Button size="micro" variant="plain" onClick={() => setExpanded((v) => !v)}>
+                            {expanded ? 'Hide earlier attempts' : `${earlier.length} earlier attempt${earlier.length === 1 ? '' : 's'}`}
+                        </Button>
+                        {expanded && earlier.map((opt) => (
+                            <div key={opt.id} style={{ opacity: 0.75 }}>
+                                <OptimizationRow opt={opt} readOnly onViewChange={onViewChange} />
+                            </div>
+                        ))}
+                    </BlockStack>
+                </Box>
             )}
         </BlockStack>
     );
@@ -101,7 +145,8 @@ export default function Optimizations() {
     const [pendingId, setPendingId] = useState(null);
     const [diffOpt, setDiffOpt] = useState(null);
     const [showFullDiff, setShowFullDiff] = useState(false);
-    const [notice, setNotice] = useState(null);
+    const [toast, setToast] = useState(null);
+    const [errors, setErrors] = useState({});
 
     const load = useCallback(() => {
         setLoading(true);
@@ -114,9 +159,12 @@ export default function Optimizations() {
 
     async function rollback(id) {
         setPendingId(id);
+        setErrors((e) => ({ ...e, [id]: null }));
         try {
             await api.post(`/optimizations/${id}/rollback`);
             await load();
+        } catch (e) {
+            setErrors((prev) => ({ ...prev, [id]: e.body?.error || 'Could not roll this back.' }));
         } finally {
             setPendingId(null);
         }
@@ -124,9 +172,12 @@ export default function Optimizations() {
 
     async function reapply(id) {
         setPendingId(id);
+        setErrors((e) => ({ ...e, [id]: null }));
         try {
             await api.post(`/optimizations/${id}/reapply`);
             await load();
+        } catch (e) {
+            setErrors((prev) => ({ ...prev, [id]: e.body?.error || 'Could not re-apply this.' }));
         } finally {
             setPendingId(null);
         }
@@ -134,13 +185,13 @@ export default function Optimizations() {
 
     async function reapplyToCurrentTheme(id) {
         setPendingId(id);
-        setNotice(null);
+        setErrors((e) => ({ ...e, [id]: null }));
         try {
             await api.post(`/optimizations/${id}/reapply-to-current-theme`);
-            setNotice({ tone: 'success', message: 'Re-applied to your current target theme.' });
+            setToast({ tone: 'success', message: 'Re-applied to your current target theme.' });
             await load();
         } catch (e) {
-            setNotice({ tone: 'critical', message: e.body?.error || 'Could not re-apply this to your current theme.' });
+            setErrors((prev) => ({ ...prev, [id]: e.body?.error || 'Could not re-apply this to your current theme.' }));
         } finally {
             setPendingId(null);
         }
@@ -155,22 +206,31 @@ export default function Optimizations() {
     const diffSnippet = diffBackup?.snippet;
     const mismatchCount = optimizations.filter((o) => o.theme_mismatch).length;
 
+    // optimizations already arrives newest-first (GET /optimizations
+    // orders by latest()), so within each group the first item encountered
+    // is naturally the most recent attempt.
+    const groups = useMemo(() => {
+        const map = new Map();
+        for (const opt of optimizations) {
+            const key = groupKey(opt);
+            if (!map.has(key)) map.set(key, []);
+            map.get(key).push(opt);
+        }
+
+        return Array.from(map.entries());
+    }, [optimizations]);
+
     return (
         <Page title="Optimizations">
-            {notice && (
+            {toast && (
                 <Toast
-                    content={notice.message}
-                    error={notice.tone === 'critical'}
-                    onDismiss={() => setNotice(null)}
-                    duration={notice.tone === 'success' ? 3000 : 6000}
+                    content={toast.message}
+                    error={toast.tone === 'critical'}
+                    onDismiss={() => setToast(null)}
+                    duration={3000}
                 />
             )}
             <BlockStack gap="400">
-                {notice && (
-                    <Banner tone={notice.tone} onDismiss={() => setNotice(null)}>
-                        <Text as="p">{notice.message}</Text>
-                    </Banner>
-                )}
                 <ThemeAccessStatus />
                 {mismatchCount > 0 && (
                     <Banner tone="warning" title="Your target theme has changed">
@@ -182,7 +242,9 @@ export default function Optimizations() {
                     <InlineStack align="space-between" blockAlign="center" wrap>
                         <Text as="p" tone="subdued">
                             A history of every fix SpeedPilot has applied or rolled back on your store - to
-                            choose new fixes, go to a scan's full report instead.
+                            choose new fixes, go to a scan's full report instead. Each fix shows its most
+                            recent attempt; older attempts for the same fix are tucked behind "earlier
+                            attempts" rather than listed as separate entries.
                         </Text>
                         <Button onClick={() => navigate('/')}>Go to Dashboard</Button>
                     </InlineStack>
@@ -202,12 +264,13 @@ export default function Optimizations() {
                         </BlockStack>
                     ) : (
                         <BlockStack gap="400">
-                            {optimizations.map((opt, i) => (
-                                <React.Fragment key={opt.id}>
+                            {groups.map(([key, group], i) => (
+                                <React.Fragment key={key}>
                                     {i > 0 && <div style={{ borderTop: '1px solid var(--p-color-border-secondary)' }} />}
-                                    <OptimizationRow
-                                        opt={opt}
-                                        pending={pendingId === opt.id}
+                                    <OptimizationGroup
+                                        group={group}
+                                        pendingId={pendingId}
+                                        errors={errors}
                                         onViewChange={viewChange}
                                         onRollback={rollback}
                                         onReapply={reapply}

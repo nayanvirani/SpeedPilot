@@ -146,7 +146,7 @@ class OptimizationController extends Controller
             $issue = AuditIssue::find($optimization->audit_issue_id);
 
             if (! $issue) {
-                return null;
+                throw new RuntimeException("Couldn't find the original issue this fix came from - run a fresh scan first.");
             }
 
             if ($issue->risk_tier === 'safe') {
@@ -156,12 +156,28 @@ class OptimizationController extends Controller
 
                 ApplySafeFixesJob::dispatchSync($shop->id, $issue->audit_id, onlyIssueId: $issue->id);
 
-                return $shop->optimizations()
+                $created = $shop->optimizations()
                     ->where('audit_issue_id', $issue->id)
                     ->where('theme_id', $shop->target_theme_id)
                     ->where('status', 'applied')
                     ->latest('applied_at')
                     ->first();
+
+                // The sweep ran but changed nothing - almost always because
+                // whatever it was targeting (a specific image, a specific
+                // section) doesn't exist in the same form on the current
+                // theme, or the current theme already has the fix some
+                // other way. Distinct from "this fix type isn't handled
+                // here at all" (the generic message below), which a
+                // merchant would otherwise wrongly read this as.
+                if (! $created) {
+                    throw new RuntimeException(
+                        "Nothing to change on your current theme - whatever this fix targeted may not exist "
+                        .'there, or may already be fine. Check the original issue on a fresh scan instead.'
+                    );
+                }
+
+                return $created;
             }
 
             if ($issue->risk_tier === 'medium') {
@@ -179,7 +195,7 @@ class OptimizationController extends Controller
             $impact = AppImpact::find($optimization->app_impact_id);
 
             if (! $impact) {
-                return null;
+                throw new RuntimeException("Couldn't find this app in your latest scan - run a fresh scan first.");
             }
 
             $actions = $this->scriptImpactActionService($shop);
@@ -188,11 +204,11 @@ class OptimizationController extends Controller
                 'disabled' => $actions->disable($shop, $impact),
                 'delayed' => $actions->delay($shop, $impact),
                 'content_stop' => $actions->stopContentMatch($shop, $impact),
-                default => ['applied' => false],
+                default => ['applied' => false, 'message' => null],
             };
 
             if (! ($result['applied'] ?? false)) {
-                return null;
+                throw new RuntimeException($result['message'] ?? "Couldn't apply this to your current theme.");
             }
 
             return $shop->optimizations()
@@ -210,7 +226,7 @@ class OptimizationController extends Controller
                 : $actions->autoInstallPrefetchTag($shop);
 
             if (! ($result['applied'] ?? false)) {
-                return null;
+                throw new RuntimeException($result['message'] ?? "Couldn't apply this to your current theme.");
             }
 
             // Both methods create a fresh Optimization row via
