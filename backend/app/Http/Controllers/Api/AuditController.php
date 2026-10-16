@@ -112,6 +112,17 @@ class AuditController extends Controller
 
     private function nextManualScanAt(ShopInstallation $shop): ?\Illuminate\Support\Carbon
     {
+        // A failed attempt is real evidence the merchant doesn't have usable
+        // data right now, no matter how long ago an earlier *successful*
+        // scan was - stuck behind the normal cooldown with nothing to show
+        // for today's attempt is worse than the (low, self-inflicted) cost
+        // risk of letting the very next click through immediately.
+        $latestAttempt = $shop->audits()->latest('created_at')->first();
+
+        if ($latestAttempt?->status === 'failed') {
+            return null;
+        }
+
         $lastAudit = $shop->audits()->where('status', 'complete')->latest('created_at')->first();
 
         if (! $lastAudit) {
