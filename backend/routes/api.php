@@ -47,6 +47,7 @@ Route::middleware('shopify.session')->group(function () {
     Route::delete('/script-manager/{id}', [ScriptManagerController::class, 'destroy']);
 
     Route::get('/optimizations', [OptimizationController::class, 'index']);
+    Route::post('/optimizations/reapply-all-to-current-theme', [OptimizationController::class, 'reapplyAllToCurrentTheme']);
     Route::post('/optimizations/{id}/rollback', [OptimizationController::class, 'rollback']);
     Route::post('/optimizations/{id}/reapply', [OptimizationController::class, 'reapply']);
     Route::post('/optimizations/{id}/reapply-to-current-theme', [OptimizationController::class, 'reapplyToCurrentTheme']);

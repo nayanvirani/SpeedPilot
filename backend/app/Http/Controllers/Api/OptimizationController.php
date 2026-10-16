@@ -150,6 +150,61 @@ class OptimizationController extends Controller
         return response()->json(['optimization' => $newOptimization]);
     }
 
+    /**
+     * The bulk counterpart to reapplyToCurrentTheme() above - a theme
+     * switch can leave several fixes orphaned at once (every global
+     * install plus every per-file CSS fix), and clicking "Apply to current
+     * theme" on each mismatched row individually doesn't scale once a
+     * merchant has more than a couple. Re-runs the same rerunOriginalAction()
+     * per mismatched fix, one at a time, collecting a result per row rather
+     * than failing the whole batch over one bad row.
+     */
+    public function reapplyAllToCurrentTheme(Request $request)
+    {
+        /** @var ShopInstallation $shop */
+        $shop = $request->attributes->get('shop');
+        $policy = new PlanPolicy($shop);
+
+        if (! $policy->hasPaidPlan()) {
+            return response()->json(['error' => 'Re-applying fixes is not available on the Free plan.'], 403);
+        }
+
+        if (! $shop->target_theme_id) {
+            return response()->json(['error' => 'Choose a target theme in Settings first.'], 422);
+        }
+
+        // Only the latest applied row per logical fix - the append-only
+        // history log can carry several stale rows for the same fix across
+        // past theme switches, and re-running all of them would just be
+        // duplicate work for something the latest attempt already covers.
+        $mismatched = $shop->optimizations()
+            ->where('status', 'applied')
+            ->where('theme_id', '!=', $shop->target_theme_id)
+            ->latest('applied_at')
+            ->get()
+            ->unique(fn (Optimization $o) => $o->type.':'.($o->asset_key ?? $o->app_impact_id ?? $o->audit_issue_id));
+
+        $results = [];
+
+        foreach ($mismatched as $optimization) {
+            $row = ['original_id' => $optimization->id, 'type' => $optimization->type, 'asset_key' => $optimization->asset_key];
+
+            try {
+                $new = $this->rerunOriginalAction($optimization, $shop, $policy);
+                $results[] = [...$row, 'success' => (bool) $new, 'optimization' => $new, 'error' => $new ? null : "Couldn't re-apply this fix type automatically."];
+            } catch (ThemeWriteAccessDeniedException) {
+                $results[] = [...$row, 'success' => false, 'optimization' => null, 'error' => "Theme-write approval may still be pending."];
+            } catch (RuntimeException $e) {
+                $results[] = [...$row, 'success' => false, 'optimization' => null, 'error' => $e->getMessage()];
+            } catch (\Throwable $e) {
+                report($e);
+                $results[] = [...$row, 'success' => false, 'optimization' => null, 'error' => 'Something went wrong re-applying this.'];
+            }
+        }
+
+        return response()->json(['results' => $results]);
+    }
+
     private function rerunOriginalAction(Optimization $optimization, ShopInstallation $shop, PlanPolicy $policy): ?Optimization
     {
         if ($optimization->audit_issue_id !== null) {

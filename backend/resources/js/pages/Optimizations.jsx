@@ -147,6 +147,7 @@ export default function Optimizations() {
     const [showFullDiff, setShowFullDiff] = useState(false);
     const [toast, setToast] = useState(null);
     const [errors, setErrors] = useState({});
+    const [resyncingAll, setResyncingAll] = useState(false);
 
     const load = useCallback(() => {
         setLoading(true);
@@ -197,6 +198,31 @@ export default function Optimizations() {
         }
     }
 
+    async function reapplyAllToCurrentTheme() {
+        setResyncingAll(true);
+        try {
+            const res = await api.post('/optimizations/reapply-all-to-current-theme');
+            const results = res.results ?? [];
+            const failed = results.filter((r) => !r.success);
+            setErrors((prev) => {
+                const next = { ...prev };
+                for (const r of failed) next[r.original_id] = r.error;
+                return next;
+            });
+            setToast({
+                tone: failed.length > 0 ? 'critical' : 'success',
+                message: failed.length === 0
+                    ? `Re-applied ${results.length} fix${results.length === 1 ? '' : 'es'} to your current theme.`
+                    : `Re-applied ${results.length - failed.length} of ${results.length} - ${failed.length} need attention below.`,
+            });
+            await load();
+        } catch (e) {
+            setToast({ tone: 'critical', message: e.body?.error || 'Could not resync these fixes right now.' });
+        } finally {
+            setResyncingAll(false);
+        }
+    }
+
     function viewChange(opt) {
         setShowFullDiff(false);
         setDiffOpt(opt);
@@ -204,7 +230,6 @@ export default function Optimizations() {
 
     const diffBackup = diffOpt?.backups?.[0];
     const diffSnippet = diffBackup?.snippet;
-    const mismatchCount = optimizations.filter((o) => o.theme_mismatch).length;
 
     // optimizations already arrives newest-first (GET /optimizations
     // orders by latest()), so within each group the first item encountered
@@ -220,6 +245,12 @@ export default function Optimizations() {
         return Array.from(map.entries());
     }, [optimizations]);
 
+    // Counts only the latest attempt per group, matching what "Apply All to
+    // Current Theme" actually acts on (it also dedupes to the latest
+    // applied row per logical fix) - so the button's number always matches
+    // its real effect.
+    const mismatchCount = groups.filter(([, group]) => group[0].theme_mismatch).length;
+
     return (
         <Page title="Optimizations">
             {toast && (
@@ -234,8 +265,17 @@ export default function Optimizations() {
                 <ThemeAccessStatus />
                 {mismatchCount > 0 && (
                     <Banner tone="warning" title="Your target theme has changed">
-                        {`${mismatchCount} applied fix${mismatchCount === 1 ? '' : 'es'} below ${mismatchCount === 1 ? "isn't" : "aren't"} on your `
-                            + 'current target theme anymore - use "Apply to current theme" on each to bring them over.'}
+                        <BlockStack gap="200">
+                            <Text as="p">
+                                {`${mismatchCount} applied fix${mismatchCount === 1 ? '' : 'es'} below ${mismatchCount === 1 ? "isn't" : "aren't"} on your `
+                                    + 'current target theme anymore.'}
+                            </Text>
+                            <InlineStack>
+                                <Button loading={resyncingAll} onClick={reapplyAllToCurrentTheme}>
+                                    {resyncingAll ? 'Resyncing…' : `Apply All ${mismatchCount} to Current Theme`}
+                                </Button>
+                            </InlineStack>
+                        </BlockStack>
                     </Banner>
                 )}
                 <Card>

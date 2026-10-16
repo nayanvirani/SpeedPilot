@@ -351,9 +351,52 @@ class ShopSettingsController extends Controller
             ]);
         }
 
+        if ($themeChanged) {
+            $this->reinstallGlobalTagsOnNewTarget($shop);
+        }
+
         return response()->json([
             'target_theme_id' => $shop->target_theme_id,
             'target_theme_mode' => $shop->target_theme_mode,
         ]);
+    }
+
+    /**
+     * The self-heal half of the theme-switch story: interceptor_install and
+     * prefetch_install are global, not-file-specific toggles (unlike
+     * defer_css/minify_css, which depend on a theme's own actual CSS
+     * content and can't be blindly carried over) - confirmed live this
+     * session that switching target themes left the NEW theme without
+     * either tag until the merchant remembered to re-click each toggle on
+     * Settings. If this shop ever turned one on before (an 'applied' row on
+     * ANY theme), re-run the same auto-install against the new target -
+     * both methods are already idempotent (marker-check first) and
+     * self-contained (create their own Optimization/backup row), so this
+     * is just calling them again, not new logic. Failures here never block
+     * the theme switch itself - re-running the toggle manually on Settings
+     * remains the fallback.
+     */
+    private function reinstallGlobalTagsOnNewTarget(ShopInstallation $shop): void
+    {
+        $everApplied = fn (string $type) => $shop->optimizations()->where('type', $type)->where('status', 'applied')->exists();
+
+        if (! $everApplied('interceptor_install') && ! $everApplied('prefetch_install')) {
+            return;
+        }
+
+        try {
+            $themeAssets = new ThemeAssetService(new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token));
+            $actions = new ScriptImpactActionService($themeAssets, new ThemeAssetLocatorService($themeAssets), new AssetBackupService);
+
+            if ($everApplied('interceptor_install')) {
+                $actions->autoInstallInterceptorTag($shop);
+            }
+
+            if ($everApplied('prefetch_install')) {
+                $actions->autoInstallPrefetchTag($shop);
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 }
