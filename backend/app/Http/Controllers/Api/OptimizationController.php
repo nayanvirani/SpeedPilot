@@ -129,6 +129,16 @@ class OptimizationController extends Controller
             ], 503);
         } catch (RuntimeException $e) {
             return response()->json(['error' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            // A genuinely unexpected failure (not one of this method's own
+            // RuntimeExceptions) still deserves a real message, not a raw
+            // 500 the frontend can't parse into anything better than its
+            // own generic fallback - confirmed live: a DI construction bug
+            // here surfaced to the merchant as just "Could not re-apply
+            // this" with no indication anything was actually broken.
+            report($e);
+
+            return response()->json(['error' => "Something went wrong re-applying this - try again, or contact support if it keeps happening."], 500);
         }
 
         if (! $newOptimization) {
@@ -185,7 +195,7 @@ class OptimizationController extends Controller
                     throw new RuntimeException('Medium-risk fixes are not available on your plan.');
                 }
 
-                return $this->mediumFixService()->apply($issue, $shop);
+                return $this->mediumFixService($shop)->apply($issue, $shop);
             }
 
             return null;
@@ -244,9 +254,11 @@ class OptimizationController extends Controller
         return null;
     }
 
-    private function mediumFixService(): MediumFixService
+    private function mediumFixService(ShopInstallation $shop): MediumFixService
     {
-        return app(MediumFixService::class);
+        $themeAssets = new ThemeAssetService(new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token));
+
+        return new MediumFixService($themeAssets, new ThemeAssetLocatorService($themeAssets), new AssetBackupService);
     }
 
     private function scriptImpactActionService(ShopInstallation $shop): ScriptImpactActionService
