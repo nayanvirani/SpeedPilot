@@ -26,7 +26,7 @@ class OptimizationController extends Controller
         /** @var ShopInstallation $shop */
         $shop = $request->attributes->get('shop');
 
-        $optimizations = $shop->optimizations()->with(['backups', 'auditIssue'])->latest()->get()
+        $optimizations = $shop->optimizations()->with(['backups', 'auditIssue', 'appImpact'])->latest()->get()
             ->map(function ($optimization) use ($shop) {
                 $data = $optimization->toArray();
                 // Both Rollback and Re-apply write to THIS row's own

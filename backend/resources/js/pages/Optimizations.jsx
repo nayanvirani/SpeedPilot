@@ -1,10 +1,35 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Badge, Banner, BlockStack, Box, Button, Card, DataTable, InlineStack, Modal, Page, SkeletonBodyText, Text, Toast } from '@shopify/polaris';
+import { Badge, Banner, BlockStack, Box, Button, Card, InlineStack, Modal, Page, SkeletonBodyText, Text, Toast } from '@shopify/polaris';
 import { api } from '../api';
 import ThemeAccessStatus from '../components/ThemeAccessStatus';
 
 const STATUS_TONE = { applied: 'success', rolled_back: 'new', recommended: 'info', reverted: 'warning' };
+const STATUS_LABEL = { applied: 'Applied', rolled_back: 'Rolled back', recommended: 'Recommended', reverted: 'Reverted' };
+
+// Only a handful of fix types have no audit_issue (so no ready-made,
+// already-human title from the scanner to fall back on) - everything else
+// (lazy-load, font-display, defer/minify CSS...) already arrives as a
+// plain-language title like "Render-blocking stylesheet: main.css".
+const FIX_TYPE_LABEL = {
+    interceptor_install: 'Advanced delay - setup tag',
+    prefetch_install: 'Instant navigation - setup tag',
+    disabled: 'App disabled',
+    delayed: 'App delayed',
+    content_stop: 'App stopped (verified)',
+};
+
+function fixTitle(opt) {
+    return opt.audit_issue?.title ?? opt.app_impact?.app_name ?? FIX_TYPE_LABEL[opt.type] ?? opt.type;
+}
+
+function formatWhen(iso) {
+    if (!iso) return '—';
+
+    return new Date(iso).toLocaleString(undefined, {
+        month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
+    });
+}
 
 function CodeBlock({ label, content, tone }) {
     return (
@@ -16,6 +41,56 @@ function CodeBlock({ label, content, tone }) {
                 </pre>
             </div>
         </div>
+    );
+}
+
+function OptimizationRow({ opt, pending, onViewChange, onRollback, onReapply, onReapplyToCurrentTheme }) {
+    const backup = opt.backups?.[0];
+    const displayStatus = opt.reverted_at ? 'reverted' : opt.status;
+
+    return (
+        <BlockStack gap="150">
+            <InlineStack align="space-between" blockAlign="start" gap="300" wrap>
+                <BlockStack gap="050">
+                    <Text as="span" fontWeight="semibold">{fixTitle(opt)}</Text>
+                    {opt.asset_key && (
+                        <Text as="span" tone="subdued" breakWord>
+                            <span className="sp-mono" style={{ fontSize: '12px' }}>{opt.asset_key}</span>
+                        </Text>
+                    )}
+                </BlockStack>
+                <InlineStack gap="200" blockAlign="center">
+                    <Badge tone={STATUS_TONE[displayStatus]}>{STATUS_LABEL[displayStatus] ?? displayStatus}</Badge>
+                    {opt.risk_tier && (
+                        <Badge tone={opt.risk_tier === 'safe' ? 'success' : 'warning'}>
+                            {opt.risk_tier === 'safe' ? '🟢 Safe' : '🟡 Review'}
+                        </Badge>
+                    )}
+                </InlineStack>
+            </InlineStack>
+            <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
+                <Text as="span" tone="subdued">{formatWhen(opt.applied_at)}</Text>
+                <InlineStack gap="200">
+                    {backup && <Button size="micro" onClick={() => onViewChange(opt)}>View change</Button>}
+                    {opt.status === 'applied' && !opt.reverted_at && !opt.theme_mismatch && (
+                        <Button size="micro" loading={pending} onClick={() => onRollback(opt.id)}>Rollback</Button>
+                    )}
+                    {(opt.status === 'rolled_back' || opt.reverted_at) && !opt.theme_mismatch && (
+                        <Button size="micro" variant="primary" loading={pending} onClick={() => onReapply(opt.id)}>Re-apply</Button>
+                    )}
+                    {opt.theme_mismatch && (
+                        <Button size="micro" variant="primary" loading={pending} onClick={() => onReapplyToCurrentTheme(opt.id)}>
+                            Apply to current theme
+                        </Button>
+                    )}
+                </InlineStack>
+            </InlineStack>
+            {opt.theme_mismatch && (
+                <Text as="span" tone="caution">
+                    ⚠ Your target theme has changed since this was applied - it's no longer on the theme you're using now.
+                </Text>
+            )}
+        </BlockStack>
     );
 }
 
@@ -71,47 +146,14 @@ export default function Optimizations() {
         }
     }
 
-    const rows = optimizations.map((opt) => {
-        const backup = opt.backups?.[0];
-
-        const displayStatus = opt.reverted_at ? 'reverted' : opt.status;
-
-        return [
-            opt.audit_issue?.title ?? opt.type,
-            opt.asset_key ?? '—',
-            opt.risk_tier,
-            <InlineStack key={`status-${opt.id}`} gap="100" blockAlign="center">
-                <Badge tone={STATUS_TONE[displayStatus]}>{displayStatus}</Badge>
-                {opt.theme_mismatch && (
-                    <Badge tone="warning">Different theme now targeted</Badge>
-                )}
-            </InlineStack>,
-            opt.applied_at ?? '—',
-            <div key={`actions-${opt.id}`} style={{ display: 'flex', gap: '8px' }}>
-                {backup && (
-                    <Button size="micro" onClick={() => { setShowFullDiff(false); setDiffOpt(opt); }}>View change</Button>
-                )}
-                {opt.status === 'applied' && !opt.reverted_at && (
-                    <Button size="micro" loading={pendingId === opt.id} onClick={() => rollback(opt.id)}>
-                        Rollback
-                    </Button>
-                )}
-                {(opt.status === 'rolled_back' || opt.reverted_at) && !opt.theme_mismatch && (
-                    <Button size="micro" variant="primary" loading={pendingId === opt.id} onClick={() => reapply(opt.id)}>
-                        Re-apply
-                    </Button>
-                )}
-                {opt.theme_mismatch && (
-                    <Button size="micro" variant="primary" loading={pendingId === opt.id} onClick={() => reapplyToCurrentTheme(opt.id)}>
-                        Apply to current theme
-                    </Button>
-                )}
-            </div>,
-        ];
-    });
+    function viewChange(opt) {
+        setShowFullDiff(false);
+        setDiffOpt(opt);
+    }
 
     const diffBackup = diffOpt?.backups?.[0];
     const diffSnippet = diffBackup?.snippet;
+    const mismatchCount = optimizations.filter((o) => o.theme_mismatch).length;
 
     return (
         <Page title="Optimizations">
@@ -130,11 +172,17 @@ export default function Optimizations() {
                     </Banner>
                 )}
                 <ThemeAccessStatus />
+                {mismatchCount > 0 && (
+                    <Banner tone="warning" title="Your target theme has changed">
+                        {`${mismatchCount} applied fix${mismatchCount === 1 ? '' : 'es'} below ${mismatchCount === 1 ? "isn't" : "aren't"} on your `
+                            + 'current target theme anymore - use "Apply to current theme" on each to bring them over.'}
+                    </Banner>
+                )}
                 <Card>
                     <InlineStack align="space-between" blockAlign="center" wrap>
                         <Text as="p" tone="subdued">
-                            This is a history of what's already been applied or rolled back - to choose new
-                            fixes to apply, go to a scan's full report instead.
+                            A history of every fix SpeedPilot has applied or rolled back on your store - to
+                            choose new fixes, go to a scan's full report instead.
                         </Text>
                         <Button onClick={() => navigate('/')}>Go to Dashboard</Button>
                     </InlineStack>
@@ -153,11 +201,21 @@ export default function Optimizations() {
                             </Text>
                         </BlockStack>
                     ) : (
-                        <DataTable
-                            columnContentTypes={['text', 'text', 'text', 'text', 'text', 'text']}
-                            headings={['Fix', 'File changed', 'Risk tier', 'Status', 'Applied at', 'Actions']}
-                            rows={rows}
-                        />
+                        <BlockStack gap="400">
+                            {optimizations.map((opt, i) => (
+                                <React.Fragment key={opt.id}>
+                                    {i > 0 && <div style={{ borderTop: '1px solid var(--p-color-border-secondary)' }} />}
+                                    <OptimizationRow
+                                        opt={opt}
+                                        pending={pendingId === opt.id}
+                                        onViewChange={viewChange}
+                                        onRollback={rollback}
+                                        onReapply={reapply}
+                                        onReapplyToCurrentTheme={reapplyToCurrentTheme}
+                                    />
+                                </React.Fragment>
+                            ))}
+                        </BlockStack>
                     )}
                 </Card>
             </BlockStack>
@@ -165,10 +223,15 @@ export default function Optimizations() {
             <Modal
                 open={!!diffOpt}
                 onClose={() => setDiffOpt(null)}
-                title={diffOpt ? `Change to ${diffOpt.asset_key}` : ''}
+                title={diffOpt ? fixTitle(diffOpt) : ''}
                 size="large"
             >
                 <Modal.Section>
+                    {diffOpt?.asset_key && (
+                        <Box paddingBlockEnd="200">
+                            <Text as="span" tone="subdued"><span className="sp-mono">{diffOpt.asset_key}</span></Text>
+                        </Box>
+                    )}
                     {diffOpt?.audit_issue?.description && (
                         <Box paddingBlockEnd="400">
                             <Text as="p" tone="subdued">{diffOpt.audit_issue.description}</Text>
@@ -182,7 +245,7 @@ export default function Optimizations() {
                             </Text>
                         </Box>
                     )}
-                    <div style={{ display: 'flex', gap: '16px' }}>
+                    <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
                         <CodeBlock
                             label="Original"
                             tone="before"
