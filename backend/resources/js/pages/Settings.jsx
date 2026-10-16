@@ -189,10 +189,6 @@ function TargetThemeSettings() {
     );
 }
 
-const FREQUENCY_OPTIONS = [
-    { label: 'Daily', value: 'daily' },
-    { label: 'Weekly', value: 'weekly' },
-];
 const DEVICE_OPTIONS = [
     { label: 'Mobile and desktop', value: 'both' },
     { label: 'Mobile only', value: 'mobile' },
@@ -207,7 +203,6 @@ function ScanPreferencesSettings() {
 
     useEffect(() => {
         api.get('/settings').then((res) => setPrefs({
-            scan_frequency: res.scan_frequency ?? 'daily',
             scan_devices: res.scan_devices ?? 'both',
         }));
     }, []);
@@ -234,21 +229,11 @@ function ScanPreferencesSettings() {
                 <Text as="h3" variant="headingSm"><span className="sp-heading">Scan preferences</span></Text>
                 <Text as="p" tone="subdued">
                     {isFree
-                        ? "Controls which device(s) your manual scan covers. Upgrade for automatic monitoring re-scans."
-                        : 'Controls SpeedPilot\'s automatic monitoring re-scans and which device(s) every scan '
-                            + 'covers. Clicking "Scan My Store" always runs immediately regardless of frequency.'}
+                        ? 'Controls which device(s) your manual scan covers. Upgrade for automatic weekly monitoring.'
+                        : 'Controls which device(s) every scan covers. Automatic monitoring re-scans run weekly in '
+                            + 'the background; clicking "Scan My Store" always runs immediately either way.'}
                 </Text>
                 <InlineStack gap="300" wrap>
-                    {!isFree && (
-                        <div style={{ minWidth: '200px' }}>
-                            <Select
-                                label="Automatic scan frequency"
-                                options={FREQUENCY_OPTIONS}
-                                value={prefs.scan_frequency}
-                                onChange={(v) => save({ ...prefs, scan_frequency: v })}
-                            />
-                        </div>
-                    )}
                     <div style={{ minWidth: '200px' }}>
                         <Select
                             label="Devices to scan"

@@ -417,7 +417,7 @@ export default function Monitoring() {
                         <SkeletonBodyText lines={4} />
                     ) : runs.length === 0 ? (
                         <Text as="p" tone="subdued">
-                            Monitoring history will appear here once daily scans start running.
+                            Monitoring history will appear here once weekly scans start running.
                         </Text>
                     ) : (
                         <BlockStack gap="200">

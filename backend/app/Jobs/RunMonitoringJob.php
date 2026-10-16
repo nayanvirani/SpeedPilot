@@ -48,10 +48,14 @@ class RunMonitoringJob implements ShouldQueue
 
         $lastRun = $shop->monitoringRuns()->latest('run_at')->first();
 
-        // The scheduler ticks daily for every shop regardless of
-        // preference - a "weekly" shop just skips most of those ticks here,
-        // rather than needing its own per-shop cron entry.
-        if ($shop->scan_frequency === 'weekly' && $lastRun && $lastRun->run_at->diffInDays(now()) < 7) {
+        // The scheduler ticks daily for every shop - a real daily re-scan
+        // (a full Playwright+Lighthouse run per shop, every day) was real
+        // scanner compute cost that wasn't sustainable to offer, so every
+        // shop's automatic monitoring is weekly now; this just skips most
+        // of those daily ticks rather than needing its own per-shop cron
+        // entry. A manual "Scan My Store" click is unaffected - that's its
+        // own cooldown (PlanPolicy::manualScanCooldownDays()).
+        if ($lastRun && $lastRun->run_at->diffInDays(now()) < 7) {
             return;
         }
 

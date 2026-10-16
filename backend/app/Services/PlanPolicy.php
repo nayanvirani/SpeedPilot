@@ -96,13 +96,14 @@ class PlanPolicy
     }
 
     /**
-     * Free's scan limit isn't about depth (pagesPerScan already caps that
-     * at 1) - it's about how often a merchant can re-run one. Returns the
-     * minimum number of days that must pass since the shop's last audit
-     * before another manual scan is allowed, or null for no limit at all.
+     * How often a merchant can click "Scan My Store" - every manual scan is
+     * real scanner compute cost (a full Playwright+Lighthouse run), so even
+     * a paid plan isn't unlimited, just far less restricted than Free (whose
+     * limit is also about depth - pagesPerScan already caps it at 1 page).
+     * Always a real number now - there's no "no limit" tier.
      */
-    public function manualScanCooldownDays(): ?int
+    public function manualScanCooldownDays(): int
     {
-        return $this->hasPaidPlan() ? null : 7;
+        return $this->hasPaidPlan() ? 1 : 7;
     }
 }

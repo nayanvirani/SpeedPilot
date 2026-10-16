@@ -44,7 +44,6 @@ class ShopSettingsController extends Controller
             'target_theme_id' => $shop->target_theme_id,
             'target_theme_mode' => $shop->target_theme_mode,
             'theme_diverged' => $themeDiverged,
-            'scan_frequency' => $shop->scan_frequency,
             'scan_devices' => $shop->scan_devices,
             'has_slack_webhook' => ! empty($shop->slack_webhook_url),
             'interceptor_delay_ms' => $shop->interceptor_delay_ms,
@@ -64,8 +63,13 @@ class ShopSettingsController extends Controller
     }
 
     /**
-     * scan_frequency only affects RunMonitoringJob's scheduled re-scans - an
-     * on-demand "Scan My Store" click always runs immediately either way.
+     * Frequency is no longer merchant-configurable (the scan_frequency
+     * column was dropped) - automatic monitoring re-scans are always weekly
+     * now for every shop (daily was real scanner compute cost - a full
+     * Playwright+Lighthouse run per shop per day - that wasn't sustainable
+     * to offer; see RunMonitoringJob). A manual "Scan My Store" click is
+     * unaffected either way - that's its own, separate cooldown
+     * (PlanPolicy::manualScanCooldownDays()).
      */
     public function updateScanPreferences(Request $request)
     {
@@ -73,14 +77,12 @@ class ShopSettingsController extends Controller
         $shop = $request->attributes->get('shop');
 
         $data = $request->validate([
-            'scan_frequency' => ['required', Rule::in(['daily', 'weekly'])],
             'scan_devices' => ['required', Rule::in(['both', 'mobile', 'desktop'])],
         ]);
 
         $shop->update($data);
 
         return response()->json([
-            'scan_frequency' => $shop->scan_frequency,
             'scan_devices' => $shop->scan_devices,
         ]);
     }

@@ -31,10 +31,11 @@ Schedule::call(function () {
         ->each(fn (ShopInstallation $shop) => RefreshExpiringAccessTokensJob::dispatch($shop->id));
 })->everyFifteenMinutes()->name('speedpilot:refresh-offline-tokens')->withoutOverlapping();
 
-// Phase 3 monitoring: daily re-audit for every active, still-installed shop.
-// Growth/Pro get "advanced" monitoring (still daily here - the cadence
-// difference in the spec is about what's surfaced, not scan frequency);
-// PlanPolicy inside RunMonitoringJob skips shops without monitoring enabled.
+// Phase 3 monitoring: ticks daily for every active, still-installed shop,
+// but RunMonitoringJob itself only actually re-scans once every 7 days per
+// shop (a real daily scan was unsustainable scanner compute cost - see its
+// docblock) - this tick is just the cheap "is it time yet" check. PlanPolicy
+// inside RunMonitoringJob also skips shops without monitoring enabled at all.
 Schedule::call(function () {
     ShopInstallation::whereNull('uninstalled_at')->each(
         fn (ShopInstallation $shop) => RunMonitoringJob::dispatch($shop->id)

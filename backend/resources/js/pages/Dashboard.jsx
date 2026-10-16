@@ -184,9 +184,12 @@ export default function Dashboard() {
     // Mirrors AuditController::store()'s PlanPolicy::manualScanCooldownDays()
     // check server-side (only a completed scan counts - see its comment) -
     // computed here too so the button is disabled upfront instead of only
-    // failing reactively after a click.
-    const nextScanAt = isFree && latestAudit?.status === 'complete' && latestAudit?.created_at
-        ? new Date(new Date(latestAudit.created_at).getTime() + 7 * 24 * 60 * 60 * 1000)
+    // failing reactively after a click. Paid plans get a real cooldown too
+    // now (1 day, vs Free's 7) - every manual scan is real scanner compute
+    // cost, not just a Free-tier restriction.
+    const cooldownDays = isFree ? 7 : 1;
+    const nextScanAt = latestAudit?.status === 'complete' && latestAudit?.created_at
+        ? new Date(new Date(latestAudit.created_at).getTime() + cooldownDays * 24 * 60 * 60 * 1000)
         : null;
     const scanLimited = nextScanAt ? nextScanAt > new Date() : false;
 
@@ -223,8 +226,10 @@ export default function Dashboard() {
                 <WeeklyRollup />
                 <PageLoadBeforeAfter />
                 {!loading && scanLimited && !storefrontLocked && (
-                    <Banner tone="info" title="Free plan: 1 scan per week">
-                        {`You can scan again on ${nextScanAt.toLocaleDateString()} - upgrade for unlimited scans and monitoring.`}
+                    <Banner tone="info" title={isFree ? 'Free plan: 1 scan per week' : 'Manual scans: once per day'}>
+                        {isFree
+                            ? `You can scan again on ${nextScanAt.toLocaleDateString()} - upgrade for daily scans and weekly monitoring.`
+                            : `You can scan again on ${nextScanAt.toLocaleDateString()} - automatic weekly monitoring keeps running in the background either way.`}
                     </Banner>
                 )}
                 {!loading && storefrontLocked && (

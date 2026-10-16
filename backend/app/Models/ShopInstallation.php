@@ -27,7 +27,6 @@ class ShopInstallation extends Model
         'interceptor_token',
         'interceptor_delay_ms',
         'interceptor_trigger',
-        'scan_frequency',
         'scan_devices',
         'slack_webhook_url',
         'avg_order_value',
