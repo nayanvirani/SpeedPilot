@@ -65,7 +65,12 @@ export default function Optimizations() {
             opt.audit_issue?.title ?? opt.type,
             opt.asset_key ?? '—',
             opt.risk_tier,
-            <Badge key={`status-${opt.id}`} tone={STATUS_TONE[displayStatus]}>{displayStatus}</Badge>,
+            <InlineStack key={`status-${opt.id}`} gap="100" blockAlign="center">
+                <Badge tone={STATUS_TONE[displayStatus]}>{displayStatus}</Badge>
+                {opt.theme_mismatch && (
+                    <Badge tone="warning">Different theme now targeted</Badge>
+                )}
+            </InlineStack>,
             opt.applied_at ?? '—',
             <div key={`actions-${opt.id}`} style={{ display: 'flex', gap: '8px' }}>
                 {backup && (

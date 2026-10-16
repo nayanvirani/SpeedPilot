@@ -447,7 +447,17 @@ class ScriptImpactActionService
       if (isEligible(a)) prefetch(a.href);
     }, { passive: true, capture: true });
 
-    if ('IntersectionObserver' in window) {
+    // Mobile only, matching the hover-based trigger above for desktop -
+    // 'hover: none' is the standard no-hover-capable-pointer media query
+    // (touch devices), not a viewport-width guess. Without this check, the
+    // observer below fires for EVERY link on EVERY device as soon as it's
+    // within 200px of the viewport - including desktop, where hover
+    // already covers "likely to click" - confirmed live: footer links
+    // (About Us, Privacy Policy) sitting near the bottom of a normal-length
+    // page were getting prefetched within ~2s of load on desktop with zero
+    // hover or touch interaction, each one costing a wasted interceptor.js
+    // preload for a page the visitor never navigated to.
+    if ('IntersectionObserver' in window && window.matchMedia && window.matchMedia('(hover: none)').matches) {
       var io = new IntersectionObserver(function(entries) {
         entries.forEach(function(entry) {
           if (entry.isIntersecting && isEligible(entry.target)) {

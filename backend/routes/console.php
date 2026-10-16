@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\CheckOptimizationDriftJob;
 use App\Jobs\RefreshExpiringAccessTokensJob;
 use App\Jobs\RunMonitoringJob;
 use App\Models\ShopInstallation;
@@ -39,6 +40,16 @@ Schedule::call(function () {
         fn (ShopInstallation $shop) => RunMonitoringJob::dispatch($shop->id)
     );
 })->daily()->name('speedpilot:monitoring')->withoutOverlapping();
+
+// Catches drift on any theme with applied fixes, not just the one that
+// happens to be the current target - see CheckOptimizationDriftJob's
+// docblock for the live incident this closes a gap on (a theme-publish-
+// only check never re-examines a theme that's never republished again).
+Schedule::call(function () {
+    ShopInstallation::whereNull('uninstalled_at')->whereNotNull('target_theme_id')->each(
+        fn (ShopInstallation $shop) => CheckOptimizationDriftJob::dispatch($shop->id)
+    );
+})->daily()->name('speedpilot:optimization-drift')->withoutOverlapping();
 
 // The recurring proof point that keeps the subscription justified after the
 // initial optimization is done: one Slack digest per shop for the month

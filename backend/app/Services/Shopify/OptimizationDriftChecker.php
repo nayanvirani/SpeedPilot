@@ -12,6 +12,17 @@ use App\Models\ShopInstallation;
  * offer the existing "Re-apply" button, matching this app's rule that
  * nothing above "safe, one click" ever writes without a merchant pressing
  * something.
+ *
+ * Checks every applied optimization against ITS OWN recorded theme_id, not
+ * just whichever theme currently happens to be the shop's target - a real
+ * live incident (confirmed 2026-10-16) showed an optimization applied to
+ * theme A get silently edited back out after the fact, while the shop's
+ * target theme had since moved on to theme B; the old restriction here
+ * would never have looked at theme A again to notice. A separate, lighter
+ * problem - theme_id no longer matching the CURRENT target at all (the
+ * fix is fine, just not on the theme shown in the app) - is surfaced by
+ * OptimizationController::index() instead, not here, since that's not
+ * "drift" in this checker's sense and nothing here could fix it anyway.
  */
 class OptimizationDriftChecker
 {
@@ -24,13 +35,8 @@ class OptimizationDriftChecker
      */
     public function check(ShopInstallation $shop): int
     {
-        if (! $shop->target_theme_id) {
-            return 0;
-        }
-
         $optimizations = $shop->optimizations()
             ->where('status', 'applied')
-            ->where('theme_id', $shop->target_theme_id)
             ->whereNull('reverted_at')
             ->with(['backups' => fn ($q) => $q->whereNull('restored_at')->latest()])
             ->get();

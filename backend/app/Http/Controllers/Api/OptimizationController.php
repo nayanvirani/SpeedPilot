@@ -18,9 +18,23 @@ class OptimizationController extends Controller
         /** @var ShopInstallation $shop */
         $shop = $request->attributes->get('shop');
 
-        return response()->json([
-            'optimizations' => $shop->optimizations()->with(['backups', 'auditIssue'])->latest()->get(),
-        ]);
+        $optimizations = $shop->optimizations()->with(['backups', 'auditIssue'])->latest()->get()
+            ->map(function ($optimization) use ($shop) {
+                $data = $optimization->toArray();
+                // Both Rollback and Re-apply write to THIS row's own
+                // theme_id (AssetBackupService uses the backup's recorded
+                // theme_id, never the shop's current target) - flagged
+                // whenever that differs from the current target, applied or
+                // reverted, so the Optimizations page can warn rather than
+                // let either button look like it affects the live storefront
+                // when it actually targets a theme nobody's pointed at
+                // anymore.
+                $data['theme_mismatch'] = $optimization->theme_id !== $shop->target_theme_id;
+
+                return $data;
+            });
+
+        return response()->json(['optimizations' => $optimizations]);
     }
 
     public function rollback(Request $request, int $id, AssetBackupService $backups)
