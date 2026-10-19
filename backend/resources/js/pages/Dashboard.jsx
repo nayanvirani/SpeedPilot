@@ -159,6 +159,12 @@ function PageScoreCards({ pages }) {
                         {page.status === 'failed' && page.error_message && (
                             <Text as="span" tone="critical">{page.error_message}</Text>
                         )}
+                        {page.anomalous && (
+                            <Text as="span" tone="caution">
+                                This result looked unreliable (a failed/corrupted measurement, not necessarily your
+                                real speed) and didn't count toward your overall score - re-scan for a trustworthy number.
+                            </Text>
+                        )}
                         <PageWeightBreakdown page={page} />
                     </div>
                 ))}

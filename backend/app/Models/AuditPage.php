@@ -29,6 +29,12 @@ class AuditPage extends Model
         'screenshot',
         'status',
         'error_message',
+        'anomalous',
+        'runtime_error',
+    ];
+
+    protected $casts = [
+        'anomalous' => 'boolean',
     ];
 
     public function audit(): BelongsTo

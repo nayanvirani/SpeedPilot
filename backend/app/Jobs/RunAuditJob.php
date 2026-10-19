@@ -82,7 +82,20 @@ class RunAuditJob implements ShouldQueue
 
                 try {
                     $report = $scanner->scan($spec['url'], $shop->storefront_password, $device);
-                    $this->persistPageReport($page, $report);
+
+                    // A score of exactly 0, or Lighthouse's own
+                    // runtimeError, means THIS RUN was compromised (a page
+                    // error, a hung render, a storefront bug corrupting the
+                    // DOM mid-measurement - confirmed live on jewel-nests),
+                    // not that the store is infinitely slow. One automatic
+                    // retry clears most transient cases; a page that's
+                    // genuinely this broken fails the same way twice and
+                    // gets flagged rather than silently retried forever.
+                    if ($this->isAnomalousReport($report)) {
+                        $report = $scanner->scan($spec['url'], $shop->storefront_password, $device);
+                    }
+
+                    $this->persistPageReport($page, $report, $this->isAnomalousReport($report));
                     $page->update(['status' => 'complete']);
                     $completedPages[] = $page;
 
@@ -246,7 +259,21 @@ class RunAuditJob implements ShouldQueue
         app(MonitoringRecorder::class)->record($shop, $audit->fresh());
     }
 
-    private function persistPageReport(AuditPage $page, array $report): void
+    /**
+     * A bare score of 0 almost never means "this page is infinitely bad" -
+     * every real store in this app's own data that's genuinely terrible
+     * still scores single digits, not a hard zero. In practice 0 means the
+     * run itself failed to measure anything real (confirmed live: a
+     * storefront bug corrupting the DOM mid-render produced exactly this).
+     * runtimeError is Lighthouse's own, more direct signal of the same
+     * thing (PAGE_HUNG, NO_FCP, ERRORED_DOCUMENT_REQUEST, etc.).
+     */
+    private function isAnomalousReport(array $report): bool
+    {
+        return ($report['score'] ?? null) === 0 || ! empty($report['runtimeError']);
+    }
+
+    private function persistPageReport(AuditPage $page, array $report, bool $anomalous = false): void
     {
         $metrics = $report['metrics'] ?? [];
         $weight = $report['weight'] ?? [];
@@ -266,6 +293,8 @@ class RunAuditJob implements ShouldQueue
             'image_weight_bytes' => $weight['image_bytes'] ?? null,
             'request_count' => $weight['request_count'] ?? null,
             'screenshot' => $report['screenshot'] ?? null,
+            'anomalous' => $anomalous,
+            'runtime_error' => $report['runtimeError'] ?? null,
         ]);
 
         // Only the primary device's pass creates audit_issues - the same
@@ -350,6 +379,16 @@ class RunAuditJob implements ShouldQueue
      */
     private function aggregateIntoAudit(Audit $audit, array $pages): void
     {
+        // Pages still flagged anomalous after their automatic retry don't
+        // get to drag the store's whole reported score down with them -
+        // same reasoning as isAnomalousReport() above, just applied at the
+        // rollup instead of the individual run. Falls back to every page
+        // (rather than an all-null audit) in the edge case where literally
+        // every page/device came back anomalous - still the most honest
+        // number available, just no longer silently treated as reliable.
+        $reliable = array_values(array_filter($pages, fn (AuditPage $p) => ! $p->anomalous));
+        $pages = ! empty($reliable) ? $reliable : $pages;
+
         $avg = fn (string $field) => $this->average(array_map(fn (AuditPage $p) => $p->{$field}, $pages));
         // score/*_bytes/request_count/tbt are integer columns - an averaged
         // float (e.g. 123456.5) is invalid input for Postgres's bigint/

@@ -47,6 +47,12 @@ function PageScoreCards({ pages }) {
                         <span className={`sp-score ${scoreClass(page.score)}`} style={{ fontSize: '28px' }}>
                             {page.score ?? '—'}
                         </span>
+                        {page.anomalous && (
+                            <Text as="span" tone="caution">
+                                This result looked unreliable (a failed/corrupted measurement, not necessarily your
+                                real speed) and didn't count toward your overall score - re-scan for a trustworthy number.
+                            </Text>
+                        )}
                     </div>
                 ))}
             </InlineStack>

@@ -158,6 +158,12 @@ function buildReport(lhr, rawHtml) {
 
   return {
     score: Math.round((lhr.categories?.performance?.score ?? 0) * 100),
+    // Lighthouse's own signal that THIS run itself was compromised (page
+    // hung, no FCP ever fired, the document request errored) - distinct
+    // from "the page is just genuinely slow." RunAuditJob uses this (plus
+    // a bare score of 0) to decide whether a run is worth one automatic
+    // retry before it's trusted as a real measurement.
+    runtimeError: lhr.runtimeError?.code ?? null,
     metrics: {
       lcp: metricValueSeconds(audits['largest-contentful-paint']),
       inp: audits['interaction-to-next-paint']?.numericValue ?? null,
