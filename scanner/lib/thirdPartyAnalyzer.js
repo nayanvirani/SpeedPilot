@@ -128,6 +128,31 @@ function findStaticMatch(rawHtml, url) {
   return match ? match[0] : null;
 }
 
+// Lighthouse's own entity classifier labels purely by root domain, so
+// cdn.shopify.com/extensions/{uuid}/judgeme-786/... comes back with
+// item.entity.text = "Shopify" - correct for Shopify's own code on that
+// host, wrong here, since isPlatformUrl() above already knows (and
+// excludes) this exact path shape as a third-party app's Theme App
+// Extension assets, not platform code. Confirmed live: jewel-nests had
+// 885KB of Judge.me's own script attributed to "Shopify" in app_impacts.
+// The {uuid} segment is opaque, but the slug right after it (app-name
+// plus Shopify's own numeric suffix) is the one human-readable hint
+// available without a real app registry - stripped and title-cased into
+// a best-effort name rather than silently keeping the wrong platform
+// label.
+function appNameFromExtensionPath(url) {
+  try {
+    const match = new URL(url).pathname.match(/^\/extensions\/[^/]+\/([^/]+)/);
+    if (!match) return null;
+
+    const slug = match[1].replace(/-\d+$/, '').replace(/[-_]+/g, ' ').trim();
+
+    return slug ? slug.replace(/\b\w/g, (c) => c.toUpperCase()) : null;
+  } catch {
+    return null;
+  }
+}
+
 function thirdPartyImpacts(lhr, rawHtml) {
   const summary = lhr.audits?.['third-party-summary'];
   const items = summary?.details?.items ?? [];
@@ -157,7 +182,7 @@ function thirdPartyImpacts(lhr, rawHtml) {
       )];
 
       return {
-        name: item.entity?.text ?? item.entity ?? 'Unknown script',
+        name: appNameFromExtensionPath(url) ?? item.entity?.text ?? item.entity ?? 'Unknown script',
         url,
         relatedUrls,
         requests: item.subItems?.items?.length ?? 1,

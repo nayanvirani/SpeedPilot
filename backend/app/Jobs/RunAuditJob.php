@@ -420,13 +420,18 @@ class RunAuditJob implements ShouldQueue
             ? (int) round(($cwvMetricScore + $clsIssueScore) / 2)
             : $clsIssueScore;
 
-        $thirdPartyDeduction = $appImpacts->reduce(function (int $carry, $app) {
-            return $carry + match ($app->impact_level) {
-                'high' => 20,
-                'medium' => 10,
-                default => 4,
+        // Same multiplicative-decay reasoning as deductionScore() above, not
+        // a flat sum - a store with 3 high-impact apps shouldn't score
+        // identically to one with 20.
+        $thirdPartyScore = $appImpacts->reduce(function (float $carry, $app) {
+            $factor = match ($app->impact_level) {
+                'high' => 0.20,
+                'medium' => 0.10,
+                default => 0.04,
             };
-        }, 0);
+
+            return $carry * (1 - $factor);
+        }, 100.0);
 
         return [
             'core_web_vitals' => $coreWebVitals,
@@ -434,20 +439,38 @@ class RunAuditJob implements ShouldQueue
             'javascript' => $issueDeduction('js'),
             'css' => $issueDeduction('css'),
             'theme' => $issueDeduction('theme'),
-            'third_party' => max(0, 100 - $thirdPartyDeduction),
+            'third_party' => (int) round($thirdPartyScore),
             'seo' => $issueDeduction('seo'),
         ];
     }
 
     /**
+     * Multiplicative, not a flat subtraction - each issue shaves its
+     * severity's fraction off whatever score remains, rather than a fixed
+     * number of points off 100 directly. A flat sum hits its max(0, ...)
+     * floor the moment a category crosses ~6 high-severity or ~11
+     * medium-severity issues (18*6=108, 9*11=99), and every category past
+     * that point reads as an identical "0" regardless of whether it has 12
+     * issues or 97 - confirmed on a real audit (jewel-nests) where 5 of 7
+     * categories all showed 0 despite js (97 issues) being drastically worse
+     * than css (16 issues), with no way to tell from the score alone. This
+     * keeps moving (asymptotically toward, never instantly to, zero), so a
+     * category with many more issues than another still reads as worse,
+     * even once both are "clearly bad."
+     *
      * @param  array<int, string>  $severities
      */
     private function deductionScore(array $severities): int
     {
-        $weights = ['critical' => 30, 'high' => 18, 'medium' => 9, 'low' => 4];
-        $deduction = array_sum(array_map(fn ($s) => $weights[$s] ?? 9, $severities));
+        $weights = ['critical' => 0.30, 'high' => 0.18, 'medium' => 0.09, 'low' => 0.04];
 
-        return max(0, 100 - $deduction);
+        $score = array_reduce(
+            $severities,
+            fn (float $carry, string $severity) => $carry * (1 - ($weights[$severity] ?? 0.09)),
+            100.0,
+        );
+
+        return (int) round($score);
     }
 
     /**

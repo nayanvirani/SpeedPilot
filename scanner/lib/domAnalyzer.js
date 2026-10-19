@@ -8,6 +8,27 @@
  * riskTier/fixAvailable/meta) so RunAuditJob can persist them as-is.
  */
 
+/**
+ * SpeedPilot's own storefront endpoints (Advanced Delay's interceptor.js,
+ * instant-navigation's prefetch.js) - matched by path, not host, since the
+ * host is this app's own deploy URL and varies by environment. Confirmed
+ * live on jewel-nests: without this exclusion, interceptor.js was flagging
+ * itself as both "render-blocking" (it loads fetchpriority="high" by
+ * design - see ScriptImpactActionService::interceptorManualSnippet()) and
+ * a "possible duplicate asset" of itself (different ?page_type= query
+ * strings across pages share the same basename after normalization) - 9
+ * issues on one real audit were the app accusing its own code of being the
+ * problem, not anything the merchant could act on.
+ */
+function isSpeedPilotAsset(url) {
+  try {
+    const path = new URL(url).pathname;
+    return path === '/storefront/interceptor.js' || path === '/storefront/prefetch.js';
+  } catch {
+    return false;
+  }
+}
+
 function issuesFromLighthouse(lhr) {
   const issues = [];
   const audits = lhr.audits || {};
@@ -319,6 +340,7 @@ function scriptIssues(audits) {
   const renderBlocking = audits['render-blocking-resources'];
   for (const item of renderBlocking?.details?.items ?? []) {
     if (!/\.js(\?|$)/.test(item.url ?? '')) continue;
+    if (isSpeedPilotAsset(item.url ?? '')) continue;
     issues.push({
       category: 'js',
       severity: 'high',
@@ -515,6 +537,7 @@ function duplicateAssetIssues(audits) {
 
   const byBasename = new Map();
   for (const item of items) {
+    if (isSpeedPilotAsset(item.url ?? '')) continue;
     const basename = normalizedBasename(item.url);
     if (!basename) continue;
     if (!byBasename.has(basename)) byBasename.set(basename, []);
