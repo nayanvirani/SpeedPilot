@@ -40,7 +40,7 @@ export default function PerformanceHealth() {
                 <InlineStack gap="300" blockAlign="center">
                     <Text as="span" variant="headingLg">{cfg.emoji}</Text>
                     <BlockStack gap="050">
-                        <Text as="h2" variant="headingSm">Performance health: {cfg.label}</Text>
+                        <Text as="h2" variant="headingSm"><span className="sp-heading">Performance health: {cfg.label}</span></Text>
                         {health.run_at ? (
                             <Text as="p" tone="subdued">
                                 Last checked {new Date(health.run_at).toLocaleDateString()}

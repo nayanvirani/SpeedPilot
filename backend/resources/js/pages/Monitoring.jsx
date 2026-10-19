@@ -69,7 +69,7 @@ function PageTypeTrends() {
     return (
         <Card>
             <BlockStack gap="200">
-                <Text as="h2" variant="headingSm">Score by page type</Text>
+                <Text as="h2" variant="headingSm"><span className="sp-heading">Score by page type</span></Text>
                 <Tabs tabs={tabs} selected={selected} onSelect={setSelected} />
                 <TrendChart points={points} />
             </BlockStack>
@@ -146,7 +146,7 @@ function WhatChanged({ diff }) {
     return (
         <Card>
             <BlockStack gap="200">
-                <Text as="h2" variant="headingSm">What changed since the last scan</Text>
+                <Text as="h2" variant="headingSm"><span className="sp-heading">What changed since the last scan</span></Text>
                 {nothingChanged && (
                     <Text as="p" tone="subdued">No new scripts, issues, or page-level drops since the previous scan.</Text>
                 )}
@@ -206,7 +206,7 @@ function MonthlyReport() {
         <Card>
             <BlockStack gap="300">
                 <InlineStack align="space-between" blockAlign="center">
-                    <Text as="h2" variant="headingSm">Monthly report</Text>
+                    <Text as="h2" variant="headingSm"><span className="sp-heading">Monthly report</span></Text>
                     <input
                         type="month"
                         value={month}
@@ -268,7 +268,7 @@ function ChangeTimeline() {
     return (
         <Card>
             <BlockStack gap="300">
-                <Text as="h2" variant="headingSm">Performance change timeline</Text>
+                <Text as="h2" variant="headingSm"><span className="sp-heading">Performance change timeline</span></Text>
                 <BlockStack gap="250">
                     {timeline.map((event, i) => (
                         <InlineStack key={i} gap="300" blockAlign="start" wrap={false}>
@@ -307,7 +307,7 @@ function RoiLedger({ runs }) {
     return (
         <Card>
             <BlockStack gap="150">
-                <Text as="h2" variant="headingSm">ROI ledger</Text>
+                <Text as="h2" variant="headingSm"><span className="sp-heading">ROI ledger</span></Text>
                 <Text as="p" tone="subdued">
                     Net estimated conversion impact across {withImpact.length} recorded run{withImpact.length === 1 ? '' : 's'} since
                     monitoring began - improvements and regressions netted together, not just the best moment.
@@ -341,7 +341,7 @@ function RealVisitorData() {
         <Card>
             <BlockStack gap="300">
                 <BlockStack gap="100">
-                    <Text as="h2" variant="headingSm">Real visitor data (field data)</Text>
+                    <Text as="h2" variant="headingSm"><span className="sp-heading">Real visitor data (field data)</span></Text>
                     <Text as="p" tone="subdued">
                         {summary.sample_count > 0
                             ? `75th percentile across ${summary.sample_count} real page loads from the last ${summary.window_days} days - how your actual visitors experience your store, not a single lab measurement.`
@@ -357,7 +357,7 @@ function RealVisitorData() {
                 )}
                 {summary.by_device?.length > 0 && (
                     <BlockStack gap="150">
-                        <Text as="h3" variant="headingXs">LCP by device</Text>
+                        <Text as="h3" variant="headingXs"><span className="sp-heading">LCP by device</span></Text>
                         {summary.by_device.map((d) => (
                             <InlineStack key={d.device_type} align="space-between">
                                 <Text as="span" tone="subdued">
@@ -370,7 +370,7 @@ function RealVisitorData() {
                 )}
                 {summary.by_browser?.length > 0 && (
                     <BlockStack gap="150">
-                        <Text as="h3" variant="headingXs">LCP by browser</Text>
+                        <Text as="h3" variant="headingXs"><span className="sp-heading">LCP by browser</span></Text>
                         {summary.by_browser.map((b) => (
                             <InlineStack key={b.browser} align="space-between">
                                 <Text as="span" tone="subdued">{b.browser} ({b.sample_count})</Text>
@@ -421,7 +421,7 @@ export default function Monitoring() {
                         </Text>
                     ) : (
                         <BlockStack gap="200">
-                            <Text as="h2" variant="headingSm">Score over time</Text>
+                            <Text as="h2" variant="headingSm"><span className="sp-heading">Score over time</span></Text>
                             <TrendChart points={chartPoints} />
                         </BlockStack>
                     )}

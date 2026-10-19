@@ -79,7 +79,7 @@ export default function Billing() {
                 {usage && (
                     <Card>
                         <BlockStack gap="400">
-                            <Text as="h2" variant="headingMd">Usage</Text>
+                            <Text as="h2" variant="headingMd"><span className="sp-heading">Usage</span></Text>
                             <InlineGrid columns={{ xs: 1, sm: 2 }} gap="400">
                                 <UsageBar label="Script rules" used={usage.script_rules.used} limit={usage.script_rules.limit} />
                                 <UsageBar label="Safe fixes applied" used={usage.auto_fixes_applied.used} limit={usage.auto_fixes_applied.limit} />

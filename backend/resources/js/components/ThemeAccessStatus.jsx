@@ -34,7 +34,7 @@ export default function ThemeAccessStatus() {
     return (
         <Card>
             <BlockStack gap="200">
-                <Text as="h3" variant="headingSm">Theme write status</Text>
+                <Text as="h3" variant="headingSm"><span className="sp-heading">Theme write status</span></Text>
                 <InlineStack gap="600" wrap>
                     <BlockStack gap="050">
                         <Text as="span" tone="subdued">Target theme</Text>

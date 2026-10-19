@@ -82,7 +82,7 @@ function AdvancedDelaySetup({ appImpacts }) {
     return (
         <Card>
             <BlockStack gap="200">
-                <Text as="h2" variant="headingSm">Advanced delay setup</Text>
+                <Text as="h2" variant="headingSm"><span className="sp-heading">Advanced delay setup</span></Text>
                 <Text as="p" tone="subdued">
                     {delayed.length > 0
                         ? `Active for ${delayed.length} app${delayed.length === 1 ? '' : 's'}: ${delayed.map((a) => a.app_name).join(', ')}. `

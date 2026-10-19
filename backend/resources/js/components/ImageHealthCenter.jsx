@@ -43,7 +43,7 @@ export default function ImageHealthCenter({ issues }) {
                 <InlineGrid columns={{ xs: 2, sm: 3 }} gap="300">
                     {counts.map((b) => (
                         <BlockStack key={b.key} gap="050">
-                            <Text as="span" variant="headingLg">{b.count}</Text>
+                            <Text as="span" variant="headingLg"><span className="sp-mono">{b.count}</span></Text>
                             <Text as="span" tone="subdued">{b.label}</Text>
                         </BlockStack>
                     ))}

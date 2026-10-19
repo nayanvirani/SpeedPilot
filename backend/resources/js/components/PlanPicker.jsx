@@ -13,10 +13,10 @@ export default function PlanPicker({ plans, currentPlanKey, manageUrl }) {
                         <BlockStack gap="300">
                             <BlockStack gap="100">
                                 <Text as="h2" variant="headingMd">
-                                    {plan.name} {isCurrent && <Badge tone="success">Current plan</Badge>}
+                                    <span className="sp-heading">{plan.name}</span> {isCurrent && <Badge tone="success">Current plan</Badge>}
                                 </Text>
                                 <Text as="p" variant="heading2xl">
-                                    ${plan.price}
+                                    <span className="sp-mono">${plan.price}</span>
                                     <Text as="span" tone="subdued"> /mo</Text>
                                 </Text>
                             </BlockStack>

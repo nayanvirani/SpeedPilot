@@ -47,7 +47,9 @@ export default function WeeklyRollup() {
             <BlockStack gap="200">
                 <InlineStack align="space-between" blockAlign="center" wrap>
                     <Text as="h2" variant="headingSm">
-                        This week: {baselineScore} → {currentScore}
+                        <span className="sp-heading">
+                            This week: <span className="sp-mono">{baselineScore} → {currentScore}</span>
+                        </span>
                     </Text>
                     {delta !== null && (
                         <Badge tone={improved ? 'success' : worsened ? 'critical' : undefined}>

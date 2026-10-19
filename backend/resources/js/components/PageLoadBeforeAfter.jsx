@@ -10,9 +10,9 @@ function SecondaryStat({ label, before, after }) {
     return (
         <InlineStack gap="150" blockAlign="center">
             <Text as="span" tone="subdued">{label}:</Text>
-            <Text as="span">{formatSeconds(before)}</Text>
+            <Text as="span"><span className="sp-mono">{formatSeconds(before)}</span></Text>
             <Text as="span" tone="subdued">→</Text>
-            <Text as="span" fontWeight="medium">{formatSeconds(after)}</Text>
+            <Text as="span" fontWeight="medium"><span className="sp-mono">{formatSeconds(after)}</span></Text>
         </InlineStack>
     );
 }
@@ -85,7 +85,7 @@ export default function PageLoadBeforeAfter() {
         return (
             <Card>
                 <BlockStack gap="150">
-                    <Text as="h2" variant="headingSm">Page load time</Text>
+                    <Text as="h2" variant="headingSm"><span className="sp-heading">Page load time</span></Text>
                     <Text as="p" tone="subdued">
                         Run another scan after applying some fixes to see your actual load time improve, in
                         seconds - not just the 0-100 score.
@@ -103,7 +103,7 @@ export default function PageLoadBeforeAfter() {
         <Card>
             <BlockStack gap="300">
                 <InlineStack align="space-between" blockAlign="center">
-                    <Text as="h2" variant="headingSm">Page load time</Text>
+                    <Text as="h2" variant="headingSm"><span className="sp-heading">Page load time</span></Text>
                     {(improved || worsened) && (
                         <Badge tone={improved ? 'success' : 'critical'}>
                             {improved
@@ -115,13 +115,13 @@ export default function PageLoadBeforeAfter() {
                 <InlineStack gap="400" blockAlign="baseline">
                     <BlockStack gap="050">
                         <Text as="span" tone="subdued">Before</Text>
-                        <Text as="span" variant="heading2xl">{formatSeconds(before.lcp)}</Text>
+                        <Text as="span" variant="heading2xl"><span className="sp-mono">{formatSeconds(before.lcp)}</span></Text>
                     </BlockStack>
                     <Text as="span" variant="headingLg" tone="subdued">→</Text>
                     <BlockStack gap="050">
                         <Text as="span" tone="subdued">Now</Text>
                         <Text as="span" variant="heading2xl" tone={improved ? 'success' : worsened ? 'critical' : undefined}>
-                            {formatSeconds(after.lcp)}
+                            <span className="sp-mono">{formatSeconds(after.lcp)}</span>
                         </Text>
                     </BlockStack>
                 </InlineStack>
