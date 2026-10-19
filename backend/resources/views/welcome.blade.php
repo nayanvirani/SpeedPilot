@@ -190,21 +190,61 @@
     <div class="score-card">
       <div class="score-top">
         <div class="score-url">yourstore.myshopify.com</div>
-        <span class="badge badge-good">complete</span>
+        <span class="badge" style="background:var(--surface-2); color:var(--text-muted);">Mobile · Home</span>
       </div>
-      <div class="score-num-row">
-        <div class="score-num">94</div>
-        <span class="score-delta">+22 this month</span>
+      <div style="display:flex; align-items:center; justify-content:center; gap:22px; padding:18px 0; position:relative;">
+        <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+          <div style="width:82px; height:82px; border-radius:50%; background:conic-gradient(var(--critical) 27%, var(--surface-2) 0); display:flex; align-items:center; justify-content:center;">
+            <div style="width:64px; height:64px; border-radius:50%; background:var(--surface); display:flex; align-items:center; justify-content:center;">
+              <span class="mono" style="font-size:21px; font-weight:600;">27</span>
+            </div>
+          </div>
+          <span style="font-size:10.5px; color:var(--text-faint); font-weight:600; letter-spacing:.05em;">BEFORE</span>
+        </div>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+          <div style="width:82px; height:82px; border-radius:50%; background:conic-gradient(var(--good) 91%, var(--surface-2) 0); display:flex; align-items:center; justify-content:center;">
+            <div style="width:64px; height:64px; border-radius:50%; background:var(--surface); display:flex; align-items:center; justify-content:center;">
+              <span class="mono" style="font-size:21px; font-weight:600; color:var(--good);">91</span>
+            </div>
+          </div>
+          <span style="font-size:10.5px; color:var(--text-faint); font-weight:600; letter-spacing:.05em;">AFTER</span>
+        </div>
       </div>
-      <div class="cwv-row">
-        <div class="cwv"><div class="cwv-label">LCP</div><div class="cwv-val">1.8s</div></div>
-        <div class="cwv"><div class="cwv-label">INP</div><div class="cwv-val">142ms</div></div>
-        <div class="cwv"><div class="cwv-label">CLS</div><div class="cwv-val">0.02</div></div>
-        <div class="cwv"><div class="cwv-label">FCP</div><div class="cwv-val">0.9s</div></div>
-        <div class="cwv"><div class="cwv-label">TTFB</div><div class="cwv-val">0.3s</div></div>
+      <div style="display:flex; flex-direction:column; gap:9px; padding-top:15px; border-top:1px solid var(--border); position:relative;">
+        <div style="display:flex; align-items:center; gap:9px; padding-top:13px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--good)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          <span style="font-size:12.8px; color:var(--text-muted);">3 render-blocking stylesheets deferred</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:9px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--good)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          <span style="font-size:12.8px; color:var(--text-muted);">1 duplicate app detected and delayed</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:9px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--good)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          <span style="font-size:12.8px; color:var(--text-muted);">24 images switched to lazy-load</span>
+        </div>
       </div>
-      <div class="thumb-row">
-        <div class="thumb"></div><div class="thumb"></div><div class="thumb"></div>
+    </div>
+  </section>
+
+  <section style="padding-block:28px; border-top:1px solid var(--border);">
+    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:20px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" style="flex:none;"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        <span style="font-size:13.5px; font-weight:500; color:var(--text-muted);">Real Lighthouse audits, not guesses</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;"><path d="M12 2l8 3v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V5l8-3z"/></svg>
+        <span style="font-size:13.5px; font-weight:500; color:var(--text-muted);">Every fix has one-click rollback</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" style="flex:none;"><rect x="3" y="4" width="18" height="4" rx="1.5"/><rect x="3" y="10" width="18" height="4" rx="1.5"/><rect x="3" y="16" width="18" height="4" rx="1.5"/></svg>
+        <span style="font-size:13.5px; font-weight:500; color:var(--text-muted);">See which apps slow you down</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;"><path d="M4 10a8 8 0 0115-3M4 7v3h3"/><path d="M20 14a8 8 0 01-15 3M20 17v-3h-3"/></svg>
+        <span style="font-size:13.5px; font-weight:500; color:var(--text-muted);">Weekly automatic monitoring</span>
       </div>
     </div>
   </section>
