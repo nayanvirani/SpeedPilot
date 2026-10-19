@@ -3,6 +3,7 @@
 namespace App\Services\Monitoring;
 
 use App\Models\Audit;
+use App\Models\Optimization;
 use Illuminate\Support\Collection;
 
 /**
@@ -28,6 +29,7 @@ class AuditDiffService
      *   new_issues: array<int, array>,
      *   resolved_issues: array<int, array>,
      *   page_type_deltas: array<int, array{page_type: string, previous_score: ?int, current_score: ?int, delta: ?int}>,
+     *   own_recent_fixes: array<int, array>,
      * }
      */
     public function diff(Audit $previous, Audit $current): array
@@ -58,7 +60,45 @@ class AuditDiffService
             'new_issues' => $issues['new'],
             'resolved_issues' => $issues['resolved'],
             'page_type_deltas' => $this->pageTypeScoreDeltas($previous, $current),
+            'own_recent_fixes' => $this->ownRecentFixes($previous, $current),
         ];
+    }
+
+    /**
+     * The gap a real incident this session exposed: a regression's own
+     * cause can be SpeedPilot's own earlier fix, not anything external -
+     * confirmed live twice (a defer_css fix on two different stylesheets
+     * each shipped a real CLS regression, found only after hours of manual
+     * browser forensics). new_issues/new_third_party_scripts above already
+     * surface external changes; nothing surfaced SpeedPilot's own writes as
+     * a candidate cause at all. Any fix this shop applied in the window
+     * between the two audits being compared is a real, checkable
+     * correlation - not proof (plenty of applied fixes are genuinely safe),
+     * but exactly the lead that would have made today's investigation
+     * minutes instead of hours.
+     *
+     * @return array<int, array{id: int, type: string, asset_key: ?string, applied_at: ?string}>
+     */
+    private function ownRecentFixes(Audit $previous, Audit $current): array
+    {
+        $shop = $current->shopInstallation;
+
+        if (! $shop || ! $previous->created_at || ! $current->created_at) {
+            return [];
+        }
+
+        return $shop->optimizations()
+            ->where('status', 'applied')
+            ->whereBetween('applied_at', [$previous->created_at, $current->created_at])
+            ->get(['id', 'type', 'asset_key', 'applied_at'])
+            ->map(fn (Optimization $o) => [
+                'id' => $o->id,
+                'type' => $o->type,
+                'asset_key' => $o->asset_key,
+                'applied_at' => $o->applied_at?->toIso8601String(),
+            ])
+            ->values()
+            ->all();
     }
 
     /**

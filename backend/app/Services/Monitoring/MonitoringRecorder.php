@@ -209,6 +209,20 @@ class MonitoringRecorder
             $trendDelta,
         )];
 
+        // Checked first, deliberately - SpeedPilot's own writes are a
+        // real, checkable candidate cause that nothing else here surfaces
+        // at all (confirmed live this session: two real CLS regressions
+        // traced back to SpeedPilot's own defer_css fix, found only after
+        // hours of manual investigation - this is the lead that would have
+        // shortened that to minutes).
+        if (! empty($diff['own_recent_fixes'])) {
+            $fixes = collect($diff['own_recent_fixes'])
+                ->map(fn (array $f) => $f['type'].($f['asset_key'] ? " ({$f['asset_key']})" : ''))
+                ->implode(', ');
+            $lines[] = "- SpeedPilot applied these fixes since the last scan: {$fixes} - a possible contributor, "
+                .'not a confirmed cause. Worth checking the Optimizations page before looking anywhere else.';
+        }
+
         if (! empty($diff['new_third_party_scripts'])) {
             $names = collect($diff['new_third_party_scripts'])->pluck('app_name')->implode(', ');
             $lines[] = "- New third-party script(s) since the last scan: {$names} - a possible contributor, not a "

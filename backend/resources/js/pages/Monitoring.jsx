@@ -117,10 +117,11 @@ function WhatChanged({ diff }) {
         return null;
     }
 
+    const ownFixes = diff.own_recent_fixes ?? [];
     const newScripts = diff.new_third_party_scripts ?? [];
     const newIssues = diff.new_issues ?? [];
     const droppedPages = (diff.page_type_deltas ?? []).filter((p) => p.delta !== null && p.delta < 0);
-    const nothingChanged = newScripts.length === 0 && newIssues.length === 0 && droppedPages.length === 0;
+    const nothingChanged = ownFixes.length === 0 && newScripts.length === 0 && newIssues.length === 0 && droppedPages.length === 0;
 
     async function applyAction(script, status) {
         const confirmMsg = status === 'disabled'
@@ -149,6 +150,20 @@ function WhatChanged({ diff }) {
                 <Text as="h2" variant="headingSm"><span className="sp-heading">What changed since the last scan</span></Text>
                 {nothingChanged && (
                     <Text as="p" tone="subdued">No new scripts, issues, or page-level drops since the previous scan.</Text>
+                )}
+                {ownFixes.length > 0 && (
+                    <BlockStack gap="050">
+                        <Text as="p" tone="subdued">
+                            SpeedPilot applied these fixes since the last scan (a possible contributor to any drop
+                            above, not a confirmed cause - worth checking first):
+                        </Text>
+                        {ownFixes.map((f) => (
+                            <Text as="p" key={f.id}>
+                                - {f.type}{f.asset_key ? ` (${f.asset_key})` : ''}
+                                {f.applied_at ? ` - ${new Date(f.applied_at).toLocaleString()}` : ''}
+                            </Text>
+                        ))}
+                    </BlockStack>
                 )}
                 {newScripts.length > 0 && (
                     <BlockStack gap="150">
