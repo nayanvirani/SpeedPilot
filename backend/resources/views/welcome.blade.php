@@ -377,7 +377,7 @@
   </section>
 
   <section style="background:var(--surface); border-bottom:1px solid var(--border);">
-    <div class="wrap" style="display:flex; gap:48px; align-items:center; flex-wrap:wrap;">
+    <div class="wrap" style="display:flex; gap:48px; align-items:flex-start; flex-wrap:wrap;">
       <div style="flex:1 1 380px; min-width:0; display:flex; flex-direction:column; gap:14px;">
         <div class="eyebrow"><span class="eyebrow-dot"></span> Transparent scoring</div>
         <h2 style="font-size:30px; line-height:1.15;">See exactly where your score comes from</h2>
