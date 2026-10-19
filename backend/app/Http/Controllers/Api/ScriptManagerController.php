@@ -109,6 +109,16 @@ class ScriptManagerController extends Controller
 
         foreach ($issues as $issue) {
             $url = $issue->meta['url'] ?? $issue->meta['script_src'] ?? $issue->meta['css_url'] ?? null;
+
+            // Lighthouse hands back a synthetic, non-URL identifier for CSS
+            // with no real file (an inline <style> block) - confirmed live,
+            // one showed up as literal CSS text ("_affirm-bom-shield{color:
+            // inherit}…"). Nothing for the interceptor engine to watch
+            // without a real src/href, so this isn't a usable candidate.
+            if (! $url || ! preg_match('#^https?://#i', $url)) {
+                continue;
+            }
+
             $identifier = self::normalizedBasename($url);
 
             if (! $identifier) {
