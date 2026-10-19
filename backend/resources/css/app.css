@@ -6,8 +6,15 @@
  * SpeedPilot's own visual identity for score/data displays, layered on top
  * of Polaris (Page/Card/Frame stay Polaris - this only restyles the
  * score/metric surfaces so they read as SpeedPilot's product, not generic
- * admin chrome). Light-only: Polaris itself renders light in this embedded
- * context, so a dark variant here would mismatch the surrounding chrome.
+ * admin chrome). The app runs Polaris's own "dark-experimental" theme
+ * (set via AppProvider's `theme` prop in app.jsx) rather than light -
+ * a deliberate choice, not an oversight: confirmed knowingly with the
+ * merchant-facing tradeoff (always dark regardless of the merchant's own
+ * Shopify admin light/dark setting) explicitly accepted. These :root
+ * values are the light-mode fallback (kept correct in case theme ever
+ * reverts); the real, active palette is the .p-theme-dark-experimental
+ * block below, which Polaris's AppProvider applies to <html> whenever
+ * dark-experimental is active - every token here has a dark twin there.
  */
 :root {
   --sp-accent: #0d9488;
@@ -21,6 +28,40 @@
   --sp-surface-2: #eef1f5;
   --sp-border: #dde3ea;
   --sp-text-faint: #8b96a5;
+}
+
+/*
+ * Dark palette - the "Mono" direction picked after design review: neutral
+ * surfaces and a near-white primary action (matching Polaris's own
+ * dark-experimental --p-color-bg-fill-brand, which is already white-on-dark
+ * for buttons) with one accent color spent only on links/highlights rather
+ * than on every colored surface, muted teal #2DD4BF (lighter -ant/score
+ * color readable at this depth) and a soft violet #B9A3FF for interactive
+ * text - picked for AA contrast against the dark-experimental --p-color-bg
+ * (#1a1a1a), not just for looks (checked: ~7:1 for the violet, ~9:1 for
+ * the teal).
+ */
+.p-theme-dark-experimental {
+  --sp-accent: #2dd4bf;
+  --sp-accent-2: #b9a3ff;
+  --sp-good: #4ade80;
+  --sp-good-bg: rgba(74, 222, 128, 0.14);
+  --sp-warn: #fbbf24;
+  --sp-warn-bg: rgba(251, 191, 36, 0.14);
+  --sp-critical: #f87171;
+  --sp-critical-bg: rgba(248, 113, 113, 0.14);
+  --sp-surface-2: #262626;
+  --sp-border: #3a3a3a;
+  --sp-text-faint: #9a9a9a;
+
+  /* Polaris's dark-experimental theme doesn't redefine link color itself
+     (it inherits the base light theme's blue), so without this, every
+     <a>/Link/plain Button would render in a blue tuned for a white
+     background - the violet here is the one explicit override needed on
+     top of Shopify's own dark theme to land the Mono look. */
+  --p-color-text-link: #b9a3ff;
+  --p-color-text-link-hover: #cdbbff;
+  --p-color-text-link-active: #a288ff;
 }
 
 .sp-heading {
@@ -130,7 +171,7 @@
 }
 
 .sp-page-card {
-  background: #fff;
+  background: var(--p-color-bg-surface);
   border: 1px solid var(--sp-border);
   border-radius: 12px;
   padding: 14px;
@@ -149,6 +190,10 @@
   aspect-ratio: 16 / 10;
   object-fit: cover;
   background: var(--sp-surface-2);
+  /* page screenshots are real photographic content, always on a white
+     background regardless of theme - only the empty-state fallback
+     (background, above) should follow dark mode, the loaded <img> itself
+     is untouched */
 }
 
 .sp-diff-before {

@@ -13,7 +13,7 @@ const root = createRoot(container);
 
 root.render(
     <React.StrictMode>
-        <AppProvider i18n={enTranslations}>
+        <AppProvider i18n={enTranslations} theme="dark-experimental">
             <BrowserRouter>
                 <App />
             </BrowserRouter>

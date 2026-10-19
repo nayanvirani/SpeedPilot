@@ -16,17 +16,17 @@ function UsageBar({ label, used, limit }) {
                 </Text>
             </InlineStack>
             {limit ? (
-                <div style={{ height: '8px', borderRadius: '999px', background: '#f1f2f4', overflow: 'hidden' }}>
+                <div style={{ height: '8px', borderRadius: '999px', background: 'var(--sp-surface-2)', overflow: 'hidden' }}>
                     <div style={{
                         height: '100%',
                         width: `${Math.max(3, pct)}%`,
                         borderRadius: '999px',
-                        background: nearLimit ? '#d72c0d' : '#008060',
+                        background: nearLimit ? 'var(--sp-critical)' : 'var(--sp-good)',
                         transition: 'width .2s ease',
                     }} />
                 </div>
             ) : (
-                <div style={{ height: '8px', borderRadius: '999px', background: '#e8f5f0' }} />
+                <div style={{ height: '8px', borderRadius: '999px', background: 'var(--sp-good-bg)' }} />
             )}
         </BlockStack>
     );
