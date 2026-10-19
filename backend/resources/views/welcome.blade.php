@@ -62,6 +62,8 @@
       nav{display:flex; align-items:center; gap:28px;}
       nav a{font-size:14px; color:var(--text-muted); text-decoration:none;}
       nav a:hover{color:var(--text);}
+      .nav-links{display:flex; align-items:center; gap:28px;}
+      @media (max-width:640px){ .nav-links{display:none;} }
 
       .hero{display:grid; grid-template-columns:1.1fr .9fr; gap:48px; align-items:center; padding-block:32px 56px;}
       @media (max-width:820px){ .hero{grid-template-columns:1fr;} }
@@ -177,9 +179,11 @@
       SpeedPilot
     </a>
     <nav>
-      <a href="#features">Features</a>
-      <a href="#how">How it works</a>
-      <a href="#pricing">Pricing</a>
+      <span class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#how">How it works</a>
+        <a href="#pricing">Pricing</a>
+      </span>
       <a class="btn btn-primary" href="https://apps.shopify.com/speedpilot" style="padding:10px 18px;">Install app</a>
     </nav>
   </header>
@@ -375,6 +379,7 @@
       </div>
     </div>
   </section>
+  </div>
 
   <section style="background:var(--surface); border-bottom:1px solid var(--border);">
     <div class="wrap" style="display:flex; gap:48px; align-items:flex-start; flex-wrap:wrap;">
@@ -413,6 +418,8 @@
       </div>
     </div>
   </section>
+
+  <div class="wrap">
 
   <section>
     <div class="section-head">
