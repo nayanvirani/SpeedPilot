@@ -81,6 +81,24 @@ html.p-theme-light {
   --p-color-bg-fill-brand-active: #4e2541;
   --p-color-bg-fill-brand-selected: #7a3b66;
   --p-color-text-brand-on-bg-fill: #ffffff;
+
+  /* Polaris applies --p-font-family-sans/-mono at the root, so every
+     component's own text (Page titles, Card headings, Button labels,
+     Badge text - none of which go through .sp-heading/.sp-mono) was
+     still rendering in Polaris's stock Inter instead of this design's
+     Manrope/IBM Plex Mono, even after every color token above was fixed -
+     the single biggest miss in the first pass at this. */
+  --p-font-family-sans: 'Manrope', -apple-system, BlinkMacSystemFont, 'San Francisco', 'Segoe UI', Roboto, sans-serif;
+  --p-font-family-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace;
+
+  /* Polaris's own card/button/input corners (--p-border-radius-100/200/300)
+     read noticeably sharper than this design's softer, rounder cards -
+     scaled each step up proportionally rather than touching -full (badges
+     are already fully round) or -0/-050 (hairline details that should
+     stay sharp). */
+  --p-border-radius-100: 0.375rem;
+  --p-border-radius-200: 0.625rem;
+  --p-border-radius-300: 0.875rem;
 }
 
 .sp-heading {
