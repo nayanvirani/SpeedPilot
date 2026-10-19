@@ -119,6 +119,21 @@ class ScriptManagerController extends Controller
                 continue;
             }
 
+            // SpeedPilot's own storefront endpoints (Advanced Delay's
+            // interceptor.js, instant-navigation's prefetch.js) - matched
+            // by path, same exclusion domAnalyzer.js's isSpeedPilotAsset()
+            // applies at detection time, repeated here as a second,
+            // independent filter so a stale issue persisted from before
+            // that fix (or any other future path this list is built from)
+            // still can't surface "manage this file's delay" for the
+            // app's own infrastructure script - offering a delay control
+            // for code SpeedPilot itself depends on to EXIST makes no
+            // sense regardless of why the issue is in the data.
+            $path = parse_url($url, PHP_URL_PATH) ?: '';
+            if ($path === '/storefront/interceptor.js' || $path === '/storefront/prefetch.js') {
+                continue;
+            }
+
             $identifier = self::normalizedBasename($url);
 
             if (! $identifier) {
