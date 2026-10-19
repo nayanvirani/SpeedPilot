@@ -379,47 +379,6 @@
       </div>
     </div>
   </section>
-  </div>
-
-  <section style="background:var(--surface); border-bottom:1px solid var(--border);">
-    <div class="wrap" style="display:flex; gap:48px; align-items:flex-start; flex-wrap:wrap;">
-      <div style="flex:1 1 380px; min-width:0; display:flex; flex-direction:column; gap:14px;">
-        <div class="eyebrow"><span class="eyebrow-dot"></span> Transparent scoring</div>
-        <h2 style="font-size:30px; line-height:1.15;">See exactly where your score comes from</h2>
-        <p style="font-size:15px;">
-          No single opaque number. SpeedPilot breaks every audit down by category, so you know whether
-          it's your images, your apps, or your theme that's costing you — and what to do about each one.
-        </p>
-      </div>
-      <div style="flex:1 1 400px; min-width:280px;">
-        <div class="score-card" style="padding:26px; display:flex; flex-direction:column; gap:16px;">
-          <span style="font-size:11px; font-weight:700; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.06em; position:relative;">Example score breakdown</span>
-          <div style="display:flex; flex-direction:column; gap:3px; position:relative;">
-            <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:var(--text);">Core Web Vitals</span><span class="mono" style="font-weight:600;">48</span></div>
-            <div style="height:7px; border-radius:4px; background:var(--surface-2);"><div style="height:100%; width:48%; border-radius:4px; background:var(--warn);"></div></div>
-          </div>
-          <div style="display:flex; flex-direction:column; gap:3px; position:relative;">
-            <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:var(--text);">Images</span><span class="mono" style="font-weight:600;">72</span></div>
-            <div style="height:7px; border-radius:4px; background:var(--surface-2);"><div style="height:100%; width:72%; border-radius:4px; background:var(--good);"></div></div>
-          </div>
-          <div style="display:flex; flex-direction:column; gap:3px; position:relative;">
-            <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:var(--text);">JavaScript</span><span class="mono" style="font-weight:600;">55</span></div>
-            <div style="height:7px; border-radius:4px; background:var(--surface-2);"><div style="height:100%; width:55%; border-radius:4px; background:var(--warn);"></div></div>
-          </div>
-          <div style="display:flex; flex-direction:column; gap:3px; position:relative;">
-            <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:var(--text);">Third-party apps</span><span class="mono" style="font-weight:600;">40</span></div>
-            <div style="height:7px; border-radius:4px; background:var(--surface-2);"><div style="height:100%; width:40%; border-radius:4px; background:var(--critical);"></div></div>
-          </div>
-          <div style="display:flex; flex-direction:column; gap:3px; position:relative;">
-            <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:var(--text);">SEO</span><span class="mono" style="font-weight:600;">65</span></div>
-            <div style="height:7px; border-radius:4px; background:var(--surface-2);"><div style="height:100%; width:65%; border-radius:4px; background:var(--warn);"></div></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <div class="wrap">
 
   <section>
     <div class="section-head">
