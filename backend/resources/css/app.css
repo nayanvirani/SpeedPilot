@@ -39,8 +39,18 @@
  * primary-button fill (Polaris's own default is near-black with white
  * text; keeping white text since plum is dark enough for the same
  * contrast - checked, ~8:1).
+ *
+ * `html.p-theme-light`, not bare `.p-theme-light`: confirmed live that
+ * Polaris's OWN styles.css also defines a `.p-theme-light{...}` rule (its
+ * stock values, not an empty reset), and with @vite loading this file
+ * before Polaris's styles.css actually ends up on the page, equal-
+ * specificity + later-in-the-cascade meant Polaris's rule was silently
+ * winning - the whole app rendered in Shopify's default gray/black
+ * instead of plum despite these overrides existing. The extra `html`
+ * raises specificity above Polaris's plain class so this wins regardless
+ * of which stylesheet happens to load last.
  */
-.p-theme-light {
+html.p-theme-light {
   --sp-accent: #7a3b66;
   --sp-accent-2: #a14e78;
   --sp-good: #3f8a6b;
