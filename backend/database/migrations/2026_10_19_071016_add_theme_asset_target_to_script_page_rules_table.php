@@ -31,7 +31,25 @@ return new class extends Migration
         });
 
         DB::statement('ALTER TABLE script_page_rules ALTER COLUMN app_name DROP NOT NULL');
-        DB::statement('DROP INDEX IF EXISTS script_page_rules_shop_installation_id_app_name_page_type_unique');
+
+        // The original unique() call named its backing index/constraint
+        // the standard Laravel way, but that name is 67 characters -
+        // Postgres silently truncates identifiers past 63
+        // (NAMEDATALEN-1), so the real stored name isn't the literal
+        // string Laravel generated. Looking it up live rather than
+        // guessing the truncation avoids exactly that mismatch (hit once
+        // already - DROP INDEX with the untruncated name both named the
+        // wrong object AND can't drop a constraint-backed index directly
+        // regardless). ALTER TABLE ... DROP CONSTRAINT is also the only
+        // form Postgres accepts for a constraint-backed unique index.
+        $constraint = DB::selectOne(
+            "SELECT conname FROM pg_constraint WHERE conrelid = 'script_page_rules'::regclass AND contype = 'u'"
+        );
+
+        if ($constraint) {
+            DB::statement('ALTER TABLE script_page_rules DROP CONSTRAINT "'.$constraint->conname.'"');
+        }
+
         DB::statement(
             'CREATE UNIQUE INDEX script_page_rules_target_unique ON script_page_rules '
             .'(shop_installation_id, target_type, COALESCE(app_name, \'\'), COALESCE(asset_identifier, \'\'), page_type)'
@@ -43,13 +61,10 @@ return new class extends Migration
         DB::statement('DROP INDEX IF EXISTS script_page_rules_target_unique');
         DB::statement("DELETE FROM script_page_rules WHERE target_type != 'app'");
         DB::statement('ALTER TABLE script_page_rules ALTER COLUMN app_name SET NOT NULL');
-        DB::statement(
-            'CREATE UNIQUE INDEX script_page_rules_shop_installation_id_app_name_page_type_unique '
-            .'ON script_page_rules (shop_installation_id, app_name, page_type)'
-        );
 
         Schema::table('script_page_rules', function (Blueprint $table) {
             $table->dropColumn(['target_type', 'asset_identifier']);
+            $table->unique(['shop_installation_id', 'app_name', 'page_type']);
         });
     }
 };
