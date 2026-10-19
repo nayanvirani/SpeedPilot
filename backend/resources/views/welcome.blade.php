@@ -171,6 +171,7 @@
     </a>
     <nav>
       <a href="#features">Features</a>
+      <a href="#how">How it works</a>
       <a href="#pricing">Pricing</a>
       <a class="btn btn-primary" href="https://apps.shopify.com/speedpilot" style="padding:10px 18px;">Install app</a>
     </nav>
@@ -245,6 +246,31 @@
       <div style="display:flex; align-items:center; gap:10px;">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;"><path d="M4 10a8 8 0 0115-3M4 7v3h3"/><path d="M20 14a8 8 0 01-15 3M20 17v-3h-3"/></svg>
         <span style="font-size:13.5px; font-weight:500; color:var(--text-muted);">Weekly automatic monitoring</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="how">
+    <div class="section-head" style="text-align:center; margin-inline:auto;">
+      <div class="eyebrow" style="justify-content:center;"><span class="eyebrow-dot"></span> How it works</div>
+      <h2>Three steps, nothing hidden</h2>
+      <p>No black box. Every change SpeedPilot makes is visible, reversible, and explained in plain language.</p>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:16px; overflow:hidden;">
+      <div style="background:var(--surface); padding:28px; display:flex; flex-direction:column; gap:12px;">
+        <span class="mono" style="font-size:13px; color:var(--accent); font-weight:700;">01</span>
+        <h3 style="font-size:18px;">Scan</h3>
+        <p style="font-size:14px;">Run a real Lighthouse and Core Web Vitals audit against your live storefront, page by page — home, product, collection, cart.</p>
+      </div>
+      <div style="background:var(--surface); padding:28px; display:flex; flex-direction:column; gap:12px;">
+        <span class="mono" style="font-size:13px; color:var(--accent); font-weight:700;">02</span>
+        <h3 style="font-size:18px;">Fix</h3>
+        <p style="font-size:14px;">Safe issues apply automatically with a full backup. Riskier ones wait for your one-click review and approval.</p>
+      </div>
+      <div style="background:var(--surface); padding:28px; display:flex; flex-direction:column; gap:12px;">
+        <span class="mono" style="font-size:13px; color:var(--accent); font-weight:700;">03</span>
+        <h3 style="font-size:18px;">Monitor</h3>
+        <p style="font-size:14px;">Weekly automatic re-scans catch regressions and newly installed apps before they cost you conversions.</p>
       </div>
     </div>
   </section>
@@ -339,6 +365,44 @@
         <span class="tag">Real visitors</span>
         <h3>Real-visitor data, split by device and browser</h3>
         <p>The on-storefront collector now breaks real Core Web Vitals down by mobile vs. desktop and by browser — so "my score looks fine" and "my mobile Safari shoppers are waiting three extra seconds" can both be true, and you'll know which.</p>
+      </div>
+    </div>
+  </section>
+
+  <section style="background:var(--surface); border-top:1px solid var(--border); border-bottom:1px solid var(--border);">
+    <div class="wrap" style="padding-block:60px; display:flex; gap:48px; align-items:center; flex-wrap:wrap;">
+      <div style="flex:1 1 380px; min-width:0; display:flex; flex-direction:column; gap:14px;">
+        <div class="eyebrow"><span class="eyebrow-dot"></span> Transparent scoring</div>
+        <h2 style="font-size:30px; line-height:1.15;">See exactly where your score comes from</h2>
+        <p style="font-size:15px;">
+          No single opaque number. SpeedPilot breaks every audit down by category, so you know whether
+          it's your images, your apps, or your theme that's costing you — and what to do about each one.
+        </p>
+      </div>
+      <div style="flex:1 1 400px; min-width:280px;">
+        <div class="score-card" style="padding:26px; display:flex; flex-direction:column; gap:16px;">
+          <span style="font-size:11px; font-weight:700; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.06em; position:relative;">Example score breakdown</span>
+          <div style="display:flex; flex-direction:column; gap:3px; position:relative;">
+            <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:var(--text);">Core Web Vitals</span><span class="mono" style="font-weight:600;">48</span></div>
+            <div style="height:7px; border-radius:4px; background:var(--surface-2);"><div style="height:100%; width:48%; border-radius:4px; background:var(--warn);"></div></div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:3px; position:relative;">
+            <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:var(--text);">Images</span><span class="mono" style="font-weight:600;">72</span></div>
+            <div style="height:7px; border-radius:4px; background:var(--surface-2);"><div style="height:100%; width:72%; border-radius:4px; background:var(--good);"></div></div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:3px; position:relative;">
+            <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:var(--text);">JavaScript</span><span class="mono" style="font-weight:600;">55</span></div>
+            <div style="height:7px; border-radius:4px; background:var(--surface-2);"><div style="height:100%; width:55%; border-radius:4px; background:var(--warn);"></div></div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:3px; position:relative;">
+            <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:var(--text);">Third-party apps</span><span class="mono" style="font-weight:600;">40</span></div>
+            <div style="height:7px; border-radius:4px; background:var(--surface-2);"><div style="height:100%; width:40%; border-radius:4px; background:var(--critical);"></div></div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:3px; position:relative;">
+            <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:var(--text);">SEO</span><span class="mono" style="font-weight:600;">65</span></div>
+            <div style="height:7px; border-radius:4px; background:var(--surface-2);"><div style="height:100%; width:65%; border-radius:4px; background:var(--warn);"></div></div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
