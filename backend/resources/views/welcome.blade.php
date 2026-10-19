@@ -115,6 +115,13 @@
       .grid{display:grid; grid-template-columns:repeat(3,1fr); gap:16px;}
       @media (max-width:820px){ .grid{grid-template-columns:repeat(2,1fr);} }
       @media (max-width:560px){ .grid{grid-template-columns:1fr;} }
+
+      .strip-grid{display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:32px;}
+      @media (max-width:820px){ .strip-grid{grid-template-columns:repeat(2, minmax(0,1fr));} }
+      @media (max-width:480px){ .strip-grid{grid-template-columns:1fr;} }
+
+      .steps-grid{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:16px; overflow:hidden;}
+      @media (max-width:700px){ .steps-grid{grid-template-columns:1fr;} }
       .card{background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:20px; display:flex; flex-direction:column; gap:10px;}
       .card-icon{width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center; background:var(--surface-2); border:1px solid var(--border);}
       .card-icon svg{width:17px; height:17px; stroke:var(--accent);}
@@ -230,7 +237,7 @@
   </section>
 
   <section style="padding-block:28px; border-top:1px solid var(--border);">
-    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:20px;">
+    <div class="strip-grid">
       <div style="display:flex; align-items:center; gap:10px;">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" style="flex:none;"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
         <span style="font-size:13.5px; font-weight:500; color:var(--text-muted);">Real Lighthouse audits, not guesses</span>
@@ -256,7 +263,7 @@
       <h2>Three steps, nothing hidden</h2>
       <p>No black box. Every change SpeedPilot makes is visible, reversible, and explained in plain language.</p>
     </div>
-    <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:16px; overflow:hidden;">
+    <div class="steps-grid">
       <div style="background:var(--surface); padding:28px; display:flex; flex-direction:column; gap:12px;">
         <span class="mono" style="font-size:13px; color:var(--accent); font-weight:700;">01</span>
         <h3 style="font-size:18px;">Scan</h3>
