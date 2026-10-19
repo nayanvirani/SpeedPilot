@@ -34,14 +34,40 @@ Route::get('/faq', [FaqController::class, 'index'])->name('faq');
 // browsers via the <script src> tag "Advanced delay (experimental)" writes
 // into theme.liquid. See InterceptorController's docblock for why the
 // engine lives here instead of inline in the theme.
+//
+// Stateless by design (no session, no CSRF, no cookies - every real
+// shopper's browser fetches this cross-origin from the theme's own
+// domain) - but being in routes/web.php still pulled in the full default
+// 'web' middleware group, so Laravel was starting a session and setting
+// speedpilot_session/XSRF-TOKEN cookies on every single storefront
+// pageview's script fetch. Confirmed live on jewelnests.com: both cookies
+// rejected in every visitor's console (SameSite=Lax/Strict can't be set
+// cross-site), pure overhead with no function - this route never reads a
+// session or validates a token. Same root cause, same fix shape, as the
+// webhook CSRF exception below.
 Route::get('/storefront/interceptor.js', [InterceptorController::class, 'serve'])
     ->middleware('throttle:interceptor')
+    ->withoutMiddleware([
+        \Illuminate\Cookie\Middleware\EncryptCookies::class,
+        \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+        \Illuminate\Session\Middleware\StartSession::class,
+        \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+        \Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class,
+    ])
     ->name('storefront.interceptor');
 
 // Public, unauthenticated - same shape as interceptor.js above, fetched by
-// the <script src> tag "Instant navigation" writes into theme.liquid.
+// the <script src> tag "Instant navigation" writes into theme.liquid. Same
+// stateless-but-inherited-session-cookies issue, same fix.
 Route::get('/storefront/prefetch.js', [PrefetchController::class, 'serve'])
     ->middleware('throttle:interceptor')
+    ->withoutMiddleware([
+        \Illuminate\Cookie\Middleware\EncryptCookies::class,
+        \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+        \Illuminate\Session\Middleware\StartSession::class,
+        \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+        \Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class,
+    ])
     ->name('storefront.prefetch');
 
 // Shopify App Proxy target - https://{shop}/apps/speedpilot/* forwards here
