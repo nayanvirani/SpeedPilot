@@ -154,19 +154,28 @@ function ProjectRemovalButton({ impact }) {
 }
 
 /**
- * Smart Script Manager for one app: "Chat widget on product pages -> off,
- * collection -> after scroll" - additive to the blunt global Disable/Delay
- * buttons above. Rules for this app_name are resolved server-side against
- * whichever page a shopper is actually on (InterceptorController::serve()),
- * not applied here - this panel only edits the rule rows.
+ * Smart Script Manager for one target: "Chat widget on product pages ->
+ * off, collection -> after scroll" - additive to the blunt global
+ * Disable/Delay buttons above. Rules for this target are resolved
+ * server-side against whichever page a shopper is actually on
+ * (InterceptorController::serve()), not applied here - this panel only
+ * edits the rule rows. `target` is either an installed app
+ * ({type:'app', value: app_name}) or the shop's own theme-owned JS/CSS
+ * file ({type:'theme_asset', value: normalized basename}) - same panel,
+ * same rule shape, just a different stable key server-side (see
+ * ScriptManagerController's docblock for why theme assets are keyed by
+ * basename rather than their live, deploy-rotating CDN URL).
  */
-function ScriptPageRulesPanel({ appName, manager, onChange }) {
+function ScriptPageRulesPanel({ target, manager, onChange }) {
     const [pageType, setPageType] = useState('default');
     const [trigger, setTrigger] = useState('interaction');
     const [delaySeconds, setDelaySeconds] = useState('5');
     const [saving, setSaving] = useState(false);
 
-    const rules = (manager?.rules ?? []).filter((r) => r.app_name === appName);
+    const rules = (manager?.rules ?? []).filter((r) => (
+        r.target_type === target.type
+        && (target.type === 'theme_asset' ? r.asset_identifier === target.value : r.app_name === target.value)
+    ));
     const pageTypeOptions = (manager?.page_types ?? []).concat(manager?.default_page_type ? [manager.default_page_type] : [])
         .map((pt) => ({ label: PAGE_TYPE_LABEL[pt] ?? pt, value: pt }));
     const triggerOptions = (manager?.triggers ?? []).map((t) => ({ label: TRIGGER_LABEL[t] ?? t, value: t }));
@@ -175,7 +184,9 @@ function ScriptPageRulesPanel({ appName, manager, onChange }) {
         setSaving(true);
         try {
             await api.put('/script-manager', {
-                app_name: appName,
+                target_type: target.type,
+                app_name: target.type === 'app' ? target.value : undefined,
+                asset_identifier: target.type === 'theme_asset' ? target.value : undefined,
                 page_type: pageType,
                 trigger,
                 delay_seconds: ['timeout', 'scroll'].includes(trigger) ? Number(delaySeconds) || 5 : null,
@@ -302,7 +313,7 @@ function ImpactRow({ impact, pending, onSetStatus, scriptManager, onScriptManage
                 </InlineStack>
             )}
             {!impact.is_platform && !isFree && rulesOpen && (
-                <ScriptPageRulesPanel appName={impact.app_name} manager={scriptManager} onChange={onScriptManagerChange} />
+                <ScriptPageRulesPanel target={{ type: 'app', value: impact.app_name }} manager={scriptManager} onChange={onScriptManagerChange} />
             )}
         </BlockStack>
     );
@@ -412,6 +423,63 @@ function OverlapBanner({ appImpacts, isFree, pendingId, onSetStatus }) {
     );
 }
 
+/**
+ * The theme-owned counterpart to the app list above: real render-blocking/
+ * unused JS or CSS files that never matched any installed app (so they're
+ * the merchant's own theme code, not something to Disable/Delay via App &
+ * Script Impact's app-level actions) - same Smart Script Manager page-rule
+ * control, just keyed by file instead of by app. Candidates come from
+ * ScriptManagerController::index()'s theme_assets list, already sorted by
+ * how many bytes they're actually wasting.
+ */
+function ThemeAssetDelaySection({ manager, onChange }) {
+    const [openIdentifier, setOpenIdentifier] = useState(null);
+    const assets = manager?.theme_assets ?? [];
+
+    if (assets.length === 0) {
+        return null;
+    }
+
+    return (
+        <Card>
+            <BlockStack gap="300">
+                <BlockStack gap="100">
+                    <Text as="h2" variant="headingSm"><span className="sp-heading">Theme-owned scripts &amp; styles</span></Text>
+                    <Text as="p" tone="subdued">
+                        Render-blocking or unused JS/CSS files found directly in your theme, not loaded by any
+                        installed app - set the same page-by-page delay behavior as Smart Script Manager above,
+                        for your own theme's code. Requires Advanced delay setup (above).
+                    </Text>
+                </BlockStack>
+                {assets.map((asset, i) => (
+                    <React.Fragment key={asset.identifier}>
+                        {i > 0 && <div style={{ borderTop: '1px solid var(--p-color-border-secondary)' }} />}
+                        <BlockStack gap="150">
+                            <InlineStack align="space-between" blockAlign="center" wrap>
+                                <BlockStack gap="050">
+                                    <Text as="span" fontWeight="medium"><span className="sp-mono">{asset.label}</span></Text>
+                                    <InlineStack gap="300">
+                                        <Text as="span" tone="subdued">{asset.requests} issue{asset.requests === 1 ? '' : 's'}</Text>
+                                        {asset.wasted_bytes > 0 && (
+                                            <Text as="span" tone="subdued">{Math.round(asset.wasted_bytes / 1024)} KB wasted</Text>
+                                        )}
+                                    </InlineStack>
+                                </BlockStack>
+                                <Button size="micro" variant="plain" onClick={() => setOpenIdentifier((v) => (v === asset.identifier ? null : asset.identifier))}>
+                                    {openIdentifier === asset.identifier ? 'Hide page rules' : 'Manage page rules'}
+                                </Button>
+                            </InlineStack>
+                            {openIdentifier === asset.identifier && (
+                                <ScriptPageRulesPanel target={{ type: 'theme_asset', value: asset.identifier }} manager={manager} onChange={onChange} />
+                            )}
+                        </BlockStack>
+                    </React.Fragment>
+                ))}
+            </BlockStack>
+        </Card>
+    );
+}
+
 export default function AppImpact() {
     const { isFree } = usePlan();
     const [appImpacts, setAppImpacts] = useState([]);
@@ -486,6 +554,7 @@ export default function AppImpact() {
                 <NewAppsCard />
                 <OverlapBanner appImpacts={appImpacts} isFree={isFree} pendingId={pendingId} onSetStatus={setStatus} />
                 {!isFree && <AdvancedDelaySetup appImpacts={appImpacts} />}
+                {!isFree && <ThemeAssetDelaySection manager={scriptManager} onChange={loadScriptManager} />}
                 <Card>
                     {loading ? (
                         <SkeletonBodyText lines={4} />

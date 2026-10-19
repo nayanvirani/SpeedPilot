@@ -391,7 +391,12 @@ function cssIssues(audits) {
         + "page, adding weight without any visual benefit.",
       riskTier: 'medium',
       fixAvailable: false,
-      meta: { evidence: { wasted_bytes: item.wastedBytes ?? null } },
+      // `url` added alongside the existing evidence fields so RunAuditJob's
+      // app-impact cross-reference (and Smart Script Manager's theme-asset
+      // candidate detection) can match this issue the same way js issues
+      // already are - it was only ever used for the title's shortUrl()
+      // before, never persisted.
+      meta: { url: item.url ?? null, evidence: { wasted_bytes: item.wastedBytes ?? null } },
     });
   }
 
@@ -413,6 +418,7 @@ function cssIssues(audits) {
       meta: {
         fix_type: 'defer_css',
         css_url: item.url,
+        url: item.url ?? null,
         evidence: { wasted_ms: item.wastedMs ?? null, estimated_impact: 'HIGH' },
       },
     });
@@ -431,7 +437,7 @@ function cssIssues(audits) {
         + 'visitor even though they serve no visual purpose.',
       riskTier: 'medium',
       fixAvailable: true,
-      meta: { fix_type: 'minify_css', css_url: item.url, evidence: { wasted_bytes: item.wastedBytes ?? null } },
+      meta: { fix_type: 'minify_css', css_url: item.url, url: item.url ?? null, evidence: { wasted_bytes: item.wastedBytes ?? null } },
     });
   }
 

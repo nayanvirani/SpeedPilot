@@ -186,7 +186,15 @@ class RunAuditJob implements ShouldQueue
         // persistPageReport() where they don't yet.
         $nonPlatformImpacts = $audit->appImpacts()->where('is_platform', false)->get();
 
-        $audit->issues()->where('category', 'js')->get()->each(function ($issue) use ($nonPlatformImpacts) {
+        // CSS issues get the exact same treatment as JS here now - the only
+        // real "fix" for a third-party app's unused/render-blocking
+        // stylesheet is the same Disable/Delay already offered for its
+        // scripts, and (just as importantly) an issue that DOESN'T match
+        // any app here is how Smart Script Manager's theme-asset candidate
+        // list (ScriptManagerController::index()) tells "this is the
+        // merchant's own theme file" apart from "this is some app's CSS
+        // SpeedPilot just hasn't resolved yet."
+        $audit->issues()->whereIn('category', ['js', 'css'])->get()->each(function ($issue) use ($nonPlatformImpacts) {
             $url = $issue->meta['url'] ?? null;
             $host = $url ? parse_url($url, PHP_URL_HOST) : null;
 

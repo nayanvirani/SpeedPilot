@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Storefront;
 
+use App\Http\Controllers\Api\ScriptManagerController;
 use App\Http\Controllers\Controller;
 use App\Models\ScriptPageRule;
 use App\Models\ShopInstallation;
@@ -52,10 +53,46 @@ class InterceptorController extends Controller
 
         $legacyUrls = $shop->interceptorDelayTargets()->pluck('script_url')->all();
         $pageType = $this->resolvePageType($request->query('page_type'));
-        $rulesByApp = $shop->scriptPageRules()->get()->groupBy('app_name');
+        $allRules = $shop->scriptPageRules()->get();
+        $rulesByApp = $allRules->where('target_type', ScriptPageRule::TARGET_APP)->groupBy('app_name');
+        $rulesByAsset = $allRules->where('target_type', ScriptPageRule::TARGET_THEME_ASSET)->groupBy('asset_identifier');
 
         $managedGroups = [];
         $legacyTargetUrls = [];
+
+        if ($rulesByAsset->isNotEmpty()) {
+            // Theme-asset rules are keyed by normalized basename (stable
+            // across deploys - see ScriptManagerController's docblock), so
+            // the CURRENT url(s) for that file are resolved fresh from this
+            // shop's latest audit issues every request, same "stable key,
+            // resolved live" split as app rules use via app_impacts.
+            $issues = $shop->latestAudit()?->issues()->whereIn('category', ['js', 'css'])->get() ?? collect();
+            $urlsByIdentifier = [];
+
+            foreach ($issues as $issue) {
+                $url = $issue->meta['url'] ?? $issue->meta['script_src'] ?? $issue->meta['css_url'] ?? null;
+                $identifier = ScriptManagerController::normalizedBasename($url);
+
+                if ($identifier) {
+                    $urlsByIdentifier[$identifier][] = $url;
+                }
+            }
+
+            foreach ($rulesByAsset as $identifier => $assetRules) {
+                $urls = array_values(array_unique($urlsByIdentifier[$identifier] ?? []));
+
+                if (empty($urls)) {
+                    continue;
+                }
+
+                $rule = $assetRules->firstWhere('page_type', $pageType)
+                    ?? $assetRules->firstWhere('page_type', ScriptPageRule::DEFAULT_PAGE_TYPE);
+
+                if ($rule) {
+                    $managedGroups[] = ['urls' => $urls, 'trigger' => $rule->trigger, 'delaySeconds' => $rule->delay_seconds];
+                }
+            }
+        }
 
         if ($rulesByApp->isNotEmpty()) {
             // Smart Script Manager rules are keyed by app_name (stable
