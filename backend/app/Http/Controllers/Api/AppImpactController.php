@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AppImpact;
+use App\Models\Audit;
 use App\Models\ShopInstallation;
 use App\Services\Monitoring\AuditDiffService;
 use App\Services\PlanPolicy;
@@ -100,11 +101,20 @@ class AppImpactController extends Controller
             }
         }
 
-        $decorated = $impacts->map(function (AppImpact $impact) use ($overlapNamesByImpactId) {
+        $wastedCodeByImpactId = $this->wastedCodeByImpact($latestAudit);
+
+        $decorated = $impacts->map(function (AppImpact $impact) use ($overlapNamesByImpactId, $wastedCodeByImpactId) {
             $data = $impact->toArray();
             $overlap = $overlapNamesByImpactId[$impact->id] ?? null;
             $data['overlap_category'] = $overlap['category'] ?? null;
             $data['overlap_with'] = $overlap['with'] ?? [];
+
+            $wasted = $wastedCodeByImpactId[$impact->id] ?? null;
+            $data['wasted_code_bytes'] = $wasted['wasted_bytes'] ?? null;
+            $data['wasted_code_total_bytes'] = $wasted['total_bytes'] ?? null;
+            $data['wasted_code_percent'] = $wasted !== null && $wasted['total_bytes'] > 0
+                ? (int) round($wasted['wasted_bytes'] / $wasted['total_bytes'] * 100)
+                : null;
 
             return $data;
         });
@@ -112,6 +122,44 @@ class AppImpactController extends Controller
         return response()->json([
             'app_impacts' => $decorated,
         ]);
+    }
+
+    /**
+     * Lighthouse's own unused-javascript audit already does real byte-level
+     * coverage analysis (confirmed: this is the same wasted_bytes/
+     * total_bytes evidence domAnalyzer.js's scriptIssues() has stored on
+     * every js-category issue since the beginning, now cross-referenced
+     * to matched_app_impact_id here for the first time) - the data was
+     * already real and accurate, just never summed up per app or turned
+     * into a number a merchant could actually act on ("94% of Foo's code
+     * never runs on your page" is a different, far more useful thing to
+     * see than five separate "Unused JS: foo.js, 40KB of 55KB" issue rows).
+     *
+     * @return array<int, array{wasted_bytes: int, total_bytes: int}>
+     */
+    private function wastedCodeByImpact(?Audit $audit): array
+    {
+        if (! $audit) {
+            return [];
+        }
+
+        $totals = [];
+
+        foreach ($audit->issues()->where('category', 'js')->whereNotNull('meta->matched_app_impact_id')->get() as $issue) {
+            $impactId = $issue->meta['matched_app_impact_id'];
+            $wasted = $issue->meta['evidence']['wasted_bytes'] ?? null;
+            $total = $issue->meta['evidence']['total_bytes'] ?? null;
+
+            if ($wasted === null || $total === null) {
+                continue;
+            }
+
+            $totals[$impactId] ??= ['wasted_bytes' => 0, 'total_bytes' => 0];
+            $totals[$impactId]['wasted_bytes'] += $wasted;
+            $totals[$impactId]['total_bytes'] += $total;
+        }
+
+        return $totals;
     }
 
     public function updateStatus(Request $request, int $id)

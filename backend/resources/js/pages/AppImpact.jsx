@@ -281,6 +281,13 @@ function ImpactRow({ impact, pending, onSetStatus, scriptManager, onScriptManage
                             Loaded directly by Shopify, not an installed app - can't be disabled, delayed, or edited by any app.
                         </Text>
                     )}
+                    {!impact.is_platform && impact.wasted_code_percent !== null && impact.wasted_code_percent >= 30 && (
+                        <Text as="span" tone="caution">
+                            {impact.wasted_code_percent}% of {impact.app_name}'s code never runs on your page
+                            ({Math.round(impact.wasted_code_bytes / 1024)} KB of {Math.round(impact.wasted_code_total_bytes / 1024)} KB
+                            downloaded is unused) - real evidence worth citing if you contact their support.
+                        </Text>
+                    )}
                 </BlockStack>
                 {!isFree && (
                     <ButtonGroup>
