@@ -6,66 +6,76 @@
  * SpeedPilot's own visual identity for score/data displays, layered on top
  * of Polaris (Page/Card/Frame stay Polaris - this only restyles the
  * score/metric surfaces so they read as SpeedPilot's product, not generic
- * admin chrome). The app runs Polaris's own "dark-experimental" theme
- * (set via AppProvider's `theme` prop in app.jsx) rather than light -
- * a deliberate choice, not an oversight: confirmed knowingly with the
- * merchant-facing tradeoff (always dark regardless of the merchant's own
- * Shopify admin light/dark setting) explicitly accepted. These :root
- * values are the light-mode fallback (kept correct in case theme ever
- * reverts); the real, active palette is the .p-theme-dark-experimental
- * block below, which Polaris's AppProvider applies to <html> whenever
- * dark-experimental is active - every token here has a dark twin there.
+ * admin chrome). "Soft Plum" - the same palette as the public landing page
+ * (welcome.blade.php), by design: the app and the landing page are one
+ * identity, not two ("same to same" per design review), so both read off
+ * the same plum/blush values rather than drifting independently. The app
+ * runs Polaris's own default "light" theme (explicit in app.jsx's
+ * AppProvider `theme` prop, not just the implicit default) - these :root
+ * values are the fallback before AppProvider's theme class lands on
+ * <html>; the .p-theme-light block below is what's actually active and
+ * carries the real values, same split as any themed block here.
  */
 :root {
-  --sp-accent: #0d9488;
-  --sp-accent-2: #7c3aed;
-  --sp-good: #16a34a;
-  --sp-good-bg: #e9f8ee;
-  --sp-warn: #b45309;
-  --sp-warn-bg: #fdf3e2;
-  --sp-critical: #dc2626;
-  --sp-critical-bg: #fdecec;
-  --sp-surface-2: #eef1f5;
-  --sp-border: #dde3ea;
-  --sp-text-faint: #8b96a5;
+  --sp-accent: #7a3b66;
+  --sp-accent-2: #a14e78;
+  --sp-good: #3f8a6b;
+  --sp-good-bg: #e4f2eb;
+  --sp-warn: #b2791a;
+  --sp-warn-bg: #f8ebd4;
+  --sp-critical: #b23a3a;
+  --sp-critical-bg: #f7e4e2;
+  --sp-surface-2: #eee3ef;
+  --sp-border: #e6d9e6;
+  --sp-text-faint: #a596a3;
 }
 
 /*
- * Dark palette - the "Mono" direction picked after design review: neutral
- * surfaces and a near-white primary action (matching Polaris's own
- * dark-experimental --p-color-bg-fill-brand, which is already white-on-dark
- * for buttons) with one accent color spent only on links/highlights rather
- * than on every colored surface, muted teal #2DD4BF (lighter -ant/score
- * color readable at this depth) and a soft violet #B9A3FF for interactive
- * text - picked for AA contrast against the dark-experimental --p-color-bg
- * (#1a1a1a), not just for looks (checked: ~7:1 for the violet, ~9:1 for
- * the teal).
+ * Same values as above, scoped to Polaris's own theme class (the pattern
+ * every themed override in this file uses) - plus the handful of Polaris
+ * chrome tokens that need to move off Shopify's stock gray/blue for the
+ * app to actually read as plum rather than just its own score widgets:
+ * page/surface backgrounds, body text, borders, link color, and the
+ * primary-button fill (Polaris's own default is near-black with white
+ * text; keeping white text since plum is dark enough for the same
+ * contrast - checked, ~8:1).
  */
-.p-theme-dark-experimental {
-  --sp-accent: #2dd4bf;
-  --sp-accent-2: #b9a3ff;
-  --sp-good: #4ade80;
-  --sp-good-bg: rgba(74, 222, 128, 0.14);
-  --sp-warn: #fbbf24;
-  --sp-warn-bg: rgba(251, 191, 36, 0.14);
-  --sp-critical: #f87171;
-  --sp-critical-bg: rgba(248, 113, 113, 0.14);
-  --sp-surface-2: #262626;
-  --sp-border: #3a3a3a;
-  --sp-text-faint: #9a9a9a;
+.p-theme-light {
+  --sp-accent: #7a3b66;
+  --sp-accent-2: #a14e78;
+  --sp-good: #3f8a6b;
+  --sp-good-bg: #e4f2eb;
+  --sp-warn: #b2791a;
+  --sp-warn-bg: #f8ebd4;
+  --sp-critical: #b23a3a;
+  --sp-critical-bg: #f7e4e2;
+  --sp-surface-2: #eee3ef;
+  --sp-border: #e6d9e6;
+  --sp-text-faint: #a596a3;
 
-  /* Polaris's dark-experimental theme doesn't redefine link color itself
-     (it inherits the base light theme's blue), so without this, every
-     <a>/Link/plain Button would render in a blue tuned for a white
-     background - the violet here is the one explicit override needed on
-     top of Shopify's own dark theme to land the Mono look. */
-  --p-color-text-link: #b9a3ff;
-  --p-color-text-link-hover: #cdbbff;
-  --p-color-text-link-active: #a288ff;
+  --p-color-bg: #f6f1f7;
+  --p-color-bg-surface: #ffffff;
+  --p-color-bg-surface-secondary: #eee3ef;
+  --p-color-bg-surface-selected: #f0e2ec;
+  --p-color-text: #2b1f2a;
+  --p-color-text-secondary: #736471;
+  --p-color-border-secondary: #e6d9e6;
+  --p-color-icon: #736471;
+
+  --p-color-text-link: #7a3b66;
+  --p-color-text-link-hover: #622f52;
+  --p-color-text-link-active: #4e2541;
+
+  --p-color-bg-fill-brand: #7a3b66;
+  --p-color-bg-fill-brand-hover: #622f52;
+  --p-color-bg-fill-brand-active: #4e2541;
+  --p-color-bg-fill-brand-selected: #7a3b66;
+  --p-color-text-brand-on-bg-fill: #ffffff;
 }
 
 .sp-heading {
-  font-family: 'Sora', system-ui, sans-serif;
+  font-family: 'Manrope', system-ui, sans-serif;
+  font-weight: 800;
   letter-spacing: -0.01em;
 }
 
