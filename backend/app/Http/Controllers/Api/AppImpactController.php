@@ -222,6 +222,63 @@ class AppImpactController extends Controller
     }
 
     /**
+     * The shop's heaviest non-platform third-party domains from its latest
+     * scan - capped at 6, the practical ceiling browsers/MDN recommend
+     * before preconnect's upfront connection cost (DNS+TCP+TLS for each,
+     * all competing for the same early bandwidth) starts outweighing its
+     * benefit for whichever domains actually end up used.
+     *
+     * @return array<int, string>
+     */
+    public static function preconnectHosts(ShopInstallation $shop, int $limit = 6): array
+    {
+        $audit = $shop->latestAudit();
+
+        if (! $audit) {
+            return [];
+        }
+
+        return $audit->appImpacts()
+            ->where('is_platform', false)
+            ->orderByDesc('size_bytes')
+            ->get()
+            ->map(fn (AppImpact $impact) => $impact->script_url ? parse_url($impact->script_url, PHP_URL_HOST) : null)
+            ->filter()
+            ->unique()
+            ->take($limit)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * "Auto-fix" half of Resource Hints' setup, same shared-tag-not-per-app
+     * shape as Advanced Delay above. Safe-tier (risk_tier set inside
+     * ScriptImpactActionService::installPreconnectHints()) since a
+     * preconnect hint never changes what loads or when, only how fast the
+     * connection is once it does.
+     */
+    public function installPreconnectHints(Request $request)
+    {
+        /** @var ShopInstallation $shop */
+        $shop = $request->attributes->get('shop');
+
+        if (! (new PlanPolicy($shop))->hasPaidPlan()) {
+            return response()->json(['error' => 'Resource hints are not available on the Free plan.'], 403);
+        }
+
+        $actions = new ScriptImpactActionService(
+            $themeAssets = new ThemeAssetService(new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token)),
+            new ThemeAssetLocatorService($themeAssets),
+            new AssetBackupService,
+        );
+
+        $hosts = self::preconnectHosts($shop);
+        $result = $actions->installPreconnectHints($shop, $hosts);
+
+        return response()->json([...$result, 'hosts' => $hosts]);
+    }
+
+    /**
      * "What would my score be without this app" - answered with a real
      * second scan, the app's own URLs blocked via Lighthouse's native
      * blockedUrlPatterns option (confirmed via Lighthouse's own docs/search

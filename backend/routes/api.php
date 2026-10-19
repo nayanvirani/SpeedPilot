@@ -43,6 +43,9 @@ Route::middleware('shopify.session')->group(function () {
     Route::get('/advanced-delay/fix-code', [FixCodeController::class, 'forAdvancedDelay']);
     Route::post('/advanced-delay/install', [AppImpactController::class, 'installInterceptorTag']);
 
+    Route::get('/preconnect-hints/fix-code', [FixCodeController::class, 'forPreconnectHints']);
+    Route::post('/preconnect-hints/install', [AppImpactController::class, 'installPreconnectHints']);
+
     Route::get('/script-manager', [ScriptManagerController::class, 'index']);
     Route::put('/script-manager', [ScriptManagerController::class, 'upsert']);
     Route::delete('/script-manager/{id}', [ScriptManagerController::class, 'destroy']);

@@ -294,6 +294,127 @@ class ScriptImpactActionService
         return ['applied' => true, 'message' => null, 'blocked' => false];
     }
 
+    private const PRECONNECT_TAG_START = '<!-- SpeedPilot:preconnect:start -->';
+
+    private const PRECONNECT_TAG_END = '<!-- SpeedPilot:preconnect:end -->';
+
+    /**
+     * `rel="preconnect"` pre-does the DNS lookup/TCP/TLS handshake for a
+     * third-party domain so when the resource actually loads (immediately,
+     * or later for a delayed app - this still helps either way, since the
+     * connection is already warm whenever the real request happens), it
+     * skips straight to downloading instead of paying connection setup cost
+     * first. Zero behavior change for the browser (unlike disable/delay,
+     * nothing is removed or postponed) - a stale hint for an app that's
+     * since been uninstalled is simply ignored, not harmful, so this never
+     * needs the same "is this app still real" guard the delay mechanisms do.
+     */
+    public static function preconnectManualSnippet(array $hosts): string
+    {
+        if (empty($hosts)) {
+            return '<!-- No third-party domains detected yet - run a scan first. -->';
+        }
+
+        return collect($hosts)
+            ->map(fn (string $host) => '<link rel="preconnect" href="https://'.$host.'" crossorigin>')
+            ->implode("\n");
+    }
+
+    /**
+     * Rebuilds the whole block from the CURRENT host list every time,
+     * exactly like rewriteContentForHeaderBlock() below - not an
+     * incremental patch. A merchant's top third-party domains shift as apps
+     * are added/removed/reprioritized between scans, so "install once" would
+     * quietly go stale; RunAuditJob calls this again after every scan once
+     * a shop has opted in (detected via the marker already being present),
+     * keeping the hints current without the merchant re-clicking anything.
+     *
+     * @param  array<int, string>  $hosts
+     * @return array{applied: bool, message: ?string, blocked: bool}
+     */
+    public function installPreconnectHints(ShopInstallation $shop, array $hosts): array
+    {
+        if (! $shop->target_theme_id) {
+            return ['applied' => false, 'message' => 'Pick which theme SpeedPilot should apply changes to first (Dashboard > Target theme).', 'blocked' => false];
+        }
+
+        $themeId = $shop->target_theme_id;
+        $assetKey = 'layout/theme.liquid';
+        $original = $this->themeAssets->read($themeId, $assetKey);
+
+        if ($original === null) {
+            return ['applied' => false, 'message' => 'Could not read your theme.liquid file.', 'blocked' => false];
+        }
+
+        $blockPattern = '/'.preg_quote(self::PRECONNECT_TAG_START, '/').'.*?'.preg_quote(self::PRECONNECT_TAG_END, '/').'\n?/s';
+        $base = preg_replace($blockPattern, '', $original) ?? $original;
+
+        if (empty($hosts)) {
+            $updated = $base;
+        } else {
+            $block = self::PRECONNECT_TAG_START."\n".self::preconnectManualSnippet($hosts)."\n".self::PRECONNECT_TAG_END;
+            $updated = preg_replace('/(<head[^>]*>)/i', '$1'."\n".$block, $base, 1);
+
+            if ($updated === null) {
+                return ['applied' => false, 'message' => "Couldn't find a <head> tag to add this to in your theme.liquid - contact SpeedPilot support.", 'blocked' => false];
+            }
+        }
+
+        if ($updated === $original) {
+            return ['applied' => true, 'message' => null, 'blocked' => false];
+        }
+
+        $optimization = $shop->optimizations()
+            ->where('type', 'preconnect_hints')
+            ->where('status', 'recommended')
+            ->first();
+
+        if (! $optimization) {
+            $optimization = $shop->optimizations()->create([
+                'type' => 'preconnect_hints',
+                'risk_tier' => 'safe',
+                'status' => 'recommended',
+                'theme_id' => $themeId,
+                'asset_key' => $assetKey,
+            ]);
+        }
+
+        $this->backups->backup($optimization, $themeId, $assetKey, $original, $updated);
+
+        try {
+            $this->themeAssets->write($themeId, $assetKey, $updated);
+        } catch (ThemeWriteAccessDeniedException) {
+            $shop->update(['theme_write_blocked_at' => now()]);
+
+            return [
+                'applied' => false,
+                'message' => "Couldn't update your theme automatically right now - try again once SpeedPilot's theme-editing access is approved, or use \"Manual fix\" to paste it yourself.",
+                'blocked' => true,
+            ];
+        }
+
+        $shop->update(['theme_write_blocked_at' => null]);
+        $optimization->update(['status' => 'applied', 'applied_at' => now()]);
+
+        return ['applied' => true, 'message' => null, 'blocked' => false];
+    }
+
+    /**
+     * True if this shop has ever opted into resource hints - checked
+     * against the LIVE theme, not a DB flag, so it stays correct even if a
+     * merchant manually removed the block themselves.
+     */
+    public function hasPreconnectHintsInstalled(ShopInstallation $shop): bool
+    {
+        if (! $shop->target_theme_id) {
+            return false;
+        }
+
+        $content = $this->themeAssets->read($shop->target_theme_id, 'layout/theme.liquid');
+
+        return $content !== null && str_contains($content, self::PRECONNECT_TAG_START);
+    }
+
     private const PREFETCH_TAG_START = '<!-- SpeedPilot:prefetch:start -->';
 
     private const PREFETCH_TAG_END = '<!-- SpeedPilot:prefetch:end -->';

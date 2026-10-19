@@ -320,6 +320,68 @@ function ImpactRow({ impact, pending, onSetStatus, scriptManager, onScriptManage
 }
 
 /**
+ * `rel="preconnect"` for the shop's heaviest third-party domains - doesn't
+ * change what loads or when (unlike every other action on this page), only
+ * how fast the connection is once it does, so there's no confirm dialog and
+ * no per-app toggle, just one shared tag like Advanced Delay's.
+ */
+function PreconnectHintsSetup({ appImpacts }) {
+    const [installing, setInstalling] = useState(false);
+    const [installResult, setInstallResult] = useState(null);
+
+    const topHosts = appImpacts
+        .filter((a) => !a.is_platform && a.script_url)
+        .sort((a, b) => (b.size_bytes ?? 0) - (a.size_bytes ?? 0))
+        .slice(0, 6)
+        .map((a) => { try { return new URL(a.script_url).hostname; } catch { return null; } })
+        .filter(Boolean);
+
+    async function autoInstall() {
+        setInstalling(true);
+        setInstallResult(null);
+        try {
+            const res = await api.post('/preconnect-hints/install');
+            setInstallResult(res);
+        } catch (e) {
+            setInstallResult({ applied: false, message: e.body?.error || 'Could not install resource hints right now.' });
+        } finally {
+            setInstalling(false);
+        }
+    }
+
+    if (topHosts.length === 0) {
+        return null;
+    }
+
+    return (
+        <Card>
+            <BlockStack gap="200">
+                <Text as="h2" variant="headingSm"><span className="sp-heading">Resource hints</span></Text>
+                <Text as="p" tone="subdued">
+                    Pre-opens the connection to your {topHosts.length} heaviest third-party domain{topHosts.length === 1 ? '' : 's'}{' '}
+                    ({topHosts.join(', ')}) so by the time each one's script actually loads - right away, or later if
+                    you've delayed it - the connection is already warm. Safe: nothing is removed or postponed, only
+                    sped up. Re-run this any time your top domains change.
+                </Text>
+                <InlineStack gap="200">
+                    <Button variant="primary" loading={installing} onClick={autoInstall}>
+                        Auto-fix - add to my theme
+                    </Button>
+                    <FixCodeViewer fetchPath="/preconnect-hints/fix-code" label="Manual fix - view code" />
+                </InlineStack>
+                {installResult && (
+                    <Text as="span" tone={installResult.applied ? 'success' : 'critical'}>
+                        {installResult.applied
+                            ? 'Added to your theme - back it up or roll it back any time from the Optimizations page.'
+                            : installResult.message}
+                    </Text>
+                )}
+            </BlockStack>
+        </Card>
+    );
+}
+
+/**
  * Surfaces AppImpactController::newlyInstalled() as its own prominent,
  * read-only card instead of leaving it buried in the Monitoring timeline's
  * diff text - fetched once on mount, same as every other read-only card on
@@ -554,6 +616,7 @@ export default function AppImpact() {
                 <NewAppsCard />
                 <OverlapBanner appImpacts={appImpacts} isFree={isFree} pendingId={pendingId} onSetStatus={setStatus} />
                 {!isFree && <AdvancedDelaySetup appImpacts={appImpacts} />}
+                {!isFree && <PreconnectHintsSetup appImpacts={appImpacts} />}
                 {!isFree && <ThemeAssetDelaySection manager={scriptManager} onChange={loadScriptManager} />}
                 <Card>
                     {loading ? (

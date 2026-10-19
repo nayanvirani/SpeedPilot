@@ -137,6 +137,30 @@ class FixCodeController extends Controller
     }
 
     /**
+     * One shared snippet built from this shop's current heaviest
+     * third-party domains (AppImpactController::preconnectHosts()), same
+     * "no ID, shown once globally" shape as Advanced Delay's manual fix
+     * above.
+     */
+    public function forPreconnectHints(Request $request)
+    {
+        /** @var ShopInstallation $shop */
+        $shop = $request->attributes->get('shop');
+
+        if (! (new PlanPolicy($shop))->hasPaidPlan()) {
+            return response()->json(['error' => 'Resource hints are not available on the Free plan.'], 403);
+        }
+
+        $hosts = AppImpactController::preconnectHosts($shop);
+
+        return response()->json(['code' => self::withSnippets([
+            'fix_type' => 'preconnect_hints',
+            'files' => [['asset_key' => 'layout/theme.liquid', 'original' => null, 'fixed' => ScriptImpactActionService::preconnectManualSnippet($hosts)]],
+            'truncated_count' => 0,
+        ])]);
+    }
+
+    /**
      * Adds a trimmed-to-the-changed-region snippet to every file entry,
      * alongside (not instead of) the full before/after content - the
      * snippet is what a merchant should actually paste; the full content
