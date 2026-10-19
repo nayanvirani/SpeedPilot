@@ -382,6 +382,54 @@ function PreconnectHintsSetup({ appImpacts }) {
 }
 
 /**
+ * Self-hosts the theme's Google Fonts (GoogleFontsSelfHostService) -
+ * downloads the real font files from Google and re-serves them from the
+ * shop's own domain, cutting the extra DNS+connection round trip every
+ * visitor currently pays. Only works when the theme's own source literally
+ * references fonts.googleapis.com - an app-injected font reports that
+ * honestly rather than silently doing nothing, same as every other
+ * theme-edit action on this page.
+ */
+function GoogleFontsSelfHostCard() {
+    const [running, setRunning] = useState(false);
+    const [result, setResult] = useState(null);
+
+    async function run() {
+        setRunning(true);
+        setResult(null);
+        try {
+            const res = await api.post('/google-fonts/self-host');
+            setResult(res);
+        } catch (e) {
+            setResult({ applied: false, message: e.body?.error || 'Could not self-host your fonts right now.' });
+        } finally {
+            setRunning(false);
+        }
+    }
+
+    return (
+        <Card>
+            <BlockStack gap="200">
+                <Text as="h2" variant="headingSm"><span className="sp-heading">Self-host Google Fonts</span></Text>
+                <Text as="p" tone="subdued">
+                    If your theme loads fonts directly from Google, this downloads the real font files and serves
+                    them from your own store instead - same fonts, same weights, same rendering, just without the
+                    extra DNS lookup and connection to fonts.googleapis.com every visitor currently pays for.
+                </Text>
+                <Button loading={running} onClick={run}>Check and self-host</Button>
+                {result && (
+                    <Text as="span" tone={result.applied ? 'success' : 'critical'}>
+                        {result.applied
+                            ? `Self-hosted ${result.font_count} font file${result.font_count === 1 ? '' : 's'} - back it up or roll it back any time from the Optimizations page.`
+                            : result.message}
+                    </Text>
+                )}
+            </BlockStack>
+        </Card>
+    );
+}
+
+/**
  * Surfaces AppImpactController::newlyInstalled() as its own prominent,
  * read-only card instead of leaving it buried in the Monitoring timeline's
  * diff text - fetched once on mount, same as every other read-only card on
@@ -617,6 +665,7 @@ export default function AppImpact() {
                 <OverlapBanner appImpacts={appImpacts} isFree={isFree} pendingId={pendingId} onSetStatus={setStatus} />
                 {!isFree && <AdvancedDelaySetup appImpacts={appImpacts} />}
                 {!isFree && <PreconnectHintsSetup appImpacts={appImpacts} />}
+                {!isFree && <GoogleFontsSelfHostCard />}
                 {!isFree && <ThemeAssetDelaySection manager={scriptManager} onChange={loadScriptManager} />}
                 <Card>
                     {loading ? (

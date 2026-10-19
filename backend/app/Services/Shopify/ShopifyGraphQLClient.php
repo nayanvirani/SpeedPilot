@@ -81,4 +81,38 @@ class ShopifyGraphQLClient
 
         return $body['data'] ?? [];
     }
+
+    /**
+     * A handful of things (a theme asset's real public CDN URL, confirmed
+     * live - GraphQL's OnlineStoreThemeFile type exposes no URL field at
+     * all, only the legacy REST Asset endpoint's `public_url`) still have
+     * no GraphQL equivalent. Shares this client's same base_uri/token
+     * rather than standing up a second authenticated client for one field.
+     *
+     * @param  array<string, mixed>  $query
+     * @return array<string, mixed>
+     */
+    public function get(string $path, array $query = []): array
+    {
+        try {
+            $response = $this->http->get($path, [
+                'headers' => ['X-Shopify-Access-Token' => $this->accessToken],
+                'query' => $query,
+            ]);
+        } catch (RequestException $e) {
+            if ($e->getResponse()?->getStatusCode() === 401) {
+                throw new AccessTokenExpiredException(
+                    "Shopify rejected the access token for {$this->shopDomain}: ".$e->getMessage(),
+                    previous: $e,
+                );
+            }
+
+            throw new RuntimeException(
+                "Shopify REST request failed for {$this->shopDomain}: ".$e->getMessage(),
+                previous: $e,
+            );
+        }
+
+        return json_decode((string) $response->getBody(), true) ?? [];
+    }
 }

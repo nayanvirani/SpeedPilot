@@ -46,6 +46,8 @@ Route::middleware('shopify.session')->group(function () {
     Route::get('/preconnect-hints/fix-code', [FixCodeController::class, 'forPreconnectHints']);
     Route::post('/preconnect-hints/install', [AppImpactController::class, 'installPreconnectHints']);
 
+    Route::post('/google-fonts/self-host', [AppImpactController::class, 'selfHostGoogleFonts']);
+
     Route::get('/script-manager', [ScriptManagerController::class, 'index']);
     Route::put('/script-manager', [ScriptManagerController::class, 'upsert']);
     Route::delete('/script-manager/{id}', [ScriptManagerController::class, 'destroy']);

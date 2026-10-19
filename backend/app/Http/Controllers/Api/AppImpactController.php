@@ -10,6 +10,7 @@ use App\Services\PlanPolicy;
 use App\Services\Scanner\ScannerClient;
 use App\Services\Shopify\AppCategoryClassifier;
 use App\Services\Shopify\AssetBackupService;
+use App\Services\Shopify\GoogleFontsSelfHostService;
 use App\Services\Shopify\ScriptImpactActionService;
 use App\Services\Shopify\ShopifyGraphQLClient;
 use App\Services\Shopify\ThemeAssetLocatorService;
@@ -276,6 +277,27 @@ class AppImpactController extends Controller
         $result = $actions->installPreconnectHints($shop, $hosts);
 
         return response()->json([...$result, 'hosts' => $hosts]);
+    }
+
+    /**
+     * Self-hosts the theme's Google Fonts (GoogleFontsSelfHostService) -
+     * only works when the fonts.googleapis.com reference is literally in
+     * the theme's own source, same limitation as every other theme-edit
+     * action here; reported honestly, not faked, when it isn't.
+     */
+    public function selfHostGoogleFonts(Request $request)
+    {
+        /** @var ShopInstallation $shop */
+        $shop = $request->attributes->get('shop');
+
+        if (! (new PlanPolicy($shop))->hasPaidPlan()) {
+            return response()->json(['error' => 'This is not available on the Free plan.'], 403);
+        }
+
+        $themeAssets = new ThemeAssetService(new ShopifyGraphQLClient($shop->shop_domain, $shop->access_token));
+        $service = new GoogleFontsSelfHostService($themeAssets, new AssetBackupService);
+
+        return response()->json($service->selfHost($shop));
     }
 
     /**

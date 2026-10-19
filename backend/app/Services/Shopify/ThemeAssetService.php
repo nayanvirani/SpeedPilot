@@ -53,6 +53,54 @@ class ThemeAssetService
     }
 
     /**
+     * The asset's real, directly-fetchable CDN URL - confirmed live that
+     * GraphQL's theme file type exposes no URL field at all (only content/
+     * metadata), so this is the one place this app falls back to the
+     * legacy REST Asset endpoint specifically for its `public_url` field.
+     * Needed whenever a value has to be a real resolved URL rather than a
+     * Liquid `asset_url` reference - confirmed live that Shopify serves an
+     * uploaded asset's raw bytes as-is with no Liquid processing, even for
+     * a `.liquid`-suffixed filename, so a self-hosted CSS file's own
+     * `url(...)` values can't be Liquid expressions themselves.
+     */
+    public function publicUrl(string $themeId, string $assetKey): ?string
+    {
+        $data = $this->client->get("themes/{$themeId}/assets.json", ['asset' => ['key' => $assetKey]]);
+
+        return $data['asset']['public_url'] ?? null;
+    }
+
+    /**
+     * For real binary assets (font files) - `write()`'s TEXT body type is
+     * for Liquid/CSS/JS source, not arbitrary bytes. Confirmed directly
+     * against Shopify's live GraphQL schema (introspected
+     * OnlineStoreThemeFileBodyInputType, not assumed): BASE64 is a real,
+     * distinct body type alongside TEXT, and round-trips correctly
+     * (verified live on jewel-nests before this was wired into any
+     * feature).
+     *
+     * @return array<int, string> userErrors (empty = success)
+     */
+    public function writeBinary(string $themeId, string $assetKey, string $binaryContent): array
+    {
+        $data = $this->client->query(<<<'GRAPHQL'
+            mutation themeFilesUpsert($themeId: ID!, $files: [OnlineStoreThemeFilesUpsertFileInput!]!) {
+                themeFilesUpsert(themeId: $themeId, files: $files) {
+                    userErrors { field message }
+                }
+            }
+        GRAPHQL, [
+            'themeId' => "gid://shopify/OnlineStoreTheme/{$themeId}",
+            'files' => [[
+                'filename' => $assetKey,
+                'body' => ['type' => 'BASE64', 'value' => base64_encode($binaryContent)],
+            ]],
+        ]);
+
+        return array_column($data['themeFilesUpsert']['userErrors'] ?? [], 'message');
+    }
+
+    /**
      * @return array<int, string> every filename in the theme (paginated up
      *                             to 3 pages of 250 - generous for any theme)
      */
