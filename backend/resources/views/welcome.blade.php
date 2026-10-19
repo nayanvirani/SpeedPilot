@@ -9,50 +9,54 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
+      /* "Soft Plum" (design review option L3) - blush/lavender ground,
+         deep plum accent, Manrope. Dark variant below is a matching plum
+         dark theme, not a generic inversion, so prefers-color-scheme/
+         data-theme switching stays on-brand either way. */
       :root{
-        --ink:#f6f8fa; --surface:#ffffff; --surface-2:#eef1f5; --border:#dde3ea;
-        --text:#131a24; --text-muted:#5b6675; --text-faint:#8b96a5;
-        --accent:#0d9488; --accent-ink:#ffffff; --accent-2:#7c3aed;
-        --good:#16a34a; --warn:#b45309; --critical:#dc2626;
-        --good-bg:#e9f8ee; --warn-bg:#fdf3e2; --critical-bg:#fdecec;
-        --shadow: 0 1px 2px rgba(20,25,35,.04), 0 8px 24px -12px rgba(20,25,35,.12);
+        --ink:#f6f1f7; --surface:#ffffff; --surface-2:#eee3ef; --border:#e6d9e6;
+        --text:#2b1f2a; --text-muted:#736471; --text-faint:#a596a3;
+        --accent:#7a3b66; --accent-ink:#ffffff; --accent-2:#a14e78;
+        --good:#3f8a6b; --warn:#b2791a; --critical:#b23a3a;
+        --good-bg:#e4f2eb; --warn-bg:#f8ebd4; --critical-bg:#f7e4e2;
+        --shadow: 0 1px 2px rgba(43,31,42,.04), 0 8px 24px -12px rgba(43,31,42,.12);
       }
       @media (prefers-color-scheme: dark){
         :root:not([data-theme="light"]){
-          --ink:#0a0e14; --surface:#12171f; --surface-2:#181f29; --border:#232c39;
-          --text:#e8edf2; --text-muted:#93a0b1; --text-faint:#5f6b7a;
-          --accent:#5eead4; --accent-ink:#06231f; --accent-2:#b6a3fb;
-          --good:#4ade80; --warn:#fbbf24; --critical:#f87171;
-          --good-bg:#122019; --warn-bg:#221c0c; --critical-bg:#241315;
+          --ink:#17111a; --surface:#201922; --surface-2:#2a212d; --border:#362b39;
+          --text:#f3eaf1; --text-muted:#b49dae; --text-faint:#7a6577;
+          --accent:#e0a8c4; --accent-ink:#2b1120; --accent-2:#c98fb0;
+          --good:#6fd9a8; --warn:#f2c572; --critical:#f28b8b;
+          --good-bg:#17291f; --warn-bg:#2b2210; --critical-bg:#2e1819;
           --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 32px -12px rgba(0,0,0,.55);
         }
       }
       :root[data-theme="dark"]{
-        --ink:#0a0e14; --surface:#12171f; --surface-2:#181f29; --border:#232c39;
-        --text:#e8edf2; --text-muted:#93a0b1; --text-faint:#5f6b7a;
-        --accent:#5eead4; --accent-ink:#06231f; --accent-2:#b6a3fb;
-        --good:#4ade80; --warn:#fbbf24; --critical:#f87171;
-        --good-bg:#122019; --warn-bg:#221c0c; --critical-bg:#241315;
+        --ink:#17111a; --surface:#201922; --surface-2:#2a212d; --border:#362b39;
+        --text:#f3eaf1; --text-muted:#b49dae; --text-faint:#7a6577;
+        --accent:#e0a8c4; --accent-ink:#2b1120; --accent-2:#c98fb0;
+        --good:#6fd9a8; --warn:#f2c572; --critical:#f28b8b;
+        --good-bg:#17291f; --warn-bg:#2b2210; --critical-bg:#2e1819;
         --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 32px -12px rgba(0,0,0,.55);
       }
 
       *{box-sizing:border-box;}
       body{
         background:var(--ink); color:var(--text); margin:0;
-        font-family:'Hanken Grotesk',system-ui,sans-serif;
+        font-family:'Manrope',system-ui,sans-serif;
         padding-inline:20px;
       }
       .wrap{max-width:1040px; margin:0 auto;}
-      h1,h2,h3{font-family:'Sora',system-ui,sans-serif; letter-spacing:-.01em; text-wrap:balance; margin:0;}
+      h1,h2,h3{font-family:'Manrope',system-ui,sans-serif; font-weight:800; letter-spacing:-.01em; text-wrap:balance; margin:0;}
       .mono{font-family:'IBM Plex Mono',ui-monospace,monospace;}
       p{color:var(--text-muted); line-height:1.6; margin:0;}
       a{color:inherit;}
 
       header{display:flex; align-items:center; justify-content:space-between; padding-block:28px; gap:16px; flex-wrap:wrap;}
-      .brand{display:flex; align-items:center; gap:10px; font-family:'Sora',sans-serif; font-weight:700; font-size:18px; text-decoration:none;}
+      .brand{display:flex; align-items:center; gap:10px; font-family:'Manrope',sans-serif; font-weight:700; font-size:18px; text-decoration:none;}
       .brand-mark{width:28px; height:28px; border-radius:8px; background:linear-gradient(135deg,var(--accent),var(--accent-2)); display:flex; align-items:center; justify-content:center; flex:none;}
       .brand-mark svg{width:16px; height:16px;}
       nav{display:flex; align-items:center; gap:28px;}
@@ -74,7 +78,7 @@
       .hero p{font-size:17px; margin-top:18px; max-width:46ch;}
       .cta-row{display:flex; gap:12px; margin-top:28px; flex-wrap:wrap;}
       .btn{
-        font-family:'Sora',sans-serif; font-weight:600; font-size:14.5px; padding:13px 22px; border-radius:10px;
+        font-family:'Manrope',sans-serif; font-weight:600; font-size:14.5px; padding:13px 22px; border-radius:10px;
         border:1px solid transparent; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:8px;
       }
       .btn-primary{background:var(--accent); color:var(--accent-ink);}
@@ -161,7 +165,7 @@
   <header>
     <a href="/" class="brand">
       <span class="brand-mark">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#06231f" stroke-width="2.4" stroke-linecap="round"><path d="M4 12h6l2-7 3 14 2-7h3"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-ink)" stroke-width="2.4" stroke-linecap="round"><path d="M4 12h6l2-7 3 14 2-7h3"/></svg>
       </span>
       SpeedPilot
     </a>
