@@ -143,6 +143,32 @@ class RunAuditJob implements ShouldQueue
         $interceptorUrls = $shop->interceptorDelayTargets()->pluck('script_url')->all();
         $contentStopTargets = $shop->contentStopTargets()->get()->keyBy('script_url');
 
+        // The original "Disabled (auto)"/"Delayed (auto)" theme-edit
+        // actions (ScriptImpactActionService::disable()/delay(), via
+        // applyEdit()) persist as an Optimization tied to that scan's
+        // app_impact_id - which becomes a dangling reference the moment
+        // this job creates fresh app_impact rows below, unlike
+        // interceptor/content_replace above (both keyed by the stable
+        // script_url). A disabled script vanishes from detection entirely
+        // (its tag is gone from theme.liquid, so there's nothing left for
+        // this scan to see), but a theme-edit DELAYED script still loads
+        // eventually (delayedLoaderSnippet()'s interaction/5s-timeout
+        // wrapper) and Lighthouse's lab run frequently catches that
+        // delayed load within its trace window - without this lookup, that
+        // reappearance silently relabeled a still-in-effect delay back to
+        // "Active" on every single re-scan. Joined through the OLD
+        // app_impact's app_name (still in the DB, just not the one this
+        // scan creates) since Optimization has no stable app_name of its
+        // own to key on directly.
+        $themeEditOptimizations = $shop->optimizations()
+            ->whereIn('type', ['disabled', 'delayed'])
+            ->where('status', 'applied')
+            ->whereNotNull('app_impact_id')
+            ->with('appImpact:id,app_name')
+            ->get()
+            ->filter(fn ($o) => $o->appImpact !== null)
+            ->keyBy(fn ($o) => $o->appImpact->app_name);
+
         foreach ($thirdPartyByApp as $app) {
             $url = $app['url'] ?? null;
             // Checks every URL this app loaded this scan, not just the
@@ -155,6 +181,7 @@ class RunAuditJob implements ShouldQueue
                 $interceptorUrls,
             ));
             $stopTarget = $url !== null ? $contentStopTargets->get($url) : null;
+            $themeEditOptimization = $themeEditOptimizations->get($app['name']);
 
             // Hashed asset filenames rotate between scans (observed live
             // this session) - refresh the stored search text whenever this
@@ -178,11 +205,14 @@ class RunAuditJob implements ShouldQueue
                 'status' => match (true) {
                     $stopTarget !== null => 'delayed',
                     $isInterceptorDelayed => 'delayed',
+                    $themeEditOptimization?->type === 'disabled' => 'disabled',
+                    $themeEditOptimization?->type === 'delayed' => 'delayed',
                     default => 'active',
                 },
                 'delay_method' => match (true) {
                     $stopTarget !== null => 'content_replace',
                     $isInterceptorDelayed => 'interceptor',
+                    $themeEditOptimization?->type === 'delayed' => 'theme_edit',
                     default => null,
                 },
             ]);

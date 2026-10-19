@@ -100,8 +100,19 @@ class ScriptManagerController extends Controller
             return [];
         }
 
+        // JS only, deliberately not CSS - confirmed live on jewel-nests,
+        // real damage: delaying a theme-owned stylesheet
+        // (component-list-social.css) via this same mechanism left the
+        // page rendering unstyled until the delay triggered, then visibly
+        // snapping into its real layout - CLS 2.72, "poor" is 0.25.
+        // Delaying a third-party app's own script loses that app's
+        // functionality until it loads; delaying the theme's own CSS
+        // breaks the page's fundamental visual structure in the meantime -
+        // a categorically bigger risk that a script delay just doesn't
+        // carry, so CSS isn't offered as a theme-asset candidate at all,
+        // not even with a warning.
         $issues = $audit->issues()
-            ->whereIn('category', ['js', 'css'])
+            ->where('category', 'js')
             ->whereNull('meta->matched_app_impact_id')
             ->get();
 
