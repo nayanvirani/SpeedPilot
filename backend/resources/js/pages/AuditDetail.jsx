@@ -26,6 +26,61 @@ function statusTone(status) {
     return status === 'complete' ? 'success' : status === 'failed' ? 'critical' : 'attention';
 }
 
+/**
+ * Preview-only - computes which CSS is actually needed for this page's
+ * initial viewport (new idea #1: the real fix for the failure class that
+ * broke a live site twice tonight) and shows it for review, never writes
+ * it to the theme. Deliberately not wired to an auto-fix button yet - see
+ * AuditController::criticalCssPreview()'s docblock for why.
+ */
+function CriticalCssPreview({ pageId }) {
+    const [open, setOpen] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [result, setResult] = useState(null);
+
+    async function load() {
+        setOpen(true);
+        if (result) return;
+        setLoading(true);
+        setError(null);
+        try {
+            const res = await api.post(`/audit-pages/${pageId}/critical-css/preview`, {});
+            setResult(res);
+        } catch (e) {
+            setError(e.body?.error || 'Could not compute critical CSS right now.');
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    if (!open) {
+        return <Button size="micro" variant="plain" onClick={load}>Preview critical CSS</Button>;
+    }
+
+    return (
+        <BlockStack gap="150">
+            <InlineStack align="space-between" blockAlign="center">
+                <Text as="span" fontWeight="medium">Critical CSS</Text>
+                <Button size="micro" variant="plain" onClick={() => setOpen(false)}>Hide</Button>
+            </InlineStack>
+            {loading && <Text as="p" tone="subdued">Checking which CSS your initial view actually needs…</Text>}
+            {error && <Text as="span" tone="critical">{error}</Text>}
+            {result && result.stylesheets.length === 0 && (
+                <Text as="p" tone="subdued">No stylesheet rules were matched to on-screen elements for this page.</Text>
+            )}
+            {result && result.stylesheets.map((s) => (
+                <BlockStack gap="050" key={s.href}>
+                    <Text as="span" tone="subdued">
+                        <span className="sp-mono">{s.href}</span> - {s.criticalRules} of {s.totalRules} rules needed for the initial view
+                    </Text>
+                    <pre className="sp-mono sp-code-block">{s.criticalCss}</pre>
+                </BlockStack>
+            ))}
+        </BlockStack>
+    );
+}
+
 function PageScoreCards({ pages }) {
     if (!pages || pages.length === 0) {
         return null;
@@ -53,6 +108,7 @@ function PageScoreCards({ pages }) {
                                 real speed) and didn't count toward your overall score - re-scan for a trustworthy number.
                             </Text>
                         )}
+                        {page.status === 'complete' && <CriticalCssPreview pageId={page.id} />}
                     </div>
                 ))}
             </InlineStack>

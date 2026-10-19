@@ -8,9 +8,11 @@ use App\Jobs\RunAuditJob;
 use App\Models\AppSetting;
 use App\Models\Audit;
 use App\Models\AuditIssue;
+use App\Models\AuditPage;
 use App\Models\ShopInstallation;
 use App\Services\Monitoring\PotentialScoreEstimator;
 use App\Services\PlanPolicy;
+use App\Services\Scanner\ScannerClient;
 use App\Services\Scanner\StorefrontAccessChecker;
 use Illuminate\Http\Request;
 
@@ -246,5 +248,34 @@ class AuditController extends Controller
         }
 
         return response()->json(['optimization' => $optimization]);
+    }
+
+    /**
+     * Preview-only, same "compute and show, never auto-apply" discipline
+     * as FixCodeViewer's manual-fix pattern elsewhere - deliberately NOT
+     * wired to a theme-write action. See scanner/lib/criticalCss.js's
+     * docblock: extraction quality here is a real open question (every
+     * rule is checked against the real browser's own selector engine, but
+     * a single-pass snapshot can still miss state a merchant's theme only
+     * reaches after interaction), and this is the direct fix for the
+     * failure class that broke a real live site twice in one night - not
+     * something to auto-write before it's been seen and judged correct on
+     * a range of real stores first.
+     */
+    public function criticalCssPreview(Request $request, int $pageId, ScannerClient $scanner)
+    {
+        /** @var ShopInstallation $shop */
+        $shop = $request->attributes->get('shop');
+
+        if (! (new PlanPolicy($shop))->hasPaidPlan()) {
+            return response()->json(['error' => 'This is not available on the Free plan.'], 403);
+        }
+
+        $page = AuditPage::whereHas('audit', fn ($q) => $q->where('shop_installation_id', $shop->id))
+            ->findOrFail($pageId);
+
+        $result = $scanner->criticalCss($page->url, $shop->storefront_password);
+
+        return response()->json($result);
     }
 }

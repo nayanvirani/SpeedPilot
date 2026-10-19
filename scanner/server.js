@@ -5,6 +5,7 @@ const v8 = require('v8');
 const { runLighthouse } = require('./lib/lighthouseRunner');
 const { issuesFromLighthouse } = require('./lib/domAnalyzer');
 const { thirdPartyImpacts } = require('./lib/thirdPartyAnalyzer');
+const { extractCriticalCss } = require('./lib/criticalCss');
 
 const app = express();
 app.use(express.json());
@@ -79,6 +80,35 @@ app.post('/scan', async (req, res) => {
   } catch (err) {
     console.error(`Scan failed for ${url}:`, err);
     res.status(502).json({ error: 'Scan failed', message: err.message, code: err.code || null });
+  } finally {
+    maybeRecycle();
+  }
+});
+
+/**
+ * On-demand only (see criticalCss.js's docblock for why this is never run
+ * as part of a routine /scan) - a merchant previewing critical CSS for one
+ * page from the Optimizations/audit UI, not something every audit pays
+ * the cost of. Shares maybeRecycle() with /scan since this also launches
+ * a full Chromium instance under the same documented memory pressure.
+ */
+app.post('/critical-css', async (req, res) => {
+  if (recycling) {
+    return res.status(503).json({ error: 'Scanner is restarting, please retry.', code: 'RECYCLING' });
+  }
+
+  const { url, storefrontPassword } = req.body || {};
+
+  if (!url || typeof url !== 'string') {
+    return res.status(400).json({ error: 'Missing "url" in request body' });
+  }
+
+  try {
+    const result = await extractCriticalCss(url, { storefrontPassword });
+    res.json(result);
+  } catch (err) {
+    console.error(`Critical CSS extraction failed for ${url}:`, err);
+    res.status(502).json({ error: 'Critical CSS extraction failed', message: err.message });
   } finally {
     maybeRecycle();
   }

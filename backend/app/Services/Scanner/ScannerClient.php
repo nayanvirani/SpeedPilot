@@ -98,4 +98,45 @@ class ScannerClient
         // static analysis happy about a guaranteed return type.
         throw new RuntimeException("Scanner request failed for {$url}: exhausted retries");
     }
+
+    /**
+     * On-demand preview of the CSS actually needed for one page's initial
+     * viewport - see scanner/lib/criticalCss.js's docblock for why this is
+     * a separate call, never bundled into scan(). Same
+     * transient-failure/retry handling as scan() - this also launches a
+     * full Chromium instance under the same documented memory pressure.
+     *
+     * @return array{stylesheets: array<int, array{href: string, criticalCss: string, totalRules: int, criticalRules: int}>}
+     */
+    public function criticalCss(string $url, ?string $storefrontPassword = null): array
+    {
+        for ($attempt = 1; $attempt <= self::MAX_ATTEMPTS; $attempt++) {
+            try {
+                $response = $this->http->post('/critical-css', [
+                    'json' => array_filter([
+                        'url' => $url,
+                        'storefrontPassword' => $storefrontPassword,
+                    ]),
+                ]);
+
+                return json_decode((string) $response->getBody(), true) ?? ['stylesheets' => []];
+            } catch (RequestException $e) {
+                $body = $e->getResponse() ? json_decode((string) $e->getResponse()->getBody(), true) : null;
+                $isTransient = ($body['code'] ?? null) === 'RECYCLING' || $e->getResponse() === null;
+
+                if ($isTransient && $attempt < self::MAX_ATTEMPTS) {
+                    Log::info('Scanner unavailable mid-recycle, retrying critical-css', ['url' => $url, 'attempt' => $attempt]);
+                    sleep(self::RETRY_DELAY_SECONDS);
+
+                    continue;
+                }
+
+                $message = $body['message'] ?? "Critical CSS request failed for {$url}: ".$e->getMessage();
+
+                throw new RuntimeException($message, previous: $e);
+            }
+        }
+
+        throw new RuntimeException("Critical CSS request failed for {$url}: exhausted retries");
+    }
 }
