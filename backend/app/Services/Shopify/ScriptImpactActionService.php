@@ -829,6 +829,18 @@ JS;
                 GROUPS.forEach(function (g) { g.released = false; g.pending = []; });
                 console.log('[SpeedPilot] Smart Script Manager active, ' + GROUPS.length + ' group(s)');
                 function parsedUrl(url) {
+                  // `new URL(null, base)` does NOT throw - null coerces to
+                  // the literal string "null" and resolves as a same-origin
+                  // relative path, so a falsy url here must be rejected
+                  // explicitly before ever reaching `new URL()`. Confirmed
+                  // live: this let any DOM mutation with no real src/href
+                  // (virtually every non-script/link/img/iframe node the
+                  // MutationObserver below sees) resolve to the shop's own
+                  // origin and false-match any group whose domain list
+                  // happened to suffix-match it - ripping real page content
+                  // out of the DOM on every mutation, not just delayed
+                  // scripts.
+                  if (!url) return null;
                   try { return new URL(url, location.href); } catch (e) { return null; }
                 }
                 function matchGroupIndex(url) {
@@ -882,6 +894,7 @@ JS;
                 function handle(node) {
                   if (!node || !node.tagName || !node.parentNode) return;
                   var url = targetUrl(node);
+                  if (!url) return;
                   var idx = matchGroupIndex(url);
                   if (idx === -1) return;
                   var g = GROUPS[idx];
@@ -976,6 +989,9 @@ JS;
                 var released = false, pending = [];
                 console.log('[SpeedPilot] engine active, watching ' + DOMAINS.length + ' domain(s):', DOMAINS);
                 function parsedUrl(url) {
+                  // Same guard as the grouped engine's parsedUrl() above -
+                  // `new URL(null, base)` resolves instead of throwing.
+                  if (!url) return null;
                   try { return new URL(url, location.href); } catch (e) { return null; }
                 }
                 function matches(url) {
@@ -1053,6 +1069,7 @@ JS;
                   if (released || !node || !node.tagName || !node.parentNode) return;
                   if (pending.some(function (p) { return p.node === node; })) return;
                   var url = targetUrl(node);
+                  if (!url) return;
                   if (matches(url)) {
                     console.log('[SpeedPilot] intercepted, marked data-speedpilot-delayed:', url);
                     node.setAttribute('data-speedpilot-delayed', 'true');
