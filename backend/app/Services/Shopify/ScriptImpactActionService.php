@@ -315,8 +315,16 @@ class ScriptImpactActionService
             return '<!-- No third-party domains detected yet - run a scan first. -->';
         }
 
+        // $hosts comes from parse_url() on real browser-fetched request
+        // URLs, not raw user input - but this string is written directly
+        // into the merchant's live theme.liquid, rendered to every real
+        // shopper, which is a different and higher-stakes trust boundary
+        // than this app's own admin UI. htmlspecialchars() makes this
+        // provably safe regardless of how trustworthy the upstream data
+        // turns out to be, rather than relying on "a browser wouldn't
+        // resolve a hostname containing markup" holding true forever.
         return collect($hosts)
-            ->map(fn (string $host) => '<link rel="preconnect" href="https://'.$host.'" crossorigin>')
+            ->map(fn (string $host) => '<link rel="preconnect" href="https://'.htmlspecialchars($host, ENT_QUOTES, 'UTF-8').'" crossorigin>')
             ->implode("\n");
     }
 
