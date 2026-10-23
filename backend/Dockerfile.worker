@@ -2,6 +2,14 @@
 # entrypoint regardless of the platform-level startCommand override, so the
 # queue worker needs its own image. No Vite/npm build here - the worker never
 # serves the SPA, only processes queued jobs.
+#
+# php:8.3-cli is a floating tag (auto-tracks the latest 8.3.x patch) -
+# deliberately NOT pinned to an exact patch version, so a security release
+# like today's CVE-2026-109618/109619 fix (8.3.36) reaches this image on the
+# next real rebuild without a version bump here. This comment's own edit is
+# what forces that rebuild right now (confirmed live: an empty commit alone
+# left Railway's build cache untouched and the deployment showed SKIPPED -
+# a real file change in the build context was needed to force a fresh pull).
 FROM php:8.3-cli
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
