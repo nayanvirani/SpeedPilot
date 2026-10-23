@@ -4,6 +4,15 @@ Shopify speed-optimization app. See `SpeedPilot — Shopify Speed Optimization A
 for the full product spec. This repo implements all four roadmap phases (audit, safe
 auto-fixes, monitoring, advanced/AI) as a monorepo of three independently runnable services.
 
+> **2026-10-23 security note:** PHP released critical RCE fixes (CVE-2026-109618,
+> CVE-2026-109619) the same day this line was added. `backend/` runs on Railway's own
+> Railpack/FrankenPHP builder for the main web service - there's no repo-level PHP
+> version pin for it (unlike `backend/Dockerfile.worker`, which does control its own
+> base image), so patching that service's PHP runtime depends on Railway's own image
+> pipeline picking up the fix, not a change in this repo. This edit exists to force a
+> fresh build and check the resulting version - see the deploy log for what it actually
+> resolved to.
+
 ```
 backend/    Laravel 11 API - OAuth, billing, webhooks, scan orchestration, fix engine
 frontend/   Remix + Polaris + App Bridge - embedded admin UI
