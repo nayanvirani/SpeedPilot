@@ -490,7 +490,7 @@ function imageAltIssues(audits) {
   return (missingAlt?.details?.items ?? []).map((item) => ({
     category: 'image',
     severity: 'medium',
-    title: `Missing alt text: ${shortUrl(item.node?.snippet ?? item.url ?? 'an image')}`,
+    title: `Missing alt text: ${shortUrl(item.url ?? 'an image')}`.slice(0, 200),
     description: 'This image has no alt attribute. Add a short, specific description of '
       + "what's in the image via the theme editor or product/media settings - this can't "
       + 'be auto-generated safely without knowing what the image actually shows.',
