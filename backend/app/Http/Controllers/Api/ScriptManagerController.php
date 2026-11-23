@@ -145,6 +145,21 @@ class ScriptManagerController extends Controller
                 continue;
             }
 
+            // Shopify's own first-party platform code (e.g. the native
+            // storefront chat widget at cdn.shopify.com/storefront/web-
+            // components/chat/...) isn't a theme file either - confirmed
+            // live on jewel-nests, zero references to it anywhere in the
+            // theme's actual source. It fell into this bucket only because
+            // this list is really "any js issue that isn't a known app",
+            // not "actually sitting in the theme". There's no theme file
+            // to point a merchant at, so it doesn't belong here. Mirrors
+            // thirdPartyAnalyzer.js's PLATFORM_HOSTS/isPlatformUrl(),
+            // including the /extensions/ carve-out (that path is Theme App
+            // Extensions' shared CDN - third-party app code, not Shopify's).
+            if (self::isPlatformUrl($url)) {
+                continue;
+            }
+
             $identifier = self::normalizedBasename($url);
 
             if (! $identifier) {
@@ -161,6 +176,48 @@ class ScriptManagerController extends Controller
         usort($candidates, fn ($a, $b) => $b['wasted_bytes'] <=> $a['wasted_bytes']);
 
         return array_slice(array_map(fn ($c) => [...$c, 'label' => $c['identifier']], $candidates), 0, 20);
+    }
+
+    /**
+     * Mirrors the scanner's own PLATFORM_HOSTS/isPlatformUrl() (scanner/
+     * lib/thirdPartyAnalyzer.js) exactly, including the /extensions/
+     * carve-out (Theme App Extensions share this CDN host, but that's
+     * third-party app code, not Shopify's own).
+     */
+    private static function isPlatformUrl(string $url): bool
+    {
+        $host = parse_url($url, PHP_URL_HOST);
+
+        if (! $host) {
+            return false;
+        }
+
+        $platformHosts = [
+            'cdn.shopify.com',
+            'shop.app',
+            'shopifycloud.com',
+            'monorail-edge.shopifysvc.com',
+            'checkout.shopify.com',
+        ];
+
+        $matchesPlatformHost = false;
+        foreach ($platformHosts as $platformHost) {
+            if ($host === $platformHost || str_ends_with($host, ".{$platformHost}")) {
+                $matchesPlatformHost = true;
+                break;
+            }
+        }
+
+        if (! $matchesPlatformHost) {
+            return false;
+        }
+
+        $path = parse_url($url, PHP_URL_PATH) ?: '';
+        if ($host === 'cdn.shopify.com' && str_starts_with($path, '/extensions/')) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
